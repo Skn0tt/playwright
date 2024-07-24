@@ -60,15 +60,14 @@ export default defineConfig({
 ```
 
 
-## CI configurations
-
-The [Command line tools](./browsers#install-system-dependencies) can be used to install all operating system dependencies on GitHub Actions.
-
-### GitHub Actions
+## GitHub Actions
 
 Check out our [GitHub Actions](ci-intro.md) guide for more information on how to run your tests on GitHub.
 
-### Docker
+
+The [Command line tools](./browsers#install-system-dependencies) can be used to install all operating system dependencies on GitHub Actions.
+
+## Docker
 
 We have a [pre-built Docker image](./docker.md) which can either be used directly, or as a reference to update your existing Docker definitions.
 
@@ -80,7 +79,7 @@ Suggested configuration
 1. Using `--init` Docker flag or [dumb-init](https://github.com/Yelp/dumb-init) is recommended to avoid special
    treatment for processes with PID=1. This is a common reason for zombie processes.
 
-### Azure Pipelines
+## Azure Pipelines
 
 For Windows or macOS agents, no additional configuration required, just install Playwright and run your tests.
 
@@ -177,7 +176,7 @@ steps:
   displayName: 'Run tests'
 ```
 
-#### Uploading playwright-report folder with Azure Pipelines
+## Uploading playwright-report folder with Azure Pipelines
 * langs: js
 
 This will make the pipeline run fail if any of the playwright tests fails.
@@ -232,7 +231,7 @@ export default defineConfig({
 ```
 in `playwright.config.ts`.
 
-#### Azure Pipelines (sharded)
+## Azure Pipelines (sharded)
 * langs: js
 
 ```yaml
@@ -288,7 +287,7 @@ steps:
 ```
 
 
-#### Azure Pipelines (containerized)
+## Azure Pipelines (containerized)
 
 ```yml js
 trigger:
@@ -376,7 +375,7 @@ steps:
   displayName: 'Run tests'
 ```
 
-### CircleCI
+## CircleCI
 
 Running Playwright on CircleCI is very similar to running on GitHub Actions. In order to specify the pre-built Playwright [Docker image](./docker.md), simply modify the agent definition with `docker:` in your config like so:
 
@@ -410,7 +409,7 @@ executors:
 
 Note: When using the docker agent definition, you are specifying the resource class of where playwright runs to the 'medium' tier [here](https://circleci.com/docs/configuration-reference?#docker-execution-environment). The default behavior of Playwright is to set the number of workers to the detected core count (2 in the case of the medium tier). Overriding the number of workers to greater than this number will cause unnecessary timeouts and failures.
 
-#### Sharding in CircleCI
+## Sharding in CircleCI
 * langs: js
 
 Sharding in CircleCI is indexed with 0 which means that you will need to override the default parallelism ENV VARS. The following example demonstrates how to run Playwright with a CircleCI Parallelism of 4 by adding 1 to the `CIRCLE_NODE_INDEX` to pass into the `--shard` cli arg.
@@ -423,7 +422,7 @@ Sharding in CircleCI is indexed with 0 which means that you will need to overrid
         - run: SHARD="$((${CIRCLE_NODE_INDEX}+1))"; npx playwright test -- --shard=${SHARD}/${CIRCLE_NODE_TOTAL}
   ```
 
-### Jenkins
+## Jenkins
 
 Jenkins supports Docker agents for pipelines. Use the [Playwright Docker image](./docker.md)
 to run tests on Jenkins.
@@ -484,7 +483,7 @@ pipeline {
 }
 ```
 
-### Bitbucket Pipelines
+## Bitbucket Pipelines
 
 Bitbucket Pipelines can use public [Docker images as build environments](https://confluence.atlassian.com/bitbucket/use-docker-images-as-build-environments-792298897.html). To run Playwright tests on Bitbucket, use our public Docker image ([see Dockerfile](./docker.md)).
 
@@ -504,7 +503,7 @@ image: mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy
 image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy
 ```
 
-### GitLab CI
+## GitLab CI
 
 To run Playwright tests on GitLab, use our public Docker image ([see Dockerfile](./docker.md)).
 
@@ -552,7 +551,7 @@ tests:
   ...
 ```
 
-#### Sharding
+## Sharding
 * langs: js
 
 GitLab CI supports [sharding tests between multiple jobs](https://docs.gitlab.com/ee/ci/jobs/job_control.html#parallelize-large-jobs) using the [parallel](https://docs.gitlab.com/ee/ci/yaml/index.html#parallel) keyword. The test job will be split into multiple smaller jobs that run in parallel. Parallel jobs are named sequentially from `job_name 1/N` to `job_name N/N`.
@@ -587,7 +586,7 @@ tests:
     - npm ci
     - npx playwright test --project=$PROJECT --shard=$SHARD
 ```
-### Google Cloud Build
+## Google Cloud Build
 * langs: js
 
 To run Playwright tests on Google Cloud Build, use our public Docker image ([see Dockerfile](./docker.md)).
@@ -601,7 +600,7 @@ steps:
   - 'CI=true'
 ```
 
-### Drone
+## Drone
 * langs: js
 
 To run Playwright tests on Drone, use our public Docker image ([see Dockerfile](./docker.md)).
