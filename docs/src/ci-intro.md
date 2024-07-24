@@ -388,7 +388,7 @@ jobs:
 
 Even with sharding enabled, large test suites can take very long to execute. Running changed tests first on PRs will give you a faster feedback loop and use less CI resources.
 
-```yml js title=".github/workflows/playwright.yml"
+```yml js title=".github/workflows/playwright.yml" {20-23}
 name: Playwright Tests
 on:
   push:
