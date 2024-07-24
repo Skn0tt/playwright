@@ -6,9 +6,7 @@ title: "CI GitHub Actions"
 ## Introduction
 * langs: js
 
-Playwright tests can be run on any CI provider. In this section we will cover running tests on GitHub using GitHub actions. If you would like to see how to configure other CI providers check out our detailed [doc on Continuous Integration](./ci.md).
-
-When [installing Playwright](./intro.md) using the [VS Code extension](./getting-started-vscode.md) or with `npm init playwright@latest` you are given the option to add a [GitHub Actions](https://docs.github.com/en/actions) workflow. This creates a `playwright.yml` file inside a `.github/workflows` folder containing everything you need so that your tests run on each push and pull request into the main/master branch.
+Playwright tests can be run on any CI provider. This guide covers one way of running tests on GitHub using GitHub actions. If you would like to learn more, or how to configure other CI providers, check out our detailed [doc on Continuous Integration](./ci.md).
 
 #### You will learn
 * langs: js
@@ -30,14 +28,26 @@ To add a [GitHub Actions](https://docs.github.com/en/actions) file first create 
 #### You will learn
 * langs: python, java, csharp
   
-- [How to run tests on push/pull_request](/ci-intro.md#on-pushpull_request)
+- [How to setup GitHub Actions](/ci-intro.md#setting-up-GitHub-Actions)
 - [How to view test logs](/ci-intro.md#viewing-test-logs)
 - [How to view the trace](/ci-intro.md#viewing-the-trace)
 
 
 ## Setting up GitHub Actions
+* langs: js
 
-TODO: a very very very straight-forward Guide on how to set up actions
+When [installing Playwright](./intro.md) using the [VS Code extension](./getting-started-vscode.md) or with `npm init playwright@latest` you are given the option to add a [GitHub Actions](https://docs.github.com/en/actions) workflow. This creates a `playwright.yml` file inside a `.github/workflows` folder containing everything you need so that your tests run on each push and pull request into the main/master branch.
+
+TODO: if you don't have that in your repo yet, use the example code below:
+
+## Setting up GitHub Actions
+* langs: python, java, csharp
+
+To add a [GitHub Actions](https://docs.github.com/en/actions) file first create `.github/workflows` folder and inside it add a `playwright.yml` file containing the example code below so that your tests will run on each push and pull request for the main/master branch.
+
+
+
+TODO: example code + explanation
 
 ## Create a Repo and Push to GitHub
 
@@ -187,4 +197,5 @@ This step will not work for pull requests created from a forked repository becau
 - [Learn how to perform Actions](./input.md)
 - [Learn how to write Assertions](./test-assertions.md)
 - [Learn more about the Trace Viewer](/trace-viewer.md)
-- [Learn more about running tests on other CI providers](/ci.md)
+- [Learn more ways of running tests on GitHub Actions](/ci.md)
+- [Learn more about running tests on other CI providers](/ci.md#github-actions) // TODO: is this link correct?
