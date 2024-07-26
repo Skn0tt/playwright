@@ -1,6 +1,6 @@
 ---
 id: ci-intro
-title: "CI GitHub Actions"
+title: "Setting up CI"
 ---
 
 ## Introduction
