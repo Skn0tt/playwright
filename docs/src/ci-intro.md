@@ -23,8 +23,6 @@ Playwright tests can be run on any CI provider. This guide covers one way of run
 
 Playwright tests can be ran on any CI provider. In this section we will cover running tests on GitHub using GitHub actions. If you would like to see how to configure other CI providers check out our detailed doc on Continuous Integration.
 
-To add a [GitHub Actions](https://docs.github.com/en/actions) file first create `.github/workflows` folder and inside it add a `playwright.yml` file containing the example code below so that your tests will run on each push and pull request for the main/master branch.
-
 #### You will learn
 * langs: python, java, csharp
   
