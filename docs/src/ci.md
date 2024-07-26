@@ -1016,10 +1016,10 @@ TODO: find links to back up "research suggests"
 **CI takes too long:** Slow CI reduces development velocity. Not only can it slow down urgent fixes, but also your feedback loop from code change to verification.
 A good rule of thumb is to stay below 10mins (TODO: right time?) for the entire CI duration.
 
-[Sharding](./test-parallel.md#shard-tests-between-multiple-machines) can help lower the CI by running tests in parallel. This comes at the expense of significantly higher resource usage.
-
 ######
 * langs: js
+
+[Sharding](./test-parallel.md#shard-tests-between-multiple-machines) can help lower the CI by running tests in parallel. This comes at the expense of significantly higher resource usage.
 
 If you don't worry about your total CI duration, but want to tighten the feedback loop in Pull Requests, take a look at the [Fail-Fast](#fail-fast) strategy. It uses the `--only-changed` heuristic for a preliminary test run of tests that are likely to fail.
 
