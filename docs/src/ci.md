@@ -413,7 +413,9 @@ jobs:
 ### Fail-Fast
 * langs: js
 
-Even with sharding enabled, large test suites can take very long to execute. Running changed tests first on PRs will give you a faster feedback loop and use less CI resources.
+Large test suites can take very long to execute. By executing a preliminary test run with the `--only-changed` flag, you can run tests that are likely to fail first.
+This will give you a faster feedback loop and slightly lower CI consumption while working on Pull Requests.
+To detect files affected by your changeset, `--only-changed` analyses your suites' dependency graph. This is a heuristic and might miss tests, so it's important that you always run the full test suite after the preliminary test run.
 
 ```yml js title=".github/workflows/playwright.yml" {20-23}
 name: Playwright Tests
