@@ -560,7 +560,7 @@ steps:
   displayName: 'Run tests'
 ```
 
-### Uploading playwright-report folder with Azure Pipelines
+#### Uploading playwright-report folder with Azure Pipelines
 * langs: js
 
 This will make the pipeline run fail if any of the playwright tests fails.
@@ -615,7 +615,7 @@ export default defineConfig({
 ```
 in `playwright.config.ts`.
 
-### Azure Pipelines (sharded)
+#### Azure Pipelines (sharded)
 * langs: js
 
 ```yaml
@@ -671,7 +671,7 @@ steps:
 ```
 
 
-### Azure Pipelines (containerized)
+#### Azure Pipelines (containerized)
 
 ```yml js
 trigger:
@@ -793,7 +793,7 @@ executors:
 
 Note: When using the docker agent definition, you are specifying the resource class of where playwright runs to the 'medium' tier [here](https://circleci.com/docs/configuration-reference?#docker-execution-environment). The default behavior of Playwright is to set the number of workers to the detected core count (2 in the case of the medium tier). Overriding the number of workers to greater than this number will cause unnecessary timeouts and failures.
 
-### Sharding in CircleCI
+#### Sharding in CircleCI
 * langs: js
 
 Sharding in CircleCI is indexed with 0 which means that you will need to override the default parallelism ENV VARS. The following example demonstrates how to run Playwright with a CircleCI Parallelism of 4 by adding 1 to the `CIRCLE_NODE_INDEX` to pass into the `--shard` cli arg.
@@ -935,7 +935,7 @@ tests:
   ...
 ```
 
-### Sharding
+#### Sharding
 * langs: js
 
 GitLab CI supports [sharding tests between multiple jobs](https://docs.gitlab.com/ee/ci/jobs/job_control.html#parallelize-large-jobs) using the [parallel](https://docs.gitlab.com/ee/ci/yaml/index.html#parallel) keyword. The test job will be split into multiple smaller jobs that run in parallel. Parallel jobs are named sequentially from `job_name 1/N` to `job_name N/N`.
