@@ -1001,37 +1001,6 @@ steps:
       - npx playwright test
 ```
 
-## Improving your Continuous Integration
-
-If you're frustrated with your Continuous Integration, here's some things you can do:
-
-**Flaky tests:** The most common problem in CI. Flaky tests can massively reduce trust in your test suite, and will lead to bugs slipping through because someone thought "it's just a flaky test". If you've seen that happen, or your team says "oh yeah that test? it's flaky, don't worry", that's a good sign you need to work on unflaking some tests.
-Here's some good guides on how to do that:
-
-TODO: find guides
-
-Research suggests that it's hard to fully eliminate flakiness. For those remaining 1.5% of flaky tests, auto-retry helps (TODO: link to auto-retry)
-
-TODO: find links to back up "research suggests"
-
-**CI takes too long:** Slow CI reduces development velocity. Not only can it slow down urgent fixes, but also your feedback loop from code change to verification.
-A good rule of thumb is to stay below 10mins (TODO: right time?) for the entire CI duration.
-
-######
-* langs: js
-
-[Sharding](./test-parallel.md#shard-tests-between-multiple-machines) can help lower the CI runtime by running tests in parallel. This comes at the expense of significantly higher resource usage.
-
-If you don't worry about your total CI duration, but want to tighten the feedback loop in Pull Requests, take a look at the [Fail-Fast](#fail-fast) strategy. It uses the `--only-changed` heuristic for a preliminary test run of tests that are likely to fail.
-
-**CI is too expensive:** only run a subset of tests on PRs, using `--only-changed`, but ensure you're running the full suite nightly. this lowers CI expenses at the cost of making failures harder to attribute to code-changes. Tends to work well for repositories that only consist of tests.
-Make sure to carefully balance your CI expenses with time spent on debugging. Keep in mind that CI minutes tend to be less expensive than engineering minutes, so carefully balance this!
-
-open questions:
-- this doc reads like it's targeted at engineering leaders, because it touches on business considerations. is that the right audience for this?
-- how's the writing? feels like the wrong tone to me. what do you think about the not-so-technical style?
-- is the content sound?
-
 ## Caching browsers
 
 Caching browser binaries is not recommended, since the amount of time it takes to restore the cache is comparable to the time it takes to download the binaries. Especially under Linux, [operating system dependencies](./browsers.md#install-system-dependencies) need to be installed, which are not cacheable.
