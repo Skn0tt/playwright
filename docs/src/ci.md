@@ -59,12 +59,13 @@ export default defineConfig({
 });
 ```
 
+## Recipes
 
-## GitHub Actions
+### GitHub Actions
 
 The [Command line tools](./browsers#install-system-dependencies) can be used to install all operating system dependencies on GitHub Actions.
 
-### On push/pull_request
+#### On push/pull_request
 * langs: js
 
 Tests will run on push or pull request on branches main/master. The [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) will install all dependencies, install Playwright and then run the tests. It will also create the HTML report.
@@ -99,7 +100,7 @@ jobs:
         retention-days: 30
 ```
 
-### On push/pull_request
+#### On push/pull_request
 * langs: python, java, csharp
 
 Tests will run on push or pull request on branches main/master. The [workflow](https://docs.github.com/en/actions/using-workflows/about-workflows) will install all dependencies, install Playwright and then run the tests.
@@ -185,12 +186,12 @@ jobs:
       run: dotnet test
 ```
 
-### On push/pull_request (sharded)
+#### On push/pull_request (sharded)
 * langs: js
 
 GitHub Actions supports [sharding tests between multiple jobs](https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs). Check out our [sharding doc](./test-sharding) to learn more about sharding and to see a [GitHub actions example](./test-sharding.md#github-actions-example) of how to configure a job to run your tests on multiple machines as well as how to merge the HTML reports.
 
-### Via Containers
+#### Via Containers
 
 GitHub Actions support [running jobs in a container](https://docs.github.com/en/actions/using-jobs/running-jobs-in-a-container) by using the [`jobs.<job_id>.container`](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idcontainer) option. This is useful to not pollute the host environment with dependencies and to have a consistent environment for e.g. screenshots/visual regression testing across different operating systems.
 
@@ -303,7 +304,7 @@ jobs:
           HOME: /root
 ```
 
-### On deployment
+#### On deployment
 
 This will start the tests after a [GitHub Deployment](https://developer.github.com/v3/repos/deployments/) went into the `success` state.
 Services like Vercel use this pattern so you can run your end-to-end tests on their deployed environment.
@@ -410,7 +411,7 @@ jobs:
         PLAYWRIGHT_TEST_BASE_URL: ${{ github.event.deployment_status.target_url }}
 ```
 
-### Fail-Fast
+#### Fail-Fast
 * langs: js
 
 Large test suites can take very long to execute. By executing a preliminary test run with the `--only-changed` flag, you can run test files that are likely to fail first.
@@ -450,7 +451,7 @@ jobs:
         retention-days: 30
 ```
 
-## Docker
+### Docker
 
 We have a [pre-built Docker image](./docker.md) which can either be used directly, or as a reference to update your existing Docker definitions.
 
@@ -462,7 +463,7 @@ Suggested configuration
 1. Using `--init` Docker flag or [dumb-init](https://github.com/Yelp/dumb-init) is recommended to avoid special
    treatment for processes with PID=1. This is a common reason for zombie processes.
 
-## Azure Pipelines
+### Azure Pipelines
 
 For Windows or macOS agents, no additional configuration required, just install Playwright and run your tests.
 
@@ -559,7 +560,7 @@ steps:
   displayName: 'Run tests'
 ```
 
-## Uploading playwright-report folder with Azure Pipelines
+### Uploading playwright-report folder with Azure Pipelines
 * langs: js
 
 This will make the pipeline run fail if any of the playwright tests fails.
@@ -614,7 +615,7 @@ export default defineConfig({
 ```
 in `playwright.config.ts`.
 
-## Azure Pipelines (sharded)
+### Azure Pipelines (sharded)
 * langs: js
 
 ```yaml
@@ -670,7 +671,7 @@ steps:
 ```
 
 
-## Azure Pipelines (containerized)
+### Azure Pipelines (containerized)
 
 ```yml js
 trigger:
@@ -758,7 +759,7 @@ steps:
   displayName: 'Run tests'
 ```
 
-## CircleCI
+### CircleCI
 
 Running Playwright on CircleCI is very similar to running on GitHub Actions. In order to specify the pre-built Playwright [Docker image](./docker.md), simply modify the agent definition with `docker:` in your config like so:
 
@@ -792,7 +793,7 @@ executors:
 
 Note: When using the docker agent definition, you are specifying the resource class of where playwright runs to the 'medium' tier [here](https://circleci.com/docs/configuration-reference?#docker-execution-environment). The default behavior of Playwright is to set the number of workers to the detected core count (2 in the case of the medium tier). Overriding the number of workers to greater than this number will cause unnecessary timeouts and failures.
 
-## Sharding in CircleCI
+### Sharding in CircleCI
 * langs: js
 
 Sharding in CircleCI is indexed with 0 which means that you will need to override the default parallelism ENV VARS. The following example demonstrates how to run Playwright with a CircleCI Parallelism of 4 by adding 1 to the `CIRCLE_NODE_INDEX` to pass into the `--shard` cli arg.
@@ -805,7 +806,7 @@ Sharding in CircleCI is indexed with 0 which means that you will need to overrid
         - run: SHARD="$((${CIRCLE_NODE_INDEX}+1))"; npx playwright test -- --shard=${SHARD}/${CIRCLE_NODE_TOTAL}
   ```
 
-## Jenkins
+### Jenkins
 
 Jenkins supports Docker agents for pipelines. Use the [Playwright Docker image](./docker.md)
 to run tests on Jenkins.
@@ -866,7 +867,7 @@ pipeline {
 }
 ```
 
-## Bitbucket Pipelines
+### Bitbucket Pipelines
 
 Bitbucket Pipelines can use public [Docker images as build environments](https://confluence.atlassian.com/bitbucket/use-docker-images-as-build-environments-792298897.html). To run Playwright tests on Bitbucket, use our public Docker image ([see Dockerfile](./docker.md)).
 
@@ -886,7 +887,7 @@ image: mcr.microsoft.com/playwright/java:v%%VERSION%%-jammy
 image: mcr.microsoft.com/playwright/dotnet:v%%VERSION%%-jammy
 ```
 
-## GitLab CI
+### GitLab CI
 
 To run Playwright tests on GitLab, use our public Docker image ([see Dockerfile](./docker.md)).
 
@@ -934,7 +935,7 @@ tests:
   ...
 ```
 
-## Sharding
+### Sharding
 * langs: js
 
 GitLab CI supports [sharding tests between multiple jobs](https://docs.gitlab.com/ee/ci/jobs/job_control.html#parallelize-large-jobs) using the [parallel](https://docs.gitlab.com/ee/ci/yaml/index.html#parallel) keyword. The test job will be split into multiple smaller jobs that run in parallel. Parallel jobs are named sequentially from `job_name 1/N` to `job_name N/N`.
@@ -969,7 +970,7 @@ tests:
     - npm ci
     - npx playwright test --project=$PROJECT --shard=$SHARD
 ```
-## Google Cloud Build
+### Google Cloud Build
 * langs: js
 
 To run Playwright tests on Google Cloud Build, use our public Docker image ([see Dockerfile](./docker.md)).
@@ -983,7 +984,7 @@ steps:
   - 'CI=true'
 ```
 
-## Drone
+### Drone
 * langs: js
 
 To run Playwright tests on Drone, use our public Docker image ([see Dockerfile](./docker.md)).
