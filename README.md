@@ -20,6 +20,8 @@ Looking for Playwright for [Python](https://playwright.dev/python/docs/intro), [
 
 Playwright has its own test runner for end-to-end tests, we call it Playwright Test.
 
+test
+
 ### Using init command
 
 The easiest way to get started with Playwright Test is to run the init command.
