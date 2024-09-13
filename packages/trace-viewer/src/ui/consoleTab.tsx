@@ -125,7 +125,9 @@ export const ConsoleTab: React.FunctionComponent<{
         const timestamp = msToString(entry.timestamp - boundaries.minimum);
         const timestampElement = <span className='console-time'>{timestamp}</span>;
         const errorSuffix = entry.isError ? 'status-error' : entry.isWarning ? 'status-warning' : 'status-none';
-        const statusElement = entry.browserMessage || entry.browserError ? <span className={clsx('codicon', 'codicon-browser', errorSuffix)} title='Browser message'></span> : <span className={clsx('codicon', 'codicon-file', errorSuffix)} title='Runner message'></span>;
+        let statusElement = entry.browserMessage || entry.browserError ? <span className={clsx('codicon', 'codicon-browser', errorSuffix)} title='Browser message'></span> : <span className={clsx('codicon', 'codicon-file', errorSuffix)} title='Runner message'></span>;
+        if (entry.browserMessage?.location === 'webserver:0')
+          statusElement = <span className={clsx('codicon', 'codicon-server', errorSuffix)} title='Web Server message'></span>;
         let locationText: string | undefined;
         let messageBody: JSX.Element[] | string | undefined;
         let messageInnerHTML: string | undefined;

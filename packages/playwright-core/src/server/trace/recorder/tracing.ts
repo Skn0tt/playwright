@@ -16,6 +16,7 @@
 
 import fs from 'fs';
 import os from 'os';
+import net from 'net';
 import path from 'path';
 import type { NameValue } from '../../../common/types';
 import type { TracingTracingStopChunkParams } from '@protocol/channels';
@@ -186,6 +187,9 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
         eventsHelper.addEventListener(this._context, BrowserContext.Events.Console, this._onConsoleMessage.bind(this)),
         eventsHelper.addEventListener(this._context, BrowserContext.Events.PageError, this._onPageError.bind(this)),
     );
+
+    net.connect('web-server-log.sock').on('data', chunk => this._onWebServerLog(chunk));
+
     if (this._state.options.screenshots)
       this._startScreencast();
     if (this._state.options.snapshots)
@@ -443,6 +447,19 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
       location: message.location(),
       time: monotonicTime(),
       pageId: message.page()?.guid,
+    };
+    this._appendTraceEvent(event);
+  }
+
+  private _onWebServerLog(chunk: Buffer) {
+    const event: trace.ConsoleMessageTraceEvent = {
+      type: 'console',
+      messageType: 'log',
+      text: chunk.toString(),
+      args: [],
+      location: { url: 'webserver', columnNumber: 0, lineNumber: 0 },
+      time: monotonicTime(),
+      pageId: '-1',
     };
     this._appendTraceEvent(event);
   }

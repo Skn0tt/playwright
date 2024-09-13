@@ -15,6 +15,7 @@
  */
 import path from 'path';
 import net from 'net';
+import fs from 'fs/promises';
 
 import { colors, debug } from 'playwright-core/lib/utilsBundle';
 import { raceAgainstDeadline, launchProcess, monotonicTime, isURLAvailable } from 'playwright-core/lib/utils';
@@ -23,6 +24,7 @@ import type { FullConfig } from '../../types/testReporter';
 import type { TestRunnerPlugin } from '.';
 import type { FullConfigInternal } from '../common/config';
 import type { ReporterV2 } from '../reporters/reporterV2';
+import EventEmitter from 'events';
 
 
 export type WebServerPluginOptions = {
@@ -113,11 +115,19 @@ export class WebServerPlugin implements TestRunnerPlugin {
 
     debugWebServer(`Process started`);
 
+    const logs = new EventEmitter();
+    await fs.unlink('web-server-log.sock').catch(() => {});
+    net.createServer(socket => {
+      logs.on('log', data => socket.write(data));
+    }).listen('web-server-log.sock');
+
     launchedProcess.stderr!.on('data', data => {
+      logs.emit('log', data);
       if (debugWebServer.enabled || (this._options.stderr === 'pipe' || !this._options.stderr))
         this._reporter!.onStdErr?.(prefixOutputLines(data.toString()));
     });
     launchedProcess.stdout!.on('data', data => {
+      logs.emit('log', data);
       if (debugWebServer.enabled || this._options.stdout === 'pipe')
         this._reporter!.onStdOut?.(prefixOutputLines(data.toString()));
     });
