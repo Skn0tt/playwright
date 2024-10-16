@@ -913,6 +913,8 @@ for (const useIntermediateMergeReport of [false] as const) {
 
       await showReport();
 
+      await page.pause()
+
       await page.getByText('passing').click();
 
       const testSteps = page.getByTestId('test-steps-chip');

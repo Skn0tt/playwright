@@ -77,8 +77,9 @@ export const AttachmentLink: React.FunctionComponent<{
   linkName?: string,
   openInNewTab?: boolean,
   depth?: number,
-}> = ({ attachment, href, linkName, openInNewTab, depth }) => {
-  return <TreeItem title={<span>
+  id?: string,
+}> = ({ attachment, href, linkName, openInNewTab, depth, id }) => {
+  return <TreeItem id={id} title={<span>
     {attachment.contentType === kMissingContentType ? icons.warning() : icons.attachment()}
     {attachment.path && <a href={href || attachment.path} download={downloadFileNameForAttachment(attachment)}>{linkName || attachment.name}</a>}
     {!attachment.path && (

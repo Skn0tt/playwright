@@ -79,23 +79,17 @@ export const TestResultView: React.FC<{
   result: TestResult,
   anchor: 'video' | 'diff' | '',
 }> = ({ result, anchor }) => {
-  const { screenshots, videos, traces, otherAttachments, diffs, errors, htmls } = React.useMemo(() => {
+  const { screenshots, videos, traces, otherAttachments, diffs, errors } = React.useMemo(() => {
     const attachments = result.attachments;
     const screenshots = new Set(attachments.filter(a => getAttachmentCategory(a) === 'screenshot'));
     const videos = attachments.filter(a => getAttachmentCategory(a) === 'video');
     const traces = attachments.filter(a => getAttachmentCategory(a) === 'trace');
+    const otherAttachments = attachments.filter(a => getAttachmentCategory(a) === 'other' || getAttachmentCategory(a) === 'html');
 
     const diffs = groupImageDiffs(screenshots);
     const errors = classifyErrors(result.errors, diffs);
 
-    const collectAttachments = (step: TestStep): number[] => step.attachments.concat(...step.steps.map(collectAttachments));
-    const stepAttachments = result.steps.flatMap(collectAttachments);
-
-    const topLevelAttachments = result.attachments.filter((_, index) => !stepAttachments.includes(index));
-    const htmls = topLevelAttachments.filter(a => getAttachmentCategory(a) === 'html');
-    const otherAttachments = topLevelAttachments.filter(a => getAttachmentCategory(a) === 'other');
-
-    return { screenshots: [...screenshots], videos, traces, otherAttachments, diffs, errors, htmls };
+    return { screenshots: [...screenshots], videos, traces, otherAttachments, diffs, errors };
   }, [result]);
 
   const videoRef = React.useRef<HTMLDivElement>(null);
@@ -122,8 +116,6 @@ export const TestResultView: React.FC<{
     </AutoChip>}
     {!!result.steps.length && <AutoChip header='Test Steps' dataTestId='test-steps-chip'>
       {result.steps.map((step, i) => <StepTreeItem key={`step-${i}`} step={step} attachments={result.attachments} depth={0}></StepTreeItem>)}
-      {htmls.map((a, i) => <AttachmentLink key={`html-link-${i}`} attachment={a} openInNewTab />)}
-      {otherAttachments.map((a, i) => <AttachmentLink key={`attachment-link-${i}`} attachment={a}/>)}
     </AutoChip>}
 
     {diffs.map((diff, index) =>
@@ -161,11 +153,12 @@ export const TestResultView: React.FC<{
       </div>)}
     </AutoChip>}
 
-    {!result.steps.length && !!(otherAttachments.length + htmls.length) && <AutoChip header='Attachments'>
-      {[...htmls].map((a, i) => (
-        <AttachmentLink key={`html-link-${i}`} attachment={a} openInNewTab />)
-      )}
-      {[...otherAttachments].map((a, i) => <AttachmentLink key={`attachment-link-${i}`} attachment={a}></AttachmentLink>)}
+    {!!otherAttachments.length && <AutoChip header='Attachments'>
+      {[...otherAttachments].map((a, i) => {
+        const query = new URLSearchParams(location.hash.slice(1));
+        query.set('attachment', '' + result.attachments.indexOf(a));
+        return <AttachmentLink key={`attachment-link-${i}`} attachment={a} id={'?' + query} openInNewTab={getAttachmentCategory(a) === 'html'}/>;
+      })}
     </AutoChip>}
   </div>;
 };
@@ -207,13 +200,17 @@ const StepTreeItem: React.FC<{
     <span>{step.title}</span>
     {step.count > 1 && <> ✕ <span className='test-result-counter'>{step.count}</span></>}
     {step.location && <span className='test-result-path'>— {step.location.file}:{step.location.line}</span>}
-    {step.attachments.length > 0 && <span className='attachments-icon' title={`${step.attachments} attachment${step.attachments.length > 1 ? 's' : ''}`}>{icons.paperclip()}</span>}
+    {step.attachments.length > 0 && <span className='attachments-icon' title={`${step.attachments} attachment${step.attachments.length > 1 ? 's' : ''}`}>{icons.attachment()}</span>}
   </span>} loadChildren={step.steps.length + step.attachments.length + (step.snippet ? 1 : 0) ? () => {
     const children = step.steps.map((s, i) => <StepTreeItem key={i} step={s} depth={depth + 1} attachments={attachments}></StepTreeItem>);
-    children.push(...step.attachments.map(a => {
-      const attachment = attachments[a];
-      return <AttachmentLink key={`attachment-${a}`} attachment={attachment} depth={depth + 1} openInNewTab={getAttachmentCategory(attachment) === 'html'}/>;
-    }));
+    if (step.attachments.length) {
+      children.unshift(<span>{step.attachments.map(a => {
+        const query = new URLSearchParams(location.hash.slice(1));
+        query.set('attachment', '' + a);
+        return <a key={'' + a} href={'#?' + query}><span style={{ marginLeft: '4px' }}>{icons.attachment()}</span>{attachments[a].name}</a>;
+      })}</span>
+      );
+    }
     if (step.snippet)
       children.unshift(<TestErrorView key='line' error={step.snippet}></TestErrorView>);
     return children;
