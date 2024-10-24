@@ -130,7 +130,7 @@ test('should linkify string attachments', async ({ runUITest, server }) => {
   }
 
   {
-    await attachmentsPane.getByText('Second download').click();
+    await attachmentsPane.getByTitle('Second').getByText('download').click();
     const url = server.PREFIX + '/two.html';
     const promise = page.waitForEvent('popup');
     await attachmentsPane.getByText(url).click();
@@ -139,7 +139,7 @@ test('should linkify string attachments', async ({ runUITest, server }) => {
   }
 
   {
-    await attachmentsPane.getByText('Third download').click();
+    await attachmentsPane.getByTitle('Third').getByText('download').click();
     const url = server.PREFIX + '/three.html';
     const promise = page.waitForEvent('popup');
     await attachmentsPane.getByText('[markdown link]').click();
