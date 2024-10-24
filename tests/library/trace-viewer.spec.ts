@@ -1511,11 +1511,3 @@ test('should show only one pointer with multilevel iframes', async ({ page, runA
   await expect.soft(snapshotFrame.frameLocator('iframe').locator('x-pw-pointer')).not.toBeAttached();
   await expect.soft(snapshotFrame.frameLocator('iframe').frameLocator('iframe').locator('x-pw-pointer')).toBeVisible();
 });
-
-test('should link from attachment steps to attachment view', async ({ page, runAndTrace, server }, testInfo) => {
-  const traceViewer = await runAndTrace(async () => {
-    await testInfo.attach('foo', { body: 'bar' });
-  });
-
-  await traceViewer.page.pause()
-});
