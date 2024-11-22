@@ -141,6 +141,10 @@ type DownloadParams = {
   userAgent: string;
 };
 
+// one download and one extraction at a time to max out CPU and network
+let downloadQueue = Promise.resolve();
+let extractQueue = Promise.resolve();
+
 async function downloadBrowserWithProgressBarInProcess(title: string, browserDirectory: string, url: string, zipPath: string, executablePath: string | undefined, connectionTimeout: number): Promise<{ error: Error | null }> {
   try {
     const options: DownloadParams = {
@@ -158,10 +162,15 @@ async function downloadBrowserWithProgressBarInProcess(title: string, browserDir
     debugLogger.log('install', `-- to location: ${zipPath}`);
 
 
-    await downloadFile(options);
+    downloadQueue = downloadQueue.then(() => downloadFile(options));
+    await downloadQueue;
+
     debugLogger.log('install', `SUCCESS downloading ${options.title}`);
     debugLogger.log('install', `extracting archive`);
-    await extract(options.zipPath, { dir: options.browserDirectory });
+
+    extractQueue = extractQueue.then(() => extract(options.zipPath, { dir: options.browserDirectory }));
+    await extractQueue;
+
     if (options.executablePath) {
       debugLogger.log('install', `fixing permissions at ${options.executablePath}`);
       await fs.promises.chmod(options.executablePath, 0o755);
