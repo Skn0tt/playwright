@@ -18,14 +18,14 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import childProcess from 'child_process';
 import { existsAsync } from '../../utils/fileUtils';
 import { debugLogger } from '../../utils/debugLogger';
+import { httpRequest } from '../../utils/network';
 import { ManualPromise } from '../../utils/manualPromise';
 import { colors, progress as ProgressBar } from '../../utilsBundle';
+import { extract } from '../../zipBundle';
 import { browserDirectoryToMarkerFilePath } from '.';
 import { getUserAgent } from '../../utils/userAgent';
-import type { DownloadParams } from './oopDownloadBrowserMain';
 
 export async function downloadBrowserWithProgressBar(title: string, browserDirectory: string, executablePath: string | undefined, downloadURLs: string[], downloadFileName: string, downloadConnectionTimeout: number): Promise<boolean> {
   if (await existsAsync(browserDirectoryToMarkerFilePath(browserDirectory))) {
@@ -41,7 +41,7 @@ export async function downloadBrowserWithProgressBar(title: string, browserDirec
       debugLogger.log('install', `downloading ${title} - attempt #${attempt}`);
       const url = downloadURLs[(attempt - 1) % downloadURLs.length];
       logPolitely(`Downloading ${title}` + colors.dim(` from ${url}`));
-      const { error } = await downloadBrowserWithProgressBarOutOfProcess(title, browserDirectory, url, zipPath, executablePath, downloadConnectionTimeout);
+      const { error } = await downloadBrowserWithProgressBarInProcess(title, browserDirectory, url, zipPath, executablePath, downloadConnectionTimeout);
       if (!error) {
         debugLogger.log('install', `SUCCESS installing ${title}`);
         break;
@@ -67,49 +67,114 @@ export async function downloadBrowserWithProgressBar(title: string, browserDirec
   return true;
 }
 
-/**
- * Node.js has a bug where the process can exit with 0 code even though there was an uncaught exception.
- * Thats why we execute it in a separate process and check manually if the destination file exists.
- * https://github.com/microsoft/playwright/issues/17394
- */
-function downloadBrowserWithProgressBarOutOfProcess(title: string, browserDirectory: string, url: string, zipPath: string, executablePath: string | undefined, connectionTimeout: number): Promise<{ error: Error | null }> {
-  const cp = childProcess.fork(path.join(__dirname, 'oopDownloadBrowserMain.js'));
-  const promise = new ManualPromise<{ error: Error | null }>();
+export function downloadFile(options: DownloadParams): Promise<void> {
   const progress = getDownloadProgress();
-  cp.on('message', (message: any) => {
-    if (message?.method === 'log')
-      debugLogger.log('install', message.params.message);
-    if (message?.method === 'progress')
-      progress(message.params.done, message.params.total);
-  });
-  cp.on('exit', code => {
-    if (code !== 0) {
-      promise.resolve({ error: new Error(`Download failure, code=${code}`) });
+
+  let downloadedBytes = 0;
+  let totalBytes = 0;
+
+  const promise = new ManualPromise<void>();
+
+  httpRequest({
+    url: options.url,
+    headers: {
+      'User-Agent': options.userAgent,
+    },
+    timeout: options.connectionTimeout,
+  }, response => {
+    debugLogger.log('install', `-- response status code: ${response.statusCode}`);
+    if (response.statusCode !== 200) {
+      let content = '';
+      const handleError = () => {
+        const error = new Error(`Download failed: server returned code ${response.statusCode} body '${content}'. URL: ${options.url}`);
+        // consume response data to free up memory
+        response.resume();
+        promise.reject(error);
+      };
+      response
+          .on('data', chunk => content += chunk)
+          .on('end', handleError)
+          .on('error', handleError);
       return;
     }
-    if (!fs.existsSync(browserDirectoryToMarkerFilePath(browserDirectory)))
-      promise.resolve({ error: new Error(`Download failure, ${browserDirectoryToMarkerFilePath(browserDirectory)} does not exist`) });
-    else
-      promise.resolve({ error: null });
-  });
-  cp.on('error', error => {
-    promise.resolve({ error });
-  });
-
-  debugLogger.log('install', `running download:`);
-  debugLogger.log('install', `-- from url: ${url}`);
-  debugLogger.log('install', `-- to location: ${zipPath}`);
-  const downloadParams: DownloadParams = {
-    title,
-    browserDirectory,
-    url,
-    zipPath,
-    executablePath,
-    connectionTimeout,
-    userAgent: getUserAgent(),
-  };
-  cp.send({ method: 'download', params: downloadParams });
+    totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+    debugLogger.log('install', `-- total bytes: ${totalBytes}`);
+    const file = fs.createWriteStream(options.zipPath);
+    file.on('finish', () => {
+      if (downloadedBytes !== totalBytes) {
+        debugLogger.log('install', `-- download failed, size mismatch: ${downloadedBytes} != ${totalBytes}`);
+        promise.reject(new Error(`Download failed: size mismatch, file size: ${downloadedBytes}, expected size: ${totalBytes} URL: ${options.url}`));
+      } else {
+        debugLogger.log('install', `-- download complete, size: ${downloadedBytes}`);
+        promise.resolve();
+      }
+    });
+    file.on('error', error => promise.reject(error));
+    response.pipe(file);
+    response.on('data', onData);
+    response.on('error', (error: any) => {
+      file.close();
+      if (error?.code === 'ECONNRESET') {
+        debugLogger.log('install', `-- download failed, server closed connection`);
+        promise.reject(new Error(`Download failed: server closed connection. URL: ${options.url}`));
+      } else {
+        debugLogger.log('install', `-- download failed, unexpected error`);
+        promise.reject(new Error(`Download failed: ${error?.message ?? error}. URL: ${options.url}`));
+      }
+    });
+  }, (error: any) => promise.reject(error));
   return promise;
+
+  function onData(chunk: string) {
+    downloadedBytes += chunk.length;
+    progress(downloadedBytes, totalBytes);
+  }
+}
+
+type DownloadParams = {
+  title: string;
+  browserDirectory: string;
+  url: string;
+  zipPath: string;
+  executablePath: string | undefined;
+  connectionTimeout: number;
+  userAgent: string;
+};
+
+async function downloadBrowserWithProgressBarInProcess(title: string, browserDirectory: string, url: string, zipPath: string, executablePath: string | undefined, connectionTimeout: number): Promise<{ error: Error | null }> {
+  try {
+    const options: DownloadParams = {
+      title,
+      browserDirectory,
+      url,
+      zipPath,
+      executablePath,
+      connectionTimeout,
+      userAgent: getUserAgent(),
+    };
+
+    debugLogger.log('install', `running download:`);
+    debugLogger.log('install', `-- from url: ${url}`);
+    debugLogger.log('install', `-- to location: ${zipPath}`);
+
+
+    await downloadFile(options);
+    debugLogger.log('install', `SUCCESS downloading ${options.title}`);
+    debugLogger.log('install', `extracting archive`);
+    await extract(options.zipPath, { dir: options.browserDirectory });
+    if (options.executablePath) {
+      debugLogger.log('install', `fixing permissions at ${options.executablePath}`);
+      await fs.promises.chmod(options.executablePath, 0o755);
+    }
+    await fs.promises.writeFile(browserDirectoryToMarkerFilePath(options.browserDirectory), '');
+
+    if (!fs.existsSync(browserDirectoryToMarkerFilePath(browserDirectory)))
+      return { error: new Error(`Download failure, ${browserDirectoryToMarkerFilePath(browserDirectory)} does not exist`) };
+
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
 }
 
 export function logPolitely(toBeLogged: string) {
