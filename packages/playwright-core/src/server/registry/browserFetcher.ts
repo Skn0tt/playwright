@@ -63,7 +63,6 @@ export async function downloadBrowserWithProgressBar(title: string, browserDirec
     if (await existsAsync(zipPath))
       await fs.promises.unlink(zipPath);
   }
-  logPolitely(`${title} downloaded to ${browserDirectory}`);
   return true;
 }
 
@@ -164,6 +163,7 @@ async function downloadBrowserWithProgressBarInProcess(title: string, browserDir
 
     downloadQueue = downloadQueue.then(() => downloadFile(options));
     await downloadQueue;
+    logPolitely(`${title} downloaded to ${browserDirectory}`);
 
     debugLogger.log('install', `SUCCESS downloading ${options.title}`);
     debugLogger.log('install', `extracting archive`);
