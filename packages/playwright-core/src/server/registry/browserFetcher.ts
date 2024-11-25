@@ -21,12 +21,11 @@ import path from 'path';
 import { existsAsync } from '../../utils/fileUtils';
 import { debugLogger } from '../../utils/debugLogger';
 import { httpRequest } from '../../utils/network';
+import { ManualPromise } from '../../utils/manualPromise';
 import { colors, progress as ProgressBar } from '../../utilsBundle';
 import { extract } from '../../zipBundle';
 import { browserDirectoryToMarkerFilePath } from '.';
 import { getUserAgent } from '../../utils/userAgent';
-import { Readable } from 'stream';
-import { finished } from 'stream/promises';
 
 export async function downloadBrowserWithProgressBar(title: string, browserDirectory: string, executablePath: string | undefined, downloadURLs: string[], downloadFileName: string, downloadConnectionTimeout: number): Promise<boolean> {
   if (await existsAsync(browserDirectoryToMarkerFilePath(browserDirectory))) {
@@ -67,52 +66,67 @@ export async function downloadBrowserWithProgressBar(title: string, browserDirec
   return true;
 }
 
-async function downloadFile(options: DownloadParams): Promise<void> {
-  const response = await fetch(options.url, {
-    headers: { 'User-Agent': options.userAgent },
-    signal: AbortSignal.timeout(options.connectionTimeout)
-  });
+export function downloadFile(options: DownloadParams): Promise<void> {
+  const progress = getDownloadProgress();
 
-  try {
-    if (!response.ok || !response.body)
-      throw new Error(`Download failed: server returned code ${response.status} body '${await response.text()}'. URL: ${options.url}`);
+  let downloadedBytes = 0;
+  let totalBytes = 0;
 
-    const progress = getDownloadProgress();
-    const totalBytes = parseInt(response.headers.get('content-length') ?? '0', 10);
-    let downloadedBytes = 0;
-    const trackedDownload = response.body.pipeThrough(new TransformStream({
-      transform(chunk, controller) {
-        downloadedBytes += chunk.length;
-        progress(downloadedBytes, totalBytes);
-        controller.enqueue(chunk);
-      }
-    }));
+  const promise = new ManualPromise<void>();
+
+  httpRequest({
+    url: options.url,
+    headers: {
+      'User-Agent': options.userAgent,
+    },
+    timeout: options.connectionTimeout,
+  }, response => {
+    debugLogger.log('install', `-- response status code: ${response.statusCode}`);
+    if (response.statusCode !== 200) {
+      let content = '';
+      const handleError = () => {
+        const error = new Error(`Download failed: server returned code ${response.statusCode} body '${content}'. URL: ${options.url}`);
+        // consume response data to free up memory
+        response.resume();
+        promise.reject(error);
+      };
+      response
+          .on('data', chunk => content += chunk)
+          .on('end', handleError)
+          .on('error', handleError);
+      return;
+    }
+    totalBytes = parseInt(response.headers['content-length'] || '0', 10);
+    debugLogger.log('install', `-- total bytes: ${totalBytes}`);
     const file = fs.createWriteStream(options.zipPath);
-
-    try {
-      // @ts-expect-error - mismatch between ReadableStream types in node and web
-      await finished(Readable.fromWeb(trackedDownload).pipe(file));
+    file.on('finish', () => {
       if (downloadedBytes !== totalBytes) {
         debugLogger.log('install', `-- download failed, size mismatch: ${downloadedBytes} != ${totalBytes}`);
-        throw new Error(`Download failed: size mismatch, file size: ${downloadedBytes}, expected size: ${totalBytes} URL: ${options.url}`);
+        promise.reject(new Error(`Download failed: size mismatch, file size: ${downloadedBytes}, expected size: ${totalBytes} URL: ${options.url}`));
+      } else {
+        debugLogger.log('install', `-- download complete, size: ${downloadedBytes}`);
+        promise.resolve();
       }
-    } catch (error) {
+    });
+    file.on('error', error => promise.reject(error));
+    response.pipe(file);
+    response.on('data', onData);
+    response.on('error', (error: any) => {
       file.close();
-      throw error;
-    }
+      if (error?.code === 'ECONNRESET') {
+        debugLogger.log('install', `-- download failed, server closed connection`);
+        promise.reject(new Error(`Download failed: server closed connection. URL: ${options.url}`));
+      } else {
+        debugLogger.log('install', `-- download failed, unexpected error`);
+        promise.reject(new Error(`Download failed: ${error?.message ?? error}. URL: ${options.url}`));
+      }
+    });
+  }, (error: any) => promise.reject(error));
+  return promise;
 
-
-    debugLogger.log('install', `-- download complete, size: ${downloadedBytes}`);
-  } catch (error) {
-    response.body?.cancel();
-
-    if (error?.code === 'ECONNRESET') {
-      debugLogger.log('install', `-- download failed, server closed connection`);
-      throw new Error(`Download failed: server closed connection. URL: ${options.url}`);
-    }
-
-    debugLogger.log('install', `-- download failed, unexpected error`);
-    throw new Error(`Download failed: ${error?.message ?? error}. URL: ${options.url}`);
+  function onData(chunk: string) {
+    downloadedBytes += chunk.length;
+    progress(downloadedBytes, totalBytes);
   }
 }
 
