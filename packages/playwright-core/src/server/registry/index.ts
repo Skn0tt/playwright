@@ -32,7 +32,6 @@ import { installDependenciesLinux, installDependenciesWindows, validateDependenc
 import { downloadBrowserWithProgressBar, logPolitely } from './browserFetcher';
 export { writeDockerVersion } from './dependencies';
 import { debugLogger } from '../../utils/debugLogger';
-import { httpHappyEyeballsAgent, httpsHappyEyeballsAgent } from '../../utils/happy-eyeballs';
 
 const PACKAGE_PATH = path.join(__dirname, '..', '..', '..');
 const BIN_PATH = path.join(__dirname, '..', '..', '..', 'bin');
@@ -966,10 +965,6 @@ export class Registry {
         }
         await executable._install();
       }));
-
-      // release open network sockets
-      httpHappyEyeballsAgent.destroy();
-      httpsHappyEyeballsAgent.destroy();
     } catch (e) {
       if (e.code === 'ELOCKED') {
         const rmCommand = process.platform === 'win32' ? 'rm -R' : 'rm -rf';
