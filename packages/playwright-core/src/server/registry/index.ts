@@ -1056,11 +1056,9 @@ export class Registry {
     let downloadURLs = PLAYWRIGHT_CDN_MIRRORS.map(mirror => `${mirror}/${downloadPath}`) ;
     let downloadHostEnv;
 
-    if (FAST_FETCH) {
-      downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-arm64.tar.xz`];
-      if (descriptor.name === 'webkit')
-        downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-15-arm64.tar.xz`];
-    }
+    downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-arm64.${FAST_FETCH ? 'tar.xz' : 'zip'}`];
+    if (descriptor.name === 'webkit')
+      downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-15-arm64.${FAST_FETCH ? 'tar.xz' : 'zip'}`];
 
     if (descriptor.name.startsWith('chromium'))
       downloadHostEnv = 'PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST';
