@@ -33,6 +33,8 @@ import { downloadBrowserFast, logPolitely } from './browserFetcher';
 export { writeDockerVersion } from './dependencies';
 import { debugLogger } from '../../utils/debugLogger';
 
+const FAST_FETCH = !!process.env.FAST_FETCH;
+
 const PACKAGE_PATH = path.join(__dirname, '..', '..', '..');
 const BIN_PATH = path.join(__dirname, '..', '..', '..', 'bin');
 
@@ -1047,6 +1049,13 @@ export class Registry {
 
     let downloadURLs = PLAYWRIGHT_CDN_MIRRORS.map(mirror => `${mirror}/${downloadPath}`) ;
     let downloadHostEnv;
+
+    if (FAST_FETCH) {
+      downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-arm64.tar.xz`];
+      if (descriptor.name === 'webkit')
+        downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-15-arm64.tar.xz`];
+    }
+
     if (descriptor.name.startsWith('chromium'))
       downloadHostEnv = 'PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST';
     else if (descriptor.name.startsWith('firefox'))

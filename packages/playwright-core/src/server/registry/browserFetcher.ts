@@ -50,7 +50,7 @@ export async function downloadBrowserFast(title: string, browserDirectory: strin
       try {
         const response = await fetch(url, { headers: { 'User-Agent': getUserAgent() }, signal: AbortSignal.timeout(downloadConnectionTimeout) });
         if (!response.ok || !response.body)
-          throw new Error(`HTTP status ${response.status}`);
+          throw new Error(`HTTP status ${response.status} ${url}`);
 
 
         const totalBytes = parseInt(response.headers.get('content-length') || '0', 10);
@@ -75,7 +75,7 @@ export async function downloadBrowserFast(title: string, browserDirectory: strin
 
         if (executablePath) {
           debugLogger.log('install', `fixing permissions at ${executablePath}`);
-          await fs.promises.chmod(executablePath, 0o755);
+          // await fs.promises.chmod(executablePath, 0o755);
         }
         await fs.promises.writeFile(browserDirectoryToMarkerFilePath(browserDirectory), '');
 
