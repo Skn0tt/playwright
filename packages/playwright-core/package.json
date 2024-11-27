@@ -40,5 +40,14 @@
   "bin": {
     "playwright-core": "cli.js"
   },
-  "types": "types/types.d.ts"
+  "types": "types/types.d.ts",
+  "dependencies": {
+    "lzma-native": "^8.0.6",
+    "tar-fs": "^3.0.6",
+    "undici": "^6.21.0"
+  },
+  "devDependencies": {
+    "@types/lzma-native": "^4.0.4",
+    "@types/tar-fs": "^2.0.4"
+  }
 }

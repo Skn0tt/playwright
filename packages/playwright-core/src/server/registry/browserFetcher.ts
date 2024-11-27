@@ -26,6 +26,79 @@ import { colors, progress as ProgressBar } from '../../utilsBundle';
 import { browserDirectoryToMarkerFilePath } from '.';
 import { getUserAgent } from '../../utils/userAgent';
 import type { DownloadParams } from './oopDownloadBrowserMain';
+import lzma from 'lzma-native';
+import { Readable } from 'stream';
+import tar from 'tar-fs';
+import { finished } from 'stream/promises';
+
+export async function downloadBrowserFast(title: string, browserDirectory: string, executablePath: string | undefined, downloadURLs: string[], downloadFileName: string, downloadConnectionTimeout: number) {
+  if (await existsAsync(browserDirectoryToMarkerFilePath(browserDirectory))) {
+    // Already downloaded.
+    debugLogger.log('install', `${title} is already downloaded.`);
+    return false;
+  }
+
+  const progress = getDownloadProgress();
+
+  try {
+    const retryCount = 5;
+    for (let attempt = 1; attempt <= retryCount; ++attempt) {
+      debugLogger.log('install', `downloading ${title} - attempt #${attempt}`);
+      const url = downloadURLs[(attempt - 1) % downloadURLs.length];
+      logPolitely(`Downloading ${title}` + colors.dim(` from ${url}`));
+
+      try {
+        const response = await fetch(url, { headers: { 'User-Agent': getUserAgent() }, signal: AbortSignal.timeout(downloadConnectionTimeout) });
+        if (!response.ok || !response.body)
+          throw new Error(`HTTP status ${response.status}`);
+
+
+        const totalBytes = parseInt(response.headers.get('content-length') || '0', 10);
+        let downloadedBytes = 0;
+
+        const trackedDownload = response.body.pipeThrough(
+            new TransformStream({
+              transform(chunk, controller) {
+                controller.enqueue(chunk);
+                downloadedBytes += chunk.length;
+                progress(downloadedBytes, totalBytes);
+              }
+            })
+        );
+
+        const stream =
+          Readable.fromWeb(trackedDownload as any)
+              .pipe(lzma.createDecompressor())
+              .pipe(tar.extract(browserDirectory));
+
+        await finished(stream);
+
+        if (executablePath) {
+          debugLogger.log('install', `fixing permissions at ${executablePath}`);
+          await fs.promises.chmod(executablePath, 0o755);
+        }
+        await fs.promises.writeFile(browserDirectoryToMarkerFilePath(browserDirectory), '');
+
+        debugLogger.log('install', `SUCCESS installing ${title}`);
+        break;
+      } catch (error) {
+        if (await existsAsync(browserDirectory))
+          await fs.promises.rmdir(browserDirectory, { recursive: true });
+        const errorMessage = error?.message || '';
+        debugLogger.log('install', `attempt #${attempt} - ERROR: ${errorMessage}`);
+
+        if (attempt >= retryCount)
+          throw error;
+      }
+    }
+  } catch (e) {
+    debugLogger.log('install', `FAILED installation ${title} with error: ${e}`);
+    process.exitCode = 1;
+    throw e;
+  }
+  logPolitely(`${title} downloaded to ${browserDirectory}`);
+  return true;
+}
 
 export async function downloadBrowserWithProgressBar(title: string, browserDirectory: string, executablePath: string | undefined, downloadURLs: string[], downloadFileName: string, downloadConnectionTimeout: number): Promise<boolean> {
   if (await existsAsync(browserDirectoryToMarkerFilePath(browserDirectory))) {
