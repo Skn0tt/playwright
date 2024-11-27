@@ -29,7 +29,7 @@ import { spawnAsync } from '../../utils/spawnAsync';
 import type { DependencyGroup } from './dependencies';
 import { transformCommandsForRoot, dockerVersion, readDockerVersionSync } from './dependencies';
 import { installDependenciesLinux, installDependenciesWindows, validateDependenciesLinux, validateDependenciesWindows } from './dependencies';
-import { downloadBrowserFast, logPolitely } from './browserFetcher';
+import { downloadBrowserFast, downloadBrowserWithProgressBar, logPolitely } from './browserFetcher';
 export { writeDockerVersion } from './dependencies';
 import { debugLogger } from '../../utils/debugLogger';
 
@@ -941,8 +941,7 @@ export class Registry {
       // Remove stale browsers.
       await this._validateInstallationCache(linksDir);
 
-      // Install browsers for this package.
-      await Promise.all(executables.map(async executable => {
+      async function doIt(executable: ExecutableImpl) {
         if (!executable._install)
           throw new Error(`ERROR: Playwright does not support installing ${executable.name}`);
 
@@ -966,7 +965,14 @@ export class Registry {
           ].join('\n'), 1));
         }
         await executable._install();
-      }));
+      }
+
+      if (FAST_FETCH) {
+        await Promise.all(executables.map(doIt));
+      } else {
+        for (const executable of executables)
+          await doIt(executable);
+      }
     } catch (e) {
       if (e.code === 'ELOCKED') {
         const rmCommand = process.platform === 'win32' ? 'rm -R' : 'rm -rf';
@@ -1093,7 +1099,8 @@ export class Registry {
     const downloadFileName = `playwright-download-${descriptor.name}-${hostPlatform}-${descriptor.revision}.zip`;
     const downloadConnectionTimeoutEnv = getFromENV('PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT');
     const downloadConnectionTimeout = +(downloadConnectionTimeoutEnv || '0') || 30_000;
-    await downloadBrowserFast(title, descriptor.dir, executablePath, downloadURLs, downloadFileName, downloadConnectionTimeout).catch(e => {
+
+    await (FAST_FETCH ? downloadBrowserFast : downloadBrowserWithProgressBar)(title, descriptor.dir, executablePath, downloadURLs, downloadFileName, downloadConnectionTimeout).catch(e => {
       throw new Error(`Failed to download ${title}, caused by\n${e.stack}`);
     });
   }

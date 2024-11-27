@@ -38,8 +38,6 @@ export async function downloadBrowserFast(title: string, browserDirectory: strin
     return false;
   }
 
-  const progress = getDownloadProgress();
-
   try {
     const retryCount = 5;
     for (let attempt = 1; attempt <= retryCount; ++attempt) {
@@ -61,7 +59,7 @@ export async function downloadBrowserFast(title: string, browserDirectory: strin
               transform(chunk, controller) {
                 controller.enqueue(chunk);
                 downloadedBytes += chunk.length;
-                progress(downloadedBytes, totalBytes);
+                // TODO: report progress
               }
             })
         );
@@ -73,13 +71,13 @@ export async function downloadBrowserFast(title: string, browserDirectory: strin
 
         await finished(stream);
 
-        if (executablePath) {
+        if (executablePath)
           debugLogger.log('install', `fixing permissions at ${executablePath}`);
           // await fs.promises.chmod(executablePath, 0o755);
-        }
+
         await fs.promises.writeFile(browserDirectoryToMarkerFilePath(browserDirectory), '');
 
-        debugLogger.log('install', `SUCCESS installing ${title}`);
+        debugLogger.log('install', `SUCCESS installing ${title}, ${downloadedBytes}/${totalBytes}`);
         break;
       } catch (error) {
         if (await existsAsync(browserDirectory))
