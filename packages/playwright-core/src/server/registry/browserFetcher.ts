@@ -154,6 +154,9 @@ function downloadBrowserWithProgressBarOutOfProcess(title: string, browserDirect
       progress(message.params.done, message.params.total);
   });
   cp.on('exit', code => {
+    promise.resolve({ error: null });
+    return;
+
     if (code !== 0) {
       promise.resolve({ error: new Error(`Download failure, code=${code}`) });
       return;

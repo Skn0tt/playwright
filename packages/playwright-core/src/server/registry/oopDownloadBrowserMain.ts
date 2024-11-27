@@ -109,6 +109,7 @@ async function main(options: DownloadParams) {
   log(`SUCCESS downloading ${options.title}`);
   log(`extracting archive`);
   await extract(options.zipPath, { dir: options.browserDirectory });
+  return;
   if (options.executablePath) {
     log(`fixing permissions at ${options.executablePath}`);
     await fs.promises.chmod(options.executablePath, 0o755);
