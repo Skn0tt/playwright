@@ -33,7 +33,7 @@ import { downloadBrowserFast, downloadBrowserWithProgressBar, logPolitely } from
 export { writeDockerVersion } from './dependencies';
 import { debugLogger } from '../../utils/debugLogger';
 
-const FAST_FETCH = !!process.env.FAST_FETCH;
+const FAST_FETCH = process.env.FAST_FETCH as 'br' | 'xz' | undefined;
 
 const PACKAGE_PATH = path.join(__dirname, '..', '..', '..');
 const BIN_PATH = path.join(__dirname, '..', '..', '..', 'bin');
@@ -1056,9 +1056,9 @@ export class Registry {
     let downloadURLs = PLAYWRIGHT_CDN_MIRRORS.map(mirror => `${mirror}/${downloadPath}`) ;
     let downloadHostEnv;
 
-    downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-arm64.${FAST_FETCH ? 'tar.xz' : 'zip'}`];
+    downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-arm64.${FAST_FETCH ? `tar.${FAST_FETCH}` : 'zip'}`];
     if (descriptor.name === 'webkit')
-      downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-15-arm64.${FAST_FETCH ? 'tar.xz' : 'zip'}`];
+      downloadURLs = [`https://browserdownloadbenchmark.blob.core.windows.net/files/${descriptor.name}-mac-15-arm64.${FAST_FETCH ? `tar.${FAST_FETCH}` : 'zip'}`];
 
     if (descriptor.name.startsWith('chromium'))
       downloadHostEnv = 'PLAYWRIGHT_CHROMIUM_DOWNLOAD_HOST';

@@ -30,6 +30,9 @@ import lzma from 'lzma-native';
 import { Readable } from 'stream';
 import tar from 'tar-fs';
 import { finished } from 'stream/promises';
+import zlib from 'node:zlib';
+
+const FAST_FETCH = process.env.FAST_FETCH as 'br' | 'xz' | undefined;
 
 export async function downloadBrowserFast(title: string, browserDirectory: string, executablePath: string | undefined, downloadURLs: string[], downloadFileName: string, downloadConnectionTimeout: number) {
   if (await existsAsync(browserDirectoryToMarkerFilePath(browserDirectory))) {
@@ -64,9 +67,11 @@ export async function downloadBrowserFast(title: string, browserDirectory: strin
             })
         );
 
+        const decompressor = FAST_FETCH === 'br' ? zlib.createBrotliDecompress() : lzma.createDecompressor();
+
         const stream =
           Readable.fromWeb(trackedDownload as any)
-              .pipe(lzma.createDecompressor())
+              .pipe(decompressor)
               .pipe(tar.extract(browserDirectory));
 
         await finished(stream);
