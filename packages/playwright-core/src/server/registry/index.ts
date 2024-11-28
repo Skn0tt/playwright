@@ -34,6 +34,8 @@ export { writeDockerVersion } from './dependencies';
 import { debugLogger } from '../../utils/debugLogger';
 
 const FAST_FETCH = process.env.FAST_FETCH as 'br' | 'xz' | undefined;
+const PARALLEL = process.env.PARALLEL === 'true';
+
 
 const PACKAGE_PATH = path.join(__dirname, '..', '..', '..');
 const BIN_PATH = path.join(__dirname, '..', '..', '..', 'bin');
@@ -967,7 +969,7 @@ export class Registry {
         await executable._install();
       }
 
-      if (FAST_FETCH) {
+      if (PARALLEL) {
         await Promise.all(executables.map(doIt));
       } else {
         for (const executable of executables)
