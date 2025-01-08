@@ -15,7 +15,7 @@
  */
 import { chromium } from 'playwright-core';
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch();
 const page = await browser.newPage();
 const testId = crypto.randomUUID();
 const server = await page.context().newServer(testId);
