@@ -48,8 +48,6 @@ type TestFixtures = PlaywrightTestArgs & PlaywrightTestOptions & {
   _setupContextOptions: void;
   _setupArtifacts: void;
   _contextFactory: (options?: BrowserContextOptions) => Promise<BrowserContext>;
-
-  server: playwrightLibrary.Server;
 };
 
 type WorkerFixtures = PlaywrightWorkerArgs & PlaywrightWorkerOptions & {

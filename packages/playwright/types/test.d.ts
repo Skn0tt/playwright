@@ -6914,6 +6914,10 @@ export interface PlaywrightTestArgs {
    *
    */
   request: APIRequestContext;
+  /**
+   * Lorem ipsum
+   */
+  server: Server;
 }
 
 type ExcludeProps<A, B> = {

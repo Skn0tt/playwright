@@ -112,3 +112,9 @@ test('basic test', async ({ request }) => {
   // ...
 });
 ```
+
+## property: Fixtures.server
+* since: v1.51
+- type: <[Server]>
+
+Lorem ipsum

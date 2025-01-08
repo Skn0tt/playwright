@@ -282,6 +282,7 @@ export interface PlaywrightTestArgs {
   context: BrowserContext;
   page: Page;
   request: APIRequestContext;
+  server: Server;
 }
 
 type ExcludeProps<A, B> = {
