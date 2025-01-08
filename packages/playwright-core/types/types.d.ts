@@ -9075,11 +9075,6 @@ export interface BrowserContext {
      * How often a route should be used. By default it will be used every time.
      */
     times?: number;
-
-    /**
-     * How often a route should be used. By default it will be used every time.
-     */
-    times?: number;
   }): Promise<void>;
 
   /**
@@ -21069,8 +21064,45 @@ export interface Server {
    * options was provided and the passed URL is a path, it gets merged via the
    * [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
    * @param handler handler function to route the request.
+   * @param options
    */
-  route(url: string|RegExp|((url: URL) => boolean), handler: ((route: Route, request: Request) => Promise<any>|any)): Promise<void>;
+  route(url: string|RegExp|((url: URL) => boolean), handler: ((route: Route, request: Request) => Promise<any>|any), options?: {
+    /**
+     * How often a route should be used. By default it will be used every time.
+     */
+    times?: number;
+  }): Promise<void>;
+
+  /**
+   * Removes a route created with
+   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route).
+   * When [`handler`](https://playwright.dev/docs/api/class-server#server-unroute-option-handler) is not specified,
+   * removes all routes for the [`url`](https://playwright.dev/docs/api/class-server#server-unroute-option-url).
+   * @param url A glob pattern, regex pattern or predicate receiving [URL] used to register a routing with
+   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route).
+   * @param handler Optional handler function used to register a routing with
+   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route).
+   */
+  unroute(url: string|RegExp|((url: URL) => boolean), handler?: ((route: Route, request: Request) => Promise<any>|any)): Promise<void>;
+
+  /**
+   * Removes all routes created with
+   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route)
+   * and
+   * [browserContext.routeFromHAR(har[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route-from-har).
+   * @param options
+   */
+  unrouteAll(options?: {
+    /**
+     * Specifies whether to wait for already running handlers and what to do if they throw errors:
+     * - `'default'` - do not wait for current handler calls (if any) to finish, if unrouted handler throws, it may
+     *   result in unhandled error
+     * - `'wait'` - wait for current handler calls (if any) to finish
+     * - `'ignoreErrors'` - do not wait for current handler calls (if any) to finish, all errors thrown by the handlers
+     *   after unrouting are silently caught
+     */
+    behavior?: "wait"|"ignoreErrors"|"default";
+  }): Promise<void>;
 }
 
 /**

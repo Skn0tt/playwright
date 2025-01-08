@@ -17,7 +17,7 @@ import type * as api from '../../types/types';
 import type * as channels from '@protocol/channels';
 import * as network from './network';
 import { ChannelOwner } from './channelOwner';
-import type { URLMatch } from '@isomorphic/urlMatch';
+import { urlMatchesEqual, type URLMatch } from '@isomorphic/urlMatch';
 import type { BrowserContext } from './browserContext';
 
 export class Server extends ChannelOwner<channels.ServerChannel> implements api.Server {
@@ -40,6 +40,31 @@ export class Server extends ChannelOwner<channels.ServerChannel> implements api.
   async route(url: URLMatch, handler: network.RouteHandlerCallback, options: { times?: number } = {}): Promise<void> {
     this._routes.unshift(new network.RouteHandler(undefined, url, handler, options.times));
     await this._updateInterceptionPatterns();
+  }
+
+  async unrouteAll(options?: { behavior?: 'wait'|'ignoreErrors'|'default' }): Promise<void> {
+    await this._unrouteInternal(this._routes, [], options?.behavior);
+  }
+
+  async unroute(url: URLMatch, handler?: network.RouteHandlerCallback): Promise<void> {
+    const removed = [];
+    const remaining = [];
+    for (const route of this._routes) {
+      if (urlMatchesEqual(route.url, url) && (!handler || route.handler === handler))
+        removed.push(route);
+      else
+        remaining.push(route);
+    }
+    await this._unrouteInternal(removed, remaining, 'default');
+  }
+
+  private async _unrouteInternal(removed: network.RouteHandler[], remaining: network.RouteHandler[], behavior?: 'wait'|'ignoreErrors'|'default'): Promise<void> {
+    this._routes = remaining;
+    await this._updateInterceptionPatterns();
+    if (!behavior || behavior === 'default')
+      return;
+    const promises = removed.map(routeHandler => routeHandler.stop(behavior));
+    await Promise.all(promises);
   }
 
   async _onRoute(route: network.Route) {
