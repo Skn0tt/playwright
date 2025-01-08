@@ -1522,7 +1522,7 @@ export interface BrowserContextChannel extends BrowserContextEventTarget, EventT
   exposeBinding(params: BrowserContextExposeBindingParams, metadata?: CallMetadata): Promise<BrowserContextExposeBindingResult>;
   grantPermissions(params: BrowserContextGrantPermissionsParams, metadata?: CallMetadata): Promise<BrowserContextGrantPermissionsResult>;
   newPage(params?: BrowserContextNewPageParams, metadata?: CallMetadata): Promise<BrowserContextNewPageResult>;
-  newServer(params?: BrowserContextNewServerParams, metadata?: CallMetadata): Promise<BrowserContextNewServerResult>;
+  newServer(params: BrowserContextNewServerParams, metadata?: CallMetadata): Promise<BrowserContextNewServerResult>;
   setDefaultNavigationTimeoutNoReply(params: BrowserContextSetDefaultNavigationTimeoutNoReplyParams, metadata?: CallMetadata): Promise<BrowserContextSetDefaultNavigationTimeoutNoReplyResult>;
   setDefaultTimeoutNoReply(params: BrowserContextSetDefaultTimeoutNoReplyParams, metadata?: CallMetadata): Promise<BrowserContextSetDefaultTimeoutNoReplyResult>;
   setExtraHTTPHeaders(params: BrowserContextSetExtraHTTPHeadersParams, metadata?: CallMetadata): Promise<BrowserContextSetExtraHTTPHeadersResult>;
@@ -1684,8 +1684,12 @@ export type BrowserContextNewPageOptions = {};
 export type BrowserContextNewPageResult = {
   page: PageChannel,
 };
-export type BrowserContextNewServerParams = {};
-export type BrowserContextNewServerOptions = {};
+export type BrowserContextNewServerParams = {
+  correlationToken?: string,
+};
+export type BrowserContextNewServerOptions = {
+  correlationToken?: string,
+};
 export type BrowserContextNewServerResult = {
   server: ServerChannel,
 };

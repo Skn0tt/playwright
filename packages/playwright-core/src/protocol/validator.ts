@@ -914,7 +914,9 @@ scheme.BrowserContextNewPageParams = tOptional(tObject({}));
 scheme.BrowserContextNewPageResult = tObject({
   page: tChannel(['Page']),
 });
-scheme.BrowserContextNewServerParams = tOptional(tObject({}));
+scheme.BrowserContextNewServerParams = tObject({
+  correlationToken: tOptional(tString),
+});
 scheme.BrowserContextNewServerResult = tObject({
   server: tChannel(['Server']),
 });

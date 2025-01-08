@@ -43,6 +43,7 @@ import type { Artifact } from './artifact';
 import { Clock } from './clock';
 import type { ClientCertificatesProxy } from './socksClientCertificatesInterceptor';
 import { RecorderApp } from './recorder/recorderApp';
+import { MockingProxy, Server } from './server';
 
 export abstract class BrowserContext extends SdkObject {
   static Events = {
@@ -500,6 +501,13 @@ export abstract class BrowserContext extends SdkObject {
       return pageOrError;
     }
     throw pageOrError;
+  }
+
+  async newServer(params: channels.BrowserContextNewServerParams): Promise<Server> {
+    const mockingProxy = new MockingProxy(); // TODO: make it a singleton
+    await mockingProxy._initialize();
+    const server = new Server(this, mockingProxy, params.correlationToken);
+    return server;
   }
 
   addVisitedOrigin(origin: string) {

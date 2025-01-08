@@ -42,6 +42,7 @@ import { ElementHandleDispatcher } from './elementHandlerDispatcher';
 import { RecorderInTraceViewer } from '../recorder/recorderInTraceViewer';
 import { RecorderApp } from '../recorder/recorderApp';
 import { WebSocketRouteDispatcher } from './webSocketRouteDispatcher';
+import { ServerDispatcher } from './serverDispatcher';
 
 export class BrowserContextDispatcher extends Dispatcher<BrowserContext, channels.BrowserContextChannel, DispatcherScope> implements channels.BrowserContextChannel {
   _type_EventTarget = true;
@@ -221,6 +222,10 @@ export class BrowserContextDispatcher extends Dispatcher<BrowserContext, channel
 
   async newPage(params: channels.BrowserContextNewPageParams, metadata: CallMetadata): Promise<channels.BrowserContextNewPageResult> {
     return { page: PageDispatcher.from(this, await this._context.newPage(metadata)) };
+  }
+
+  async newServer(params: channels.BrowserContextNewServerParams): Promise<channels.BrowserContextNewServerResult> {
+    return { server: new ServerDispatcher(this, await this._context.newServer(params)) };
   }
 
   async cookies(params: channels.BrowserContextCookiesParams): Promise<channels.BrowserContextCookiesResult> {
