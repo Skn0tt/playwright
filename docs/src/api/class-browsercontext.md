@@ -1021,6 +1021,12 @@ Creates a new page in the browser context.
 
 Returns all open pages in the context.
 
+## async method: BrowserContext.newServer
+* since: v1.51
+- returns: <[Server]>
+
+lorem ipsum
+
 ## async method: BrowserContext.removeAllListeners
 * since: v1.47
 * langs: js

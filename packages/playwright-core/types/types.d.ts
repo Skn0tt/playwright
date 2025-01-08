@@ -9004,6 +9004,11 @@ export interface BrowserContext {
   newPage(): Promise<Page>;
 
   /**
+   * lorem ipsum
+   */
+  newServer(): Promise<Server>;
+
+  /**
    * Returns all open pages in the context.
    */
   pages(): Array<Page>;

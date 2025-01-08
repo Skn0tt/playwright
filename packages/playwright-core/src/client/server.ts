@@ -17,7 +17,7 @@ import type * as api from '../../types/types';
 import type * as channels from '@protocol/channels';
 import * as network from './network';
 import { ChannelOwner } from './channelOwner';
-import { urlMatchesEqual, type URLMatch } from '@isomorphic/urlMatch';
+import { urlMatchesEqual, type URLMatch } from '../utils/isomorphic/urlMatch';
 import type { BrowserContext } from './browserContext';
 
 export class Server extends ChannelOwner<channels.ServerChannel> implements api.Server {
