@@ -2761,7 +2761,9 @@ scheme.JsonPipeSendParams = tObject({
 scheme.JsonPipeSendResult = tOptional(tObject({}));
 scheme.JsonPipeCloseParams = tOptional(tObject({}));
 scheme.JsonPipeCloseResult = tOptional(tObject({}));
-scheme.ServerInitializer = tOptional(tObject({}));
+scheme.ServerInitializer = tObject({
+  port: tNumber,
+});
 scheme.ServerRequestEvent = tObject({
   request: tChannel(['Request']),
 });

@@ -3753,6 +3753,9 @@ Server:
 
   extends: EventTarget
 
+  initializer:
+    port: number
+
   commands:
     setNetworkInterceptionPatterns:
       parameters:

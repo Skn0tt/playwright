@@ -26,7 +26,9 @@ export class ServerDispatcher extends Dispatcher<Server, channels.ServerChannel,
   private readonly _server: Server;
 
   constructor(parentScope: DispatcherScope, server: Server) {
-    super(parentScope, server, 'Server', {});
+    super(parentScope, server, 'Server', {
+      port: server.port,
+    });
     this._server = server;
   }
 

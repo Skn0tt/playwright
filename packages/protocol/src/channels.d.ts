@@ -4998,7 +4998,9 @@ export interface JsonPipeEvents {
 }
 
 // ----------- Server -----------
-export type ServerInitializer = {};
+export type ServerInitializer = {
+  port: number,
+};
 export interface ServerEventTarget {
   on(event: 'request', callback: (params: ServerRequestEvent) => void): this;
   on(event: 'requestFailed', callback: (params: ServerRequestFailedEvent) => void): this;

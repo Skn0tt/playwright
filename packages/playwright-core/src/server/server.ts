@@ -41,9 +41,13 @@ export class MockingProxy {
     });
   }
 
-  get address() {
+  get port() {
     const address = this._httpServer.address() as AddressInfo;
-    return `http://localhost:${address.port}`; // TODO: fix host
+    return address.port;
+  }
+
+  get address() {
+    return `http://localhost:${this.port}`;
   }
 
   register(token: string | undefined, server: Server) {
@@ -104,6 +108,10 @@ export class Server extends SdkObject {
     } else {
       proxy.register(undefined, this);
     }
+  }
+
+  get port() {
+    return this._proxy.port;
   }
 
   dispose() {
