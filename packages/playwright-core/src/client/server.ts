@@ -25,10 +25,10 @@ export class Server extends ChannelOwner<channels.ServerChannel> implements api.
   private readonly _port: number;
   private _context: BrowserContext;
 
-  constructor(parent: BrowserContext, type: string, guid: string, initializer: channels.ServerInitializer) {
+  constructor(parent: ChannelOwner, type: string, guid: string, initializer: channels.ServerInitializer) {
     super(parent, type, guid, initializer);
     this._port = initializer.port;
-    this._context = parent;
+    this._context = parent as BrowserContext;
 
     this._channel.on('route', ({ route }) => this._onRoute(network.Route.from(route)));
   }
