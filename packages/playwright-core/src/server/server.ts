@@ -73,7 +73,7 @@ export class MockingProxy {
   }
 
   private async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    async function proxy(overrides?: NormalizedContinueOverrides) {
+    async function proxy(overrides?: NormalizedContinueOverrides): Promise<ServerResponse> {
       throw new Error('not implemented');
     }
 
@@ -90,19 +90,38 @@ export class MockingProxy {
 
     const route = new ServerRoute(request, {
       async abort(errorCode) {
+        server.emit(Server.Events.RequestAborted, request);
         // TODO: respect error code
         req.socket.end();
       },
       async continue(overrides) {
-        await proxy(overrides);
+        server.emit(Server.Events.RequestContinued, request);
+        const response = await proxy(overrides);
+        server.emit(Server.Events.Response, response);
       },
       async fulfill(params) {
         res.statusCode = params.status ?? 200;
         for (const { name, value } of params.headers ?? [])
           res.appendHeader(name, value);
-        if (params.body)
-          res.write(Buffer.from(params.body, params.isBase64 ? 'base64' : 'utf-8'));
+        const body = params.body ? Buffer.from(params.body, params.isBase64 ? 'base64' : 'utf-8') : undefined;
+        if (body)
+          res.write(body);
         res.end();
+
+        const timing: ResourceTiming = {
+          startTime: 0,
+          domainLookupStart: -1,
+          domainLookupEnd: -1,
+          connectStart: -1,
+          secureConnectionStart: -1,
+          connectEnd: -1,
+          requestStart: 0,
+          responseStart: 0,
+        };
+        const response = new ServerResponse(request, res.statusCode, res.statusMessage, params.headers, timing, async () => body ?? Buffer.from(''), req.httpVersion);
+        server.emit(Server.Events.Response, response);
+        server.emit(Server.Events.RequestFinished, request);
+        server.emit(Server.Events.RequestFulfilled, request);
       }
     });
     server.emit(Server.Events.Route, route);
