@@ -65,13 +65,38 @@ export class MockingProxy {
   }
 
   private async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    function proxy() {}
+    function proxy() {
+      throw new Error('not implemented');
+    }
+
     const server = typeof req.headers['x-pw-correlation'] === 'string' ? this._servers.get(req.headers['x-pw-correlation']!) : this._singleServer;
     if (!server)
       return proxy();
-    const handled = await server._handleRequest(req, res);
-    if (!handled)
-      proxy();
+
+    const url = req.url!;
+    if (!server.isIntercepted(url))
+      return proxy();
+
+    const route = new Route(server, {
+      abort() {
+
+      },
+      continue(overrides) {
+        proxy();
+      },
+      fulfill(params) {
+        params.fetchResponseUid // TODO: ???
+        res.statusCode = params.status ?? 200;
+        for (const { name, value } of params.headers ?? [])
+          res.appendHeader(name, value);
+        if (params.body)
+          res.write(Buffer.from(params.body, params.isBase64 ? 'base64' : 'utf-8'));
+        res.end();
+      }
+    });
+    const request = new Request(server, 'todo');
+
+    server.emit(Server.Events.Request, request, route);
   }
 }
 
@@ -122,12 +147,23 @@ export class Server extends SdkObject {
     this._patterns = patterns;
   }
 
-  async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<boolean> {
-    // TODO: implement all of this
-    this.emit(Server.Events.Request, 'todo');
-    const pattern = this._patterns.find(pattern => true /* TODO */);
-    if (!pattern)
-      return false;
-    return true;
+  isIntercepted(url: string) {
+    return !!this._patterns.find(pattern => true /* TODO */);
   }
 }
+
+interface RouteDelegate {
+  abort(): void;
+  continue(overrides: any): void;
+  fulfill(params: channels.RouteFulfillParams): void;
+}
+
+class Route extends SdkObject {
+  private _delegate: RouteDelegate;
+  constructor(server: Server, delegate: RouteDelegate) {
+    super(server, 'route');
+    this._delegate = delegate;
+  }
+}
+
+class Request extends SdkObject {}
