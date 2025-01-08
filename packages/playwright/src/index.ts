@@ -48,6 +48,8 @@ type TestFixtures = PlaywrightTestArgs & PlaywrightTestOptions & {
   _setupContextOptions: void;
   _setupArtifacts: void;
   _contextFactory: (options?: BrowserContextOptions) => Promise<BrowserContext>;
+
+  server: playwrightLibrary.Server;
 };
 
 type WorkerFixtures = PlaywrightWorkerArgs & PlaywrightWorkerOptions & {
@@ -449,6 +451,11 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
       await request.dispose();
     }
   },
+
+  server: async ({ context }, use, testInfo) => {
+    const server = await context.newServer(testInfo.testId);
+    await use(server);
+  }
 });
 
 type ScreenshotOption = PlaywrightWorkerOptions['screenshot'] | undefined;
