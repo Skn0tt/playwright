@@ -44,6 +44,7 @@ import { Dialog } from './dialog';
 import { WebError } from './webError';
 import { TargetClosedError, parseError } from './errors';
 import { Clock } from './clock';
+import { Server } from './server';
 
 export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel> implements api.BrowserContext {
   _pages = new Set<Page>();
@@ -264,6 +265,10 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     if (this._ownerPage)
       throw new Error('Please use browser.newContext()');
     return Page.from((await this._channel.newPage()).page);
+  }
+
+  async newServer(params: { correlationToken?: string } = {}): Promise<Server> {
+    return Server.from((await this._channel.newServer(params)).server);
   }
 
   async cookies(urls?: string | string[]): Promise<network.NetworkCookie[]> {

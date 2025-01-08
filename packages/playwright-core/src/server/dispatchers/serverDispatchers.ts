@@ -35,9 +35,9 @@ export class ServerDispatcher extends Dispatcher<Server, channels.ServerChannel,
       return this._object.setRequestInterceptor(undefined);
 
     this._object.setRequestInterceptor(async (route, request) => {
-      const match = params.patterns.some(pattern => true === request.url);
+      const match = params.patterns.some(pattern => true);
       if (!match)
-        return route.continue();
+        return route.continue({ isFallback: false });
 
       this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope(), request), route) });
     });

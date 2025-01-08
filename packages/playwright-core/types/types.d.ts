@@ -9075,6 +9075,11 @@ export interface BrowserContext {
      * How often a route should be used. By default it will be used every time.
      */
     times?: number;
+
+    /**
+     * How often a route should be used. By default it will be used every time.
+     */
+    times?: number;
   }): Promise<void>;
 
   /**
@@ -21044,6 +21049,28 @@ export interface Selectors {
    * @param attributeName Test id attribute name.
    */
   setTestIdAttribute(attributeName: string): void;
+}
+
+/**
+ * Lorem Ipsum dolor async route(url: URLMatcher, handler: ServerRouteHandler) {
+ * this.repo.registerServerRoute(this.mockId, url, handler); }
+ *
+ * on(event: 'response', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this; on(event:
+ * 'request', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this; on(event:
+ * 'requestfinished', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this; on(event:
+ * 'requestfailed', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this; on(event:
+ * 'request' | 'response' | 'requestfinished' | 'requestfailed', listener: any) { return super.on(event, listener); };
+ */
+export interface Server {
+  /**
+   * Lorem ipsum
+   * @param url A glob pattern, regex pattern or predicate receiving [URL] to match while routing. When a
+   * [`baseURL`](https://playwright.dev/docs/api/class-browser#browser-new-context-option-base-url) via the context
+   * options was provided and the passed URL is a path, it gets merged via the
+   * [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
+   * @param handler handler function to route the request.
+   */
+  route(url: string|RegExp|((url: URL) => boolean), handler: ((route: Route, request: Request) => Promise<any>|any)): Promise<void>;
 }
 
 /**

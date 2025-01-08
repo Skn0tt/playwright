@@ -45,6 +45,7 @@ import { findValidator, ValidationError, type ValidatorContext } from '../protoc
 import { createInstrumentation } from './clientInstrumentation';
 import type { ClientInstrumentation } from './clientInstrumentation';
 import { formatCallLog, rewriteErrorMessage, zones } from '../utils';
+import { Server } from './server';
 
 class Root extends ChannelOwner<channels.RootChannel> {
   constructor(connection: Connection) {
@@ -299,6 +300,9 @@ export class Connection extends EventEmitter {
         break;
       case 'Selectors':
         result = new SelectorsOwner(parent, type, guid, initializer);
+        break;
+      case 'Server':
+        result = new Server(parent, type, guid, initializer);
         break;
       case 'SocksSupport':
         result = new DummyChannelOwner(parent, type, guid, initializer);
