@@ -73,6 +73,9 @@ export class MockingProxy {
     if (!server)
       return proxy();
 
+    const request = new Request(server, 'todo');
+    server.emit(Server.Events.Request, request);
+
     const url = req.url!;
     if (!server.isIntercepted(url))
       return proxy();
@@ -94,14 +97,14 @@ export class MockingProxy {
         res.end();
       }
     });
-    const request = new Request(server, 'todo');
 
-    server.emit(Server.Events.Request, request, route);
+    server.emit(Server.Events.Route, route);
   }
 }
 
 export class Server extends SdkObject {
   static Events = { // TODO: implement all of this
+    Route: 'route',
     Request: 'request',
     Response: 'response',
     RequestFailed: 'requestfailed',

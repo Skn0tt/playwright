@@ -5002,6 +5002,7 @@ export type ServerInitializer = {
   port: number,
 };
 export interface ServerEventTarget {
+  on(event: 'route', callback: (params: ServerRouteEvent) => void): this;
   on(event: 'request', callback: (params: ServerRequestEvent) => void): this;
   on(event: 'requestFailed', callback: (params: ServerRequestFailedEvent) => void): this;
   on(event: 'requestFinished', callback: (params: ServerRequestFinishedEvent) => void): this;
@@ -5011,6 +5012,9 @@ export interface ServerChannel extends ServerEventTarget, EventTargetChannel {
   _type_Server: boolean;
   setNetworkInterceptionPatterns(params: ServerSetNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<ServerSetNetworkInterceptionPatternsResult>;
 }
+export type ServerRouteEvent = {
+  route: RouteChannel,
+};
 export type ServerRequestEvent = {
   request: RequestChannel,
 };
@@ -5040,6 +5044,7 @@ export type ServerSetNetworkInterceptionPatternsOptions = {
 export type ServerSetNetworkInterceptionPatternsResult = void;
 
 export interface ServerEvents {
+  'route': ServerRouteEvent;
   'request': ServerRequestEvent;
   'requestFailed': ServerRequestFailedEvent;
   'requestFinished': ServerRequestFinishedEvent;

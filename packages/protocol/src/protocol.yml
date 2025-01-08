@@ -3769,6 +3769,10 @@ Server:
               regexFlags: string?
 
   events:
+    route:
+      parameters:
+        route: Route
+
     request:
       parameters:
         request: Request
