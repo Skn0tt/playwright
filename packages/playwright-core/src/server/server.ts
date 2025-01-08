@@ -19,6 +19,7 @@ import type { BrowserContext } from './browserContext';
 import { SdkObject } from './instrumentation';
 import http from 'http';
 import type * as channels from '@protocol/channels';
+import type { HeadersArray } from './types';
 
 export class MockingProxy {
   private _httpServer = http.createServer(this._handleRequest.bind(this));
@@ -73,10 +74,10 @@ export class MockingProxy {
     if (!server)
       return proxy();
 
-    const request = new Request(server, 'todo');
+    const request = new ServerRequest(server, 'todo');
     server.emit(Server.Events.Request, request);
 
-    const route = new Route(server, {
+    const route = new ServerRoute(server, {
       abort() {
 
       },
@@ -117,7 +118,7 @@ export class Server extends SdkObject {
   private _context: BrowserContext;
   private _proxy: MockingProxy;
   private _patterns: channels.ServerSetNetworkInterceptionPatternsParams['patterns'] = [];
-  _interceptor?: (route: Route, request: Request) => Promise<void>;
+  _interceptor?: (route: ServerRoute, request: ServerRequest) => Promise<void>;
 
   constructor(context: BrowserContext, proxy: MockingProxy, correlationToken?: string) {
     super(context, 'server');
@@ -146,7 +147,7 @@ export class Server extends SdkObject {
     this._proxy.unregister(this._correlationToken);
   }
 
-  setRequestInterceptor(interceptor?: (route: Route, request: Request) => Promise<void>) {
+  setRequestInterceptor(interceptor?: (route: ServerRoute, request: ServerRequest) => Promise<void>) {
     this._interceptor = interceptor;
     // TODO: update request interception
   }
@@ -158,7 +159,7 @@ interface RouteDelegate {
   fulfill(params: channels.RouteFulfillParams): void;
 }
 
-class Route extends SdkObject {
+export class ServerRoute extends SdkObject {
   private _delegate: RouteDelegate;
   constructor(server: Server, delegate: RouteDelegate) {
     super(server, 'route');
@@ -168,6 +169,34 @@ class Route extends SdkObject {
   continue() {}
 }
 
-class Request extends SdkObject {
-  url: string;
+export class ServerRequest extends SdkObject {
+  url() {
+    throw new Error('not implemented');
+  }
+
+  method() {
+    throw new Error('not implemented');
+  }
+
+  postData(): Buffer | null {
+    // TODO: this *really* needs to be a promise or we'll break streaming requests, but it doesn't fit the current API
+  }
+
+  headers(): HeadersArray {
+    throw new Error('not implemented');
+  }
+
+  async response(): Promise<ServerResponse | null> {
+    throw new Error('not implemented');
+  }
+
+  async rawRequestHeaders(): Promise<HeadersArray> {
+    throw new Error('not implemented');
+  }
+}
+
+export class ServerResponse extends SdkObject {
+  request(): ServerRequest {
+    throw new Error('not implemented');
+  }
 }
