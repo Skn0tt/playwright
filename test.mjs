@@ -17,7 +17,8 @@ import { chromium } from 'playwright-core';
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
-const server = await page.context().newServer('test');
+const testId = crypto.randomUUID();
+const server = await page.context().newServer(testId);
 
 await server.route('https://jsonplaceholder.typicode.com/posts', async (route, request) => {
   console.log('mocking', request.url());
