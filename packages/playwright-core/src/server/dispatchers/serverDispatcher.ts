@@ -33,6 +33,15 @@ export class ServerDispatcher extends Dispatcher<Server, channels.ServerChannel,
   }
 
   async setNetworkInterceptionPatterns(params: channels.ServerSetNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.ServerSetNetworkInterceptionPatternsResult> {
-    this._server.setNetworkInterceptionPatterns(params.patterns);
+    if (params.patterns.length === 0)
+      return this._server.setRequestInterceptor(undefined);
+
+    this._server.setRequestInterceptor(async (route, request) => {
+      const match = params.patterns.some(pattern => true === request.url);
+      if (!match)
+        return route.continue();
+
+      this._dispatchEvent('route', { route: null /* TODO: route dispatcher */ });
+    });
   }
 }

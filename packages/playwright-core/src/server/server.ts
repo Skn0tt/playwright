@@ -76,10 +76,6 @@ export class MockingProxy {
     const request = new Request(server, 'todo');
     server.emit(Server.Events.Request, request);
 
-    const url = req.url!;
-    if (!server.isIntercepted(url))
-      return proxy();
-
     const route = new Route(server, {
       abort() {
 
@@ -97,8 +93,11 @@ export class MockingProxy {
         res.end();
       }
     });
-
     server.emit(Server.Events.Route, route);
+
+    if (!server._interceptor)
+      return route.continue();
+    await server._interceptor(route, request);
   }
 }
 
@@ -118,6 +117,7 @@ export class Server extends SdkObject {
   private _context: BrowserContext;
   private _proxy: MockingProxy;
   private _patterns: channels.ServerSetNetworkInterceptionPatternsParams['patterns'] = [];
+  _interceptor?: (route: Route, request: Request) => Promise<void>;
 
   constructor(context: BrowserContext, proxy: MockingProxy, correlationToken?: string) {
     super(context, 'server');
@@ -146,12 +146,9 @@ export class Server extends SdkObject {
     this._proxy.unregister(this._correlationToken);
   }
 
-  setNetworkInterceptionPatterns(patterns: channels.ServerSetNetworkInterceptionPatternsParams['patterns']) {
-    this._patterns = patterns;
-  }
-
-  isIntercepted(url: string) {
-    return !!this._patterns.find(pattern => true /* TODO */);
+  setRequestInterceptor(interceptor?: (route: Route, request: Request) => Promise<void>) {
+    this._interceptor = interceptor;
+    // TODO: update request interception
   }
 }
 
@@ -167,6 +164,10 @@ class Route extends SdkObject {
     super(server, 'route');
     this._delegate = delegate;
   }
+
+  continue() {}
 }
 
-class Request extends SdkObject {}
+class Request extends SdkObject {
+  url: string;
+}
