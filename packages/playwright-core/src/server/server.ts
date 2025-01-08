@@ -77,15 +77,15 @@ export class MockingProxy {
       throw new Error('not implemented');
     }
 
-    const server = typeof req.headers['x-pw-correlation'] === 'string' ? this._servers.get(req.headers['x-pw-correlation']!) : this._singleServer;
+    const server = typeof req.headers['x-pw-mock-id'] === 'string' ? this._servers.get(req.headers['x-pw-mock-id']!) : this._singleServer;
     if (!server)
       return proxy();
 
-    const url = req.headers.host ? `http://${req.headers.host}${req.url}` : req.url!;
+    const url = decodeURIComponent(req.headers['x-pw-mock-url'] as string);
     const method = req.method ?? 'GET';
     const postData = Buffer.from('mock body');
     const headers = headersArray(req);
-    const request = new ServerRequest(server._context, method, url, postData, headers);
+    const request = new ServerRequest(server._context, url, method, postData, headers);
     server.emit(Server.Events.Request, request);
 
     const route = new ServerRoute(request, {
@@ -135,18 +135,6 @@ export class Server extends SdkObject {
     this._context = context;
     this._proxy = proxy;
     this._correlationToken = correlationToken;
-
-    if (this._correlationToken) {
-      proxy.register(this._correlationToken, this);
-
-      // TODO: make this reversible
-      this._context.setExtraHTTPHeaders([
-        { name: 'x-pw-correlation', value: this._correlationToken },
-        { name: 'x-pw-address', value: this._proxy.address },
-      ]);
-    } else {
-      proxy.register(undefined, this);
-    }
   }
 
   get port() {
@@ -171,8 +159,8 @@ export class Server extends SdkObject {
     if (this._correlationToken) {
       this._proxy.register(this._correlationToken, this);
       this._context.setExtraHTTPHeaders([
-        { name: 'x-pw-correlation', value: this._correlationToken },
-        { name: 'x-pw-address', value: this._proxy.address },
+        { name: 'x-pw-mock-id', value: this._correlationToken },
+        { name: 'x-pw-mock-repository', value: this._proxy.address },
       ]);
     } else {
       this._proxy.register(undefined, this);

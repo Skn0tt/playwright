@@ -1027,6 +1027,12 @@ Returns all open pages in the context.
 
 lorem ipsum
 
+### param: BrowserContext.newServer.correlationToken
+* since: v1.51
+- `correlationToken` ?<[string]>
+
+loremp isum
+
 ## async method: BrowserContext.removeAllListeners
 * since: v1.47
 * langs: js

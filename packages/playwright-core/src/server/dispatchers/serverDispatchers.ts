@@ -35,7 +35,7 @@ export class ServerDispatcher extends Dispatcher<Server, channels.ServerChannel,
       return this._object.setRequestInterceptor(undefined);
 
     this._object.setRequestInterceptor(async (route, request) => {
-      const match = params.patterns.some(pattern => true);
+      const match = params.patterns.find(pattern => true);
       if (!match)
         return route.continue({ isFallback: false });
 
