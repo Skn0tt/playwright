@@ -76,7 +76,7 @@ export class MockingProxy {
 }
 
 export class Server extends SdkObject {
-  static Events = {
+  static Events = { // TODO: implement all of this
     Request: 'request',
     Response: 'response',
     RequestFailed: 'requestfailed',
@@ -123,6 +123,7 @@ export class Server extends SdkObject {
   }
 
   async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<boolean> {
+    // TODO: implement all of this
     this.emit(Server.Events.Request, 'todo');
     const pattern = this._patterns.find(pattern => true /* TODO */);
     if (!pattern)
