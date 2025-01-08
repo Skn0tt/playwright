@@ -24,6 +24,10 @@ import { Request, Route } from './network';
 import type { RouteDelegate } from './network';
 import { Response } from './network';
 
+function headersArray(req: Pick<http.IncomingMessage, 'headersDistinct'>): HeadersArray {
+  return Object.entries(req.headersDistinct).flatMap(([name, values = []]) => values.map(value => ({ name, value })));
+}
+
 export class MockingProxy {
   private _httpServer = http.createServer(this._handleRequest.bind(this));
 
@@ -77,15 +81,16 @@ export class MockingProxy {
     if (!server)
       return proxy();
 
-    const url = req.url ?? 'no-url';
+    const url = req.headers.host ? `http://${req.headers.host}${req.url}` : req.url!;
     const method = req.method ?? 'GET';
-    const postData = Buffer.from('Mock');
-    const headers: HeadersArray = [];
+    const postData = Buffer.from('mock body');
+    const headers = headersArray(req);
     const request = new ServerRequest(server._context, method, url, postData, headers);
     server.emit(Server.Events.Request, request);
 
     const route = new ServerRoute(request, {
       async abort(errorCode) {
+        // TODO: respect error code
         req.socket.end();
       },
       async continue(overrides) {
