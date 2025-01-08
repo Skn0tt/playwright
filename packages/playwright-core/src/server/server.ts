@@ -20,6 +20,7 @@ import { SdkObject } from './instrumentation';
 import http from 'http';
 import type * as channels from '@protocol/channels';
 import type { HeadersArray } from './types';
+import { ResourceSizes } from './network';
 
 export class MockingProxy {
   private _httpServer = http.createServer(this._handleRequest.bind(this));
@@ -197,6 +198,14 @@ export class ServerRequest extends SdkObject {
 
 export class ServerResponse extends SdkObject {
   request(): ServerRequest {
+    throw new Error('not implemented');
+  }
+
+  sizes(): Promise<ResourceSizes> {
+    throw new Error('not implemented');
+  }
+
+  body(): Promise<Buffer> {
     throw new Error('not implemented');
   }
 }

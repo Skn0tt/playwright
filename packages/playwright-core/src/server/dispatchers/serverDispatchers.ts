@@ -18,6 +18,7 @@ import type { Server, ServerRequest, ServerRoute, ServerResponse } from '../serv
 import type { DispatcherScope } from './dispatcher';
 import { Dispatcher, existingDispatcher } from './dispatcher';
 import type * as channels from '@protocol/channels';
+import { statusText } from '../network';
 
 export class ServerDispatcher extends Dispatcher<Server, channels.ServerChannel, DispatcherScope> implements channels.ServerChannel {
   _type_EventTarget = true;
@@ -86,13 +87,19 @@ export class ServerResponseDispatcher extends Dispatcher<ServerResponse, channel
     return response ? ServerResponseDispatcher.from(scope, response) : undefined;
   }
 
-  constructor(parentScope: DispatcherScope, response: ServerResponse) {
-    super(parentScope, response, 'Response', {
+  constructor(scope: ServerRequestDispatcher, response: ServerResponse) {
+    super(scope, response, 'Response', {
+      request: scope,
+      url: response.url(),
+      status: response.status(),
+      statusText: response.statusText(),
+      headers: response.headers(),
+      timing: response.timing(),
     });
   }
 
-  body(params?: channels.ResponseBodyParams, metadata?: CallMetadata): Promise<channels.ResponseBodyResult> {
-    throw new Error('Method not implemented.');
+  async body(params?: channels.ResponseBodyParams, metadata?: CallMetadata): Promise<channels.ResponseBodyResult> {
+    return { binary: await this._object.body() };
   }
 
   securityDetails(params?: channels.ResponseSecurityDetailsParams, metadata?: CallMetadata): Promise<channels.ResponseSecurityDetailsResult> {
@@ -107,8 +114,8 @@ export class ServerResponseDispatcher extends Dispatcher<ServerResponse, channel
     throw new Error('Method not implemented.');
   }
 
-  sizes(params?: channels.ResponseSizesParams, metadata?: CallMetadata): Promise<channels.ResponseSizesResult> {
-    throw new Error('Method not implemented.');
+  async sizes(params?: channels.ResponseSizesParams, metadata?: CallMetadata): Promise<channels.ResponseSizesResult> {
+    return { sizes: await this._object.sizes() };
   }
 }
 
@@ -116,8 +123,13 @@ export class ServerResponseDispatcher extends Dispatcher<ServerResponse, channel
 export class ServerRouteDispatcher extends Dispatcher<ServerRoute, channels.RouteChannel, DispatcherScope> implements channels.RouteChannel {
   _type_Route = true;
 
-  constructor(parentScope: DispatcherScope, route: ServerRoute) {
-    super(parentScope, route, 'Route', {
+  static from(scope: ServerRequestDispatcher, route: ServerRoute): ServerRouteDispatcher {
+    return existingDispatcher<ServerRouteDispatcher>(route) ?? new ServerRouteDispatcher(scope, route);
+  }
+
+  constructor(scope: ServerRequestDispatcher, route: ServerRoute) {
+    super(scope, route, 'Route', {
+      request: scope,
     });
   }
 
@@ -130,7 +142,7 @@ export class ServerRouteDispatcher extends Dispatcher<ServerRoute, channels.Rout
   }
 
   continue(params: channels.RouteContinueParams, metadata?: CallMetadata): Promise<channels.RouteContinueResult> {
-
+    throw new Error('Method not implemented.');
   }
 
   redirectNavigationRequest(params: channels.RouteRedirectNavigationRequestParams, metadata?: CallMetadata): Promise<channels.RouteRedirectNavigationRequestResult> {
