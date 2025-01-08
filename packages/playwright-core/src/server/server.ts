@@ -18,9 +18,11 @@ import type { AddressInfo } from 'net';
 import type { BrowserContext } from './browserContext';
 import { SdkObject } from './instrumentation';
 import http from 'http';
-import type * as channels from '@protocol/channels';
-import type { HeadersArray } from './types';
-import { ResourceSizes } from './network';
+import type { HeadersArray, NormalizedContinueOverrides } from './types';
+import type { GetResponseBodyCallback, ResourceTiming } from './network';
+import { Request, Route } from './network';
+import type { RouteDelegate } from './network';
+import { Response } from './network';
 
 export class MockingProxy {
   private _httpServer = http.createServer(this._handleRequest.bind(this));
@@ -67,7 +69,7 @@ export class MockingProxy {
   }
 
   private async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    function proxy() {
+    async function proxy(overrides?: NormalizedContinueOverrides) {
       throw new Error('not implemented');
     }
 
@@ -75,18 +77,21 @@ export class MockingProxy {
     if (!server)
       return proxy();
 
-    const request = new ServerRequest(server, 'todo');
+    const url = req.url ?? 'no-url';
+    const method = req.method ?? 'GET';
+    const postData = Buffer.from('Mock');
+    const headers: HeadersArray = [];
+    const request = new ServerRequest(server._context, method, url, postData, headers);
     server.emit(Server.Events.Request, request);
 
-    const route = new ServerRoute(server, {
-      abort() {
-
+    const route = new ServerRoute(request, {
+      async abort(errorCode) {
+        req.socket.end();
       },
-      continue(overrides) {
-        proxy();
+      async continue(overrides) {
+        await proxy(overrides);
       },
-      fulfill(params) {
-        params.fetchResponseUid // TODO: ???
+      async fulfill(params) {
         res.statusCode = params.status ?? 200;
         for (const { name, value } of params.headers ?? [])
           res.appendHeader(name, value);
@@ -98,7 +103,7 @@ export class MockingProxy {
     server.emit(Server.Events.Route, route);
 
     if (!server._interceptor)
-      return route.continue();
+      return route.continue({ isFallback: false });
     await server._interceptor(route, request);
   }
 }
@@ -116,9 +121,8 @@ export class Server extends SdkObject {
   };
 
   private _correlationToken: string | undefined;
-  private _context: BrowserContext;
+  _context: BrowserContext;
   private _proxy: MockingProxy;
-  private _patterns: channels.ServerSetNetworkInterceptionPatternsParams['patterns'] = [];
   _interceptor?: (route: ServerRoute, request: ServerRequest) => Promise<void>;
 
   constructor(context: BrowserContext, proxy: MockingProxy, correlationToken?: string) {
@@ -145,67 +149,51 @@ export class Server extends SdkObject {
   }
 
   dispose() {
-    this._proxy.unregister(this._correlationToken);
+    this._interceptor = undefined;
+    this._updateRequestInterception();
+  }
+
+  _updateRequestInterception() {
+    if (!this._interceptor) {
+      // remove all registrations
+      if (this._correlationToken)
+        this._proxy.unregister(this._correlationToken);
+      else
+        this._proxy.unregister(undefined);
+      return;
+    }
+
+    if (this._correlationToken) {
+      this._proxy.register(this._correlationToken, this);
+      this._context.setExtraHTTPHeaders([
+        { name: 'x-pw-correlation', value: this._correlationToken },
+        { name: 'x-pw-address', value: this._proxy.address },
+      ]);
+    } else {
+      this._proxy.register(undefined, this);
+    }
   }
 
   setRequestInterceptor(interceptor?: (route: ServerRoute, request: ServerRequest) => Promise<void>) {
     this._interceptor = interceptor;
-    // TODO: update request interception
+    this._updateRequestInterception();
   }
 }
 
-interface RouteDelegate {
-  abort(): void;
-  continue(overrides: any): void;
-  fulfill(params: channels.RouteFulfillParams): void;
-}
-
-export class ServerRoute extends SdkObject {
-  private _delegate: RouteDelegate;
-  constructor(server: Server, delegate: RouteDelegate) {
-    super(server, 'route');
-    this._delegate = delegate;
-  }
-
-  continue() {}
-}
-
-export class ServerRequest extends SdkObject {
-  url() {
-    throw new Error('not implemented');
-  }
-
-  method() {
-    throw new Error('not implemented');
-  }
-
-  postData(): Buffer | null {
-    // TODO: this *really* needs to be a promise or we'll break streaming requests, but it doesn't fit the current API
-  }
-
-  headers(): HeadersArray {
-    throw new Error('not implemented');
-  }
-
-  async response(): Promise<ServerResponse | null> {
-    throw new Error('not implemented');
-  }
-
-  async rawRequestHeaders(): Promise<HeadersArray> {
-    throw new Error('not implemented');
+export class ServerRoute extends Route {
+  constructor(request: ServerRequest, delegate: RouteDelegate) {
+    super(request, delegate);
   }
 }
 
-export class ServerResponse extends SdkObject {
-  request(): ServerRequest {
-    throw new Error('not implemented');
+export class ServerRequest extends Request {
+  constructor(context: BrowserContext, url: string, method: string, postData: Buffer | null, headers: HeadersArray) {
+    super(context, null, null, null, undefined, url, '', method, postData, headers);
   }
+}
 
-  sizes(): Promise<ResourceSizes> {
-    throw new Error('not implemented');
-  }
-
-  body(): Promise<Buffer> {
-    throw new Error('not implemented');
+export class ServerResponse extends Response {
+  constructor(request: ServerRequest, status: number, statusText: string, headers: HeadersArray, timing: ResourceTiming, getResponseBodyCallback: GetResponseBodyCallback, httpVersion?: string) {
+    super(request, status, statusText, headers, timing, getResponseBodyCallback, false, httpVersion);
   }
 }

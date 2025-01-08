@@ -346,7 +346,7 @@ export class Route extends SdkObject {
 
 export type RouteHandler = (route: Route, request: Request) => boolean;
 
-type GetResponseBodyCallback = () => Promise<Buffer>;
+export type GetResponseBodyCallback = () => Promise<Buffer>;
 
 export type ResourceTiming = {
   startTime: number;
