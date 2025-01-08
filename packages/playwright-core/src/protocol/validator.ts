@@ -795,12 +795,14 @@ scheme.PageWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.WebSocketWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.ElectronApplicationWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.AndroidDeviceWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
+scheme.ServerWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.EventTargetWaitForEventInfoResult = tOptional(tObject({}));
 scheme.BrowserContextWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.PageWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.WebSocketWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.ElectronApplicationWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.AndroidDeviceWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
+scheme.ServerWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.BrowserContextInitializer = tObject({
   isChromium: tBoolean,
   requestContext: tChannel(['APIRequestContext']),
@@ -911,6 +913,10 @@ scheme.BrowserContextGrantPermissionsResult = tOptional(tObject({}));
 scheme.BrowserContextNewPageParams = tOptional(tObject({}));
 scheme.BrowserContextNewPageResult = tObject({
   page: tChannel(['Page']),
+});
+scheme.BrowserContextNewServerParams = tOptional(tObject({}));
+scheme.BrowserContextNewServerResult = tObject({
+  server: tChannel(['Server']),
 });
 scheme.BrowserContextSetDefaultNavigationTimeoutNoReplyParams = tObject({
   timeout: tOptional(tNumber),
@@ -2753,3 +2759,28 @@ scheme.JsonPipeSendParams = tObject({
 scheme.JsonPipeSendResult = tOptional(tObject({}));
 scheme.JsonPipeCloseParams = tOptional(tObject({}));
 scheme.JsonPipeCloseResult = tOptional(tObject({}));
+scheme.ServerInitializer = tOptional(tObject({}));
+scheme.ServerRequestEvent = tObject({
+  request: tChannel(['Request']),
+});
+scheme.ServerRequestFailedEvent = tObject({
+  request: tChannel(['Request']),
+  failureText: tOptional(tString),
+  responseEndTiming: tNumber,
+});
+scheme.ServerRequestFinishedEvent = tObject({
+  request: tChannel(['Request']),
+  response: tOptional(tChannel(['Response'])),
+  responseEndTiming: tNumber,
+});
+scheme.ServerResponseEvent = tObject({
+  response: tChannel(['Response']),
+});
+scheme.ServerSetNetworkInterceptionPatternsParams = tObject({
+  patterns: tArray(tObject({
+    glob: tOptional(tString),
+    regexSource: tOptional(tString),
+    regexFlags: tOptional(tString),
+  })),
+});
+scheme.ServerSetNetworkInterceptionPatternsResult = tOptional(tObject({}));

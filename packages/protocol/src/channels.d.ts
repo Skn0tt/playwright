@@ -25,6 +25,7 @@ export interface Channel {
 
 // ----------- Initializer Traits -----------
 export type InitializerTraits<T> =
+    T extends ServerChannel ? ServerInitializer :
     T extends JsonPipeChannel ? JsonPipeInitializer :
     T extends AndroidDeviceChannel ? AndroidDeviceInitializer :
     T extends AndroidSocketChannel ? AndroidSocketInitializer :
@@ -63,6 +64,7 @@ export type InitializerTraits<T> =
 
 // ----------- Event Traits -----------
 export type EventsTraits<T> =
+    T extends ServerChannel ? ServerEvents :
     T extends JsonPipeChannel ? JsonPipeEvents :
     T extends AndroidDeviceChannel ? AndroidDeviceEvents :
     T extends AndroidSocketChannel ? AndroidSocketEvents :
@@ -101,6 +103,7 @@ export type EventsTraits<T> =
 
 // ----------- EventTarget Traits -----------
 export type EventTargetTraits<T> =
+    T extends ServerChannel ? ServerEventTarget :
     T extends JsonPipeChannel ? JsonPipeEventTarget :
     T extends AndroidDeviceChannel ? AndroidDeviceEventTarget :
     T extends AndroidSocketChannel ? AndroidSocketEventTarget :
@@ -1519,6 +1522,7 @@ export interface BrowserContextChannel extends BrowserContextEventTarget, EventT
   exposeBinding(params: BrowserContextExposeBindingParams, metadata?: CallMetadata): Promise<BrowserContextExposeBindingResult>;
   grantPermissions(params: BrowserContextGrantPermissionsParams, metadata?: CallMetadata): Promise<BrowserContextGrantPermissionsResult>;
   newPage(params?: BrowserContextNewPageParams, metadata?: CallMetadata): Promise<BrowserContextNewPageResult>;
+  newServer(params?: BrowserContextNewServerParams, metadata?: CallMetadata): Promise<BrowserContextNewServerResult>;
   setDefaultNavigationTimeoutNoReply(params: BrowserContextSetDefaultNavigationTimeoutNoReplyParams, metadata?: CallMetadata): Promise<BrowserContextSetDefaultNavigationTimeoutNoReplyResult>;
   setDefaultTimeoutNoReply(params: BrowserContextSetDefaultTimeoutNoReplyParams, metadata?: CallMetadata): Promise<BrowserContextSetDefaultTimeoutNoReplyResult>;
   setExtraHTTPHeaders(params: BrowserContextSetExtraHTTPHeadersParams, metadata?: CallMetadata): Promise<BrowserContextSetExtraHTTPHeadersResult>;
@@ -1679,6 +1683,11 @@ export type BrowserContextNewPageParams = {};
 export type BrowserContextNewPageOptions = {};
 export type BrowserContextNewPageResult = {
   page: PageChannel,
+};
+export type BrowserContextNewServerParams = {};
+export type BrowserContextNewServerOptions = {};
+export type BrowserContextNewServerResult = {
+  server: ServerChannel,
 };
 export type BrowserContextSetDefaultNavigationTimeoutNoReplyParams = {
   timeout?: number,
@@ -4982,5 +4991,52 @@ export type JsonPipeCloseResult = void;
 export interface JsonPipeEvents {
   'message': JsonPipeMessageEvent;
   'closed': JsonPipeClosedEvent;
+}
+
+// ----------- Server -----------
+export type ServerInitializer = {};
+export interface ServerEventTarget {
+  on(event: 'request', callback: (params: ServerRequestEvent) => void): this;
+  on(event: 'requestFailed', callback: (params: ServerRequestFailedEvent) => void): this;
+  on(event: 'requestFinished', callback: (params: ServerRequestFinishedEvent) => void): this;
+  on(event: 'response', callback: (params: ServerResponseEvent) => void): this;
+}
+export interface ServerChannel extends ServerEventTarget, EventTargetChannel {
+  _type_Server: boolean;
+  setNetworkInterceptionPatterns(params: ServerSetNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<ServerSetNetworkInterceptionPatternsResult>;
+}
+export type ServerRequestEvent = {
+  request: RequestChannel,
+};
+export type ServerRequestFailedEvent = {
+  request: RequestChannel,
+  failureText?: string,
+  responseEndTiming: number,
+};
+export type ServerRequestFinishedEvent = {
+  request: RequestChannel,
+  response?: ResponseChannel,
+  responseEndTiming: number,
+};
+export type ServerResponseEvent = {
+  response: ResponseChannel,
+};
+export type ServerSetNetworkInterceptionPatternsParams = {
+  patterns: {
+    glob?: string,
+    regexSource?: string,
+    regexFlags?: string,
+  }[],
+};
+export type ServerSetNetworkInterceptionPatternsOptions = {
+
+};
+export type ServerSetNetworkInterceptionPatternsResult = void;
+
+export interface ServerEvents {
+  'request': ServerRequestEvent;
+  'requestFailed': ServerRequestFailedEvent;
+  'requestFinished': ServerRequestFinishedEvent;
+  'response': ServerResponseEvent;
 }
 

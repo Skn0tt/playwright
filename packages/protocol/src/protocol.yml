@@ -1119,6 +1119,10 @@ BrowserContext:
       returns:
         page: Page
 
+    newServer:
+      returns:
+        server: Server
+
     setDefaultNavigationTimeoutNoReply:
       parameters:
         timeout: number?
@@ -3741,3 +3745,41 @@ JsonPipe:
     closed:
       parameters:
         reason: string?
+
+Server:
+  type: interface
+
+  extends: EventTarget
+
+  commands:
+    setNetworkInterceptionPatterns:
+      parameters:
+        patterns:
+          type: array
+          items:
+            type: object
+            properties:
+              glob: string?
+              regexSource: string?
+              regexFlags: string?
+
+  events:
+    request:
+      parameters:
+        request: Request
+
+    requestFailed:
+      parameters:
+        request: Request
+        failureText: string?
+        responseEndTiming: number
+
+    requestFinished:
+      parameters:
+        request: Request
+        response: Response?
+        responseEndTiming: number
+
+    response:
+      parameters:
+        response: Response
