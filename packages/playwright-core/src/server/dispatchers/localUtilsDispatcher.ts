@@ -295,7 +295,15 @@ type Interceptor = [patterns: channels.LocalUtilsSetServerNetworkInterceptionPat
 class ServerInterceptionRegistry {
   private _interceptors = new Map<string, Interceptor>();
 
-  api = new ServerInterceptionAPI(this);
+  private _api?: ServerInterceptionAPI;
+
+  async start() {
+    if (!this._api) {
+      const api = new ServerInterceptionAPI(this);
+      await api.start({ port: 8888 });
+      this._api = api;
+    }
+  }
 
   setRequestInterceptor(scope: string, interceptor?: Interceptor) {
     if (interceptor)
