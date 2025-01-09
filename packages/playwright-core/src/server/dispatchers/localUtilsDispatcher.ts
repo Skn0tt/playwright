@@ -44,6 +44,7 @@ import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
 import type { ResourceTiming } from '../network';
 import { Request, Response, Route } from '../network';
 import { RequestDispatcher, RouteDispatcher } from './networkDispatchers';
+import { URLPattern } from 'urlpattern-polyfill';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
@@ -283,6 +284,7 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
     if (params.patterns.length === 0)
       return this._interceptionRegistry.setRequestInterceptor(params.scope);
 
+    await this._interceptionRegistry.start();
     this._interceptionRegistry.setRequestInterceptor(params.scope, [params.patterns, async (route, request) => {
       this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
     }]);
@@ -354,19 +356,27 @@ class ServerInterceptionAPI extends HttpServer {
   private readonly _requests = new Map<string, Request>();
 
   async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    const path = req.url ?? '/';
-    const [scope, /* unused appId */, rest] = path.split('/', 2);
-    if (req.method === 'POST' && rest.startsWith('/__playwright/resolve'))
-      return this._resolve(scope, req, res);
-    if (req.method === 'POST' && rest.startsWith('/__playwright/')) {
-      const [/* /_playwright/ */, guid, event] = rest.split('/', 3);
-      return this._event(scope, guid, event, req, res);
+    const url = new URL(req.url!, 'http://localhost');
+    let result = new URLPattern({ pathname: '/:scope/:appId/__playwright/:rest' }).exec(url);
+    if (!result) {
+      res.statusCode = 404;
+      return res.end();
     }
+    const { scope, rest } = result.pathname.groups;
+    if (req.method === 'POST' && rest === 'resolve')
+      return this._resolve(scope!, req, res);
+
+    result = new URLPattern({ pathname: '/:scope/:appId/__playwright/:guid/:event' }).exec(url);
+    if (!result) {
+      res.statusCode = 404;
+      return res.end();
+    }
+    const { guid, event } = result.pathname.groups;
+    if (req.method === 'POST')
+      return this._event(scope!, guid!, event!, req, res);
   }
 
   async _resolve(scope: string, req: http.IncomingMessage, res: http.ServerResponse) {
-    res.setHeader('Content-Type', 'application/json');
-
     const url = decodeURIComponent(req.headers['x-playwright-url'] as string);
     delete req.headersDistinct['x-playwright-url'];
     const method = req.headers['x-playwright-method'] as string;
@@ -375,7 +385,8 @@ class ServerInterceptionAPI extends HttpServer {
     const handler = this._registry.match(scope, url);
     if (!handler) {
       res.statusCode = 404;
-      res.end(JSON.stringify({ result: 'continue', overrides: {} }));
+      res.setHeader('x-pw-direction', 'continue');
+      res.end();
       return;
     }
 
@@ -385,17 +396,32 @@ class ServerInterceptionAPI extends HttpServer {
     const body = await collectBody(req);
 
     const request = new Request(null as any, null, null, null, undefined, url, '', method, body, headers);
-    res.setHeader('X-Playwright-GUID', request.guid);
+    res.setHeader('x-playwright-guid', request.guid);
     this._requests.set(scope + ':' + request.guid, request);
     const route = new Route(request, {
       async abort(errorCode) {
-        res.end(JSON.stringify({ result: 'abort', errorCode }));
+        res.setHeader('x-pw-direction', 'abort');
+        res.setHeader('x-pw-error-code', errorCode);
+        res.end();
       },
       async continue(overrides) {
-        res.end(JSON.stringify({ result: 'continue', overrides }));
+        res.setHeader('x-pw-direction', 'continue');
+        if (overrides.url)
+          res.setHeader('x-pw-url', overrides.url);
+        if (overrides.method)
+          res.setHeader('x-pw-method', overrides.method);
+        if (overrides.headers) {
+          for (const { name, value } of overrides.headers)
+            res.appendHeader(name, value);
+        }
+        res.end(overrides.postData);
       },
       async fulfill(response) {
-        res.end(JSON.stringify({ result: 'fulfill', response }));
+        res.setHeader('x-pw-direction', 'fulfill');
+        res.statusCode = response.status;
+        for (const { name, value } of response.headers)
+          res.appendHeader(name, value);
+        res.end(Buffer.from(response.body, response.isBase64 ? 'base64' : 'utf-8'));
       },
     });
 
@@ -424,7 +450,7 @@ class ServerInterceptionAPI extends HttpServer {
         delete req.headersDistinct['x-playwright-status'];
         const statusText = req.headers['x-playwright-status-text'] as string;
         delete req.headersDistinct['x-playwright-status-text'];
-        const timing = JSON.parse(req.headers['x-playwright-timing'] as string) as ResourceTiming;
+        const timing = JSON.parse(decodeURIComponent(req.headers['x-playwright-timing'] as string)) as ResourceTiming;
         delete req.headersDistinct['x-playwright-timing'];
         const httpVersion = req.headers['x-playwright-http-version'] as string;
         delete req.headersDistinct['x-playwright-http-version'];
