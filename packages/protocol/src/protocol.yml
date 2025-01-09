@@ -646,6 +646,23 @@ LocalUtils:
     traceDiscarded:
       parameters:
         stacksId: string
+        
+    setServerNetworkInterceptionPatterns:
+      parameters:
+        scope: string
+        patterns:
+          type: array
+          items:
+            type: object
+            properties:
+              glob: string?
+              regexSource: string?
+              regexFlags: string?
+  
+  events:
+    route:
+      parameters:
+        route: Route
 
 Root:
   type: interface

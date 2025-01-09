@@ -429,6 +429,7 @@ export type LocalUtilsInitializer = {
   }[],
 };
 export interface LocalUtilsEventTarget {
+  on(event: 'route', callback: (params: LocalUtilsRouteEvent) => void): this;
 }
 export interface LocalUtilsChannel extends LocalUtilsEventTarget, Channel {
   _type_LocalUtils: boolean;
@@ -441,7 +442,11 @@ export interface LocalUtilsChannel extends LocalUtilsEventTarget, Channel {
   tracingStarted(params: LocalUtilsTracingStartedParams, metadata?: CallMetadata): Promise<LocalUtilsTracingStartedResult>;
   addStackToTracingNoReply(params: LocalUtilsAddStackToTracingNoReplyParams, metadata?: CallMetadata): Promise<LocalUtilsAddStackToTracingNoReplyResult>;
   traceDiscarded(params: LocalUtilsTraceDiscardedParams, metadata?: CallMetadata): Promise<LocalUtilsTraceDiscardedResult>;
+  setServerNetworkInterceptionPatterns(params: LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<LocalUtilsSetServerNetworkInterceptionPatternsResult>;
 }
+export type LocalUtilsRouteEvent = {
+  route: RouteChannel,
+};
 export type LocalUtilsZipParams = {
   zipFile: string,
   entries: NameValue[],
@@ -540,8 +545,21 @@ export type LocalUtilsTraceDiscardedOptions = {
 
 };
 export type LocalUtilsTraceDiscardedResult = void;
+export type LocalUtilsSetServerNetworkInterceptionPatternsParams = {
+  scope: string,
+  patterns: {
+    glob?: string,
+    regexSource?: string,
+    regexFlags?: string,
+  }[],
+};
+export type LocalUtilsSetServerNetworkInterceptionPatternsOptions = {
+
+};
+export type LocalUtilsSetServerNetworkInterceptionPatternsResult = void;
 
 export interface LocalUtilsEvents {
+  'route': LocalUtilsRouteEvent;
 }
 
 // ----------- Root -----------

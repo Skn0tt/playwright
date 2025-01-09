@@ -246,6 +246,9 @@ scheme.LocalUtilsInitializer = tObject({
     }),
   })),
 });
+scheme.LocalUtilsRouteEvent = tObject({
+  route: tChannel(['Route']),
+});
 scheme.LocalUtilsZipParams = tObject({
   zipFile: tString,
   entries: tArray(tType('NameValue')),
@@ -313,6 +316,15 @@ scheme.LocalUtilsTraceDiscardedParams = tObject({
   stacksId: tString,
 });
 scheme.LocalUtilsTraceDiscardedResult = tOptional(tObject({}));
+scheme.LocalUtilsSetServerNetworkInterceptionPatternsParams = tObject({
+  scope: tString,
+  patterns: tArray(tObject({
+    glob: tOptional(tString),
+    regexSource: tOptional(tString),
+    regexFlags: tOptional(tString),
+  })),
+});
+scheme.LocalUtilsSetServerNetworkInterceptionPatternsResult = tOptional(tObject({}));
 scheme.RootInitializer = tOptional(tObject({}));
 scheme.RootInitializeParams = tObject({
   sdkLanguage: tEnum(['javascript', 'python', 'java', 'csharp']),

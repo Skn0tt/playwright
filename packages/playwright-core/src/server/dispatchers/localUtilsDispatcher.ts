@@ -41,6 +41,8 @@ import type { Playwright } from '../playwright';
 import { SdkObject } from '../../server/instrumentation';
 import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
+import type { Request, Route } from '../network';
+import { RequestDispatcher, RouteDispatcher } from './networkDispatchers';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
@@ -272,6 +274,34 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
     if (session.tmpDir)
       await removeFolders([session.tmpDir]);
     this._stackSessions.delete(stacksId!);
+  }
+
+  _interceptionRegistry = new ServerInterceptionRegistry();
+
+  async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
+    if (params.patterns.length === 0)
+      return this._interceptionRegistry.setRequestInterceptor(params.scope);
+
+    this._interceptionRegistry.setRequestInterceptor(params.scope, async (route, request) => {
+      const match = params.patterns.find(pattern => true);
+      if (!match)
+        return route.continue({ isFallback: false });
+
+      this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
+    });
+  }
+}
+
+type Interceptor = (route: Route, request: Request) => Promise<void>;
+
+class ServerInterceptionRegistry {
+  private _interceptors = new Map<string, Interceptor>();
+
+  setRequestInterceptor(scope: string, interceptor?: Interceptor) {
+    if (interceptor)
+      this._interceptors.set(scope, interceptor);
+    else
+      this._interceptors.delete(scope);
   }
 }
 
