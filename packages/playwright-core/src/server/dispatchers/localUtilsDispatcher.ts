@@ -41,7 +41,8 @@ import type { Playwright } from '../playwright';
 import { SdkObject } from '../../server/instrumentation';
 import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
-import { Request, Route } from '../network';
+import type { ResourceTiming } from '../network';
+import { Request, Response, Route } from '../network';
 import { RequestDispatcher, RouteDispatcher } from './networkDispatchers';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
@@ -323,6 +324,15 @@ function headersArray(req: Pick<http.IncomingMessage, 'headersDistinct'>): Heade
   return Object.entries(req.headersDistinct).flatMap(([name, values = []]) => values.map(value => ({ name, value })));
 }
 
+async function collectBody(req: http.IncomingMessage) {
+  return await new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
 class ServerInterceptionAPI extends HttpServer {
   private readonly _registry: ServerInterceptionRegistry;
   constructor(registry: ServerInterceptionRegistry) {
@@ -333,13 +343,17 @@ class ServerInterceptionAPI extends HttpServer {
       return true;
     });
   }
+  private readonly _requests = new Map<string, Request>();
 
   async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     const path = req.url ?? '/';
     const [scope, /* unused appId */, rest] = path.split('/', 2);
     if (req.method === 'POST' && rest.startsWith('/__playwright/resolve'))
       return this._resolve(scope, req, res);
-
+    if (req.method === 'POST' && rest.startsWith('/__playwright/')) {
+      const [/* /_playwright/ */, guid, event] = rest.split('/', 3);
+      return this._event(scope, guid, event, req, res);
+    }
   }
 
   async _resolve(scope: string, req: http.IncomingMessage, res: http.ServerResponse) {
@@ -352,20 +366,19 @@ class ServerInterceptionAPI extends HttpServer {
 
     const handler = this._registry.match(scope, url);
     if (!handler) {
+      res.statusCode = 404;
       res.end(JSON.stringify({ result: 'continue', overrides: {} }));
       return;
     }
 
+    res.statusCode = 200;
+
     const headers = headersArray(req);
-    const body = await new Promise<Buffer>((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      req.on('data', chunk => chunks.push(chunk));
-      req.on('end', () => resolve(Buffer.concat(chunks)));
-      req.on('error', reject);
-    });
+    const body = await collectBody(req);
 
     const request = new Request(null as any, null, null, null, undefined, url, '', method, body, headers);
     res.setHeader('X-Playwright-GUID', request.guid);
+    this._requests.set(scope + ':' + request.guid, request);
     const route = new Route(request, {
       async abort(errorCode) {
         res.end(JSON.stringify({ result: 'abort', errorCode }));
@@ -379,6 +392,49 @@ class ServerInterceptionAPI extends HttpServer {
     });
 
     await handler(route, request);
+  }
+
+  async _event(scope: string, guid: string, event: string, req: http.IncomingMessage, res: http.ServerResponse) {
+    const request = this._requests.get(scope + ':' + guid);
+    if (!request) {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+
+    switch (event) {
+      case 'finished': {
+        console.log('finished ' + request.guid);
+        break;
+      }
+      case 'failed': {
+        console.log('failed ' + request.guid);
+        break;
+      }
+      case 'response': {
+        const status = parseInt(req.headers['x-playwright-status'] as string, 10);
+        delete req.headersDistinct['x-playwright-status'];
+        const statusText = req.headers['x-playwright-status-text'] as string;
+        delete req.headersDistinct['x-playwright-status-text'];
+        const timing = JSON.parse(req.headers['x-playwright-timing'] as string) as ResourceTiming;
+        delete req.headersDistinct['x-playwright-timing'];
+        const httpVersion = req.headers['x-playwright-http-version'] as string;
+        delete req.headersDistinct['x-playwright-http-version'];
+        const headers = headersArray(req);
+        const body = await collectBody(req);
+        new Response(request, status, statusText, headers, timing, async () => body, false, httpVersion);
+        console.log('response ' + request.guid);
+        break;
+      }
+      default: {
+        res.statusCode = 400;
+        res.end('unknown event: ' + event);
+        return;
+      }
+    }
+
+    res.statusCode = 200;
+    res.end();
   }
 }
 
