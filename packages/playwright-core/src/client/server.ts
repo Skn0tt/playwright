@@ -28,7 +28,7 @@ export class Server implements api.Server {
     this._localUtils = localUtils;
     this._scope = scope;
 
-    this._localUtils.on('route', ({ route }) => this._onRoute(network.Route.from(route)));
+    this._localUtils._channel.on('route', ({ route }) => this._onRoute(network.Route.from(route)));
   }
 
   static from(server: channels.ServerChannel): Server {

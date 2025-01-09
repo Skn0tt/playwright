@@ -45,6 +45,7 @@ import type { ResourceTiming } from '../network';
 import { Request, Response, Route } from '../network';
 import { RequestDispatcher, RouteDispatcher } from './networkDispatchers';
 import { URLPattern } from 'urlpattern-polyfill';
+import type { BrowserContext } from '../browserContext';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
@@ -395,8 +396,19 @@ class ServerInterceptionAPI extends HttpServer {
     const headers = headersArray(req);
     const body = await collectBody(req);
 
-    const request = new Request(null as any, null, null, null, undefined, url, '', method, body, headers);
-    res.setHeader('x-playwright-guid', request.guid);
+    const fakeBrowserContext: BrowserContext = {
+      attribution: null,
+      addRouteInFlight() {},
+      removeRouteInFlight() {},
+      instrumentation: {
+        onBeforeCall() {},
+        onAfterCall() {}
+      },
+      emit() {}
+    } as any;
+
+    const request = new Request(fakeBrowserContext, null, null, null, undefined, url, '', method, body, headers);
+    res.setHeader('x-pw-guid', request.guid);
     this._requests.set(scope + ':' + request.guid, request);
     const route = new Route(request, {
       async abort(errorCode) {
