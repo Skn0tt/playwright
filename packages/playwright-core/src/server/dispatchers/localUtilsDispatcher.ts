@@ -26,7 +26,7 @@ import { Dispatcher } from './dispatcher';
 import { yazl, yauzl } from '../../zipBundle';
 import { ZipFile } from '../../utils/zipFile';
 import type * as har from '@trace/har';
-import type { HeadersArray } from '../types';
+import type { HeadersArray, NormalizedContinueOverrides, NormalizedFulfillResponse } from '../types';
 import { JsonPipeDispatcher } from '../dispatchers/jsonPipeDispatcher';
 import { WebSocketTransport } from '../transport';
 import { SocksInterceptor } from '../socksInterceptor';
@@ -294,11 +294,13 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
 
 type InterceptorHandler = (route: Route, request: Request) => Promise<void>;
 type Interceptor = [patterns: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams['patterns'], handler: InterceptorHandler];
+type DoItFunction = (url: string, method: string, body: Buffer | null, headers: HeadersArray) => Promise<{ result: 'continue', overrides: NormalizedContinueOverrides } | { result: 'abort', errorCode: string } | { result: 'fulfill', response: NormalizedFulfillResponse }>;
 
 class ServerInterceptionRegistry {
   private _interceptors = new Map<string, Interceptor>();
 
   private _api?: ServerInterceptionAPI;
+  private readonly _requests = new Map<string, Request>();
 
   async start() {
     if (!this._api) {
@@ -315,7 +317,7 @@ class ServerInterceptionRegistry {
       this._interceptors.delete(scope);
   }
 
-  match(scope: string, url: string): InterceptorHandler | undefined {
+  match(scope: string, url: string): DoItFunction | undefined {
     if (!this._interceptors.has(scope))
       return;
 
@@ -324,10 +326,57 @@ class ServerInterceptionRegistry {
       return;
 
     const [patterns, handler] = interceptor;
+    const doIt: DoItFunction = (url, method, body, headers) => {
+      return new Promise(resolve => {
+        const fakeBrowserContext: BrowserContext = {
+          attribution: null,
+          addRouteInFlight() {},
+          removeRouteInFlight() {},
+          instrumentation: {
+            onBeforeCall() {},
+            onAfterCall() {}
+          },
+          emit() {}
+        } as any;
+
+        const request = new Request(fakeBrowserContext, null, null, null, undefined, url, '', method, body, headers);
+        this._requests.set(request.guid, request);
+
+        const route = new Route(request, {
+          async abort(errorCode) {
+            resolve({ result: 'abort', errorCode });
+          },
+          async continue(overrides) {
+            resolve({ result: 'continue', overrides });
+          },
+          async fulfill(response) {
+            resolve({ result: 'fulfill', response });
+          },
+        });
+
+        handler(route, request);
+      });
+    };
+
     for (const pattern of patterns) {
       if (pattern.glob === url)
-        return handler;
+        return doIt;
     }
+  }
+
+  finished(guid: string) {
+    this._requests.delete(guid);
+  }
+
+  failed(guid: string) {
+    this._requests.delete(guid);
+  }
+
+  response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, timing: ResourceTiming, httpVersion: string) {
+    const request = this._requests.get(guid);
+    if (!request)
+      throw new Error('Internal error: missing request for response');
+    new Response(request, status, statusText, headers, timing, body, false, httpVersion);
   }
 }
 
@@ -354,7 +403,6 @@ class ServerInterceptionAPI extends HttpServer {
       return true;
     });
   }
-  private readonly _requests = new Map<string, Request>();
 
   async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url!, 'http://localhost');
@@ -374,7 +422,7 @@ class ServerInterceptionAPI extends HttpServer {
     }
     const { guid, event } = result.pathname.groups;
     if (req.method === 'POST')
-      return this._event(scope!, guid!, event!, req, res);
+      return this._event(guid!, event!, req, res);
   }
 
   async _resolve(scope: string, req: http.IncomingMessage, res: http.ServerResponse) {
@@ -396,65 +444,46 @@ class ServerInterceptionAPI extends HttpServer {
     const headers = headersArray(req);
     const body = await collectBody(req);
 
-    const fakeBrowserContext: BrowserContext = {
-      attribution: null,
-      addRouteInFlight() {},
-      removeRouteInFlight() {},
-      instrumentation: {
-        onBeforeCall() {},
-        onAfterCall() {}
-      },
-      emit() {}
-    } as any;
-
-    const request = new Request(fakeBrowserContext, null, null, null, undefined, url, '', method, body, headers);
-    res.setHeader('x-pw-guid', request.guid);
-    this._requests.set(scope + ':' + request.guid, request);
-    const route = new Route(request, {
-      async abort(errorCode) {
+    const result = await handler(url, method, body, headers);
+    switch (result.result) {
+      case 'abort': {
         res.setHeader('x-pw-direction', 'abort');
-        res.setHeader('x-pw-error-code', errorCode);
+        res.setHeader('x-pw-error-code', result.errorCode);
         res.end();
-      },
-      async continue(overrides) {
+        return;
+      }
+      case 'continue': {
+        const { overrides: { url, method, headers } } = result;
         res.setHeader('x-pw-direction', 'continue');
-        if (overrides.url)
-          res.setHeader('x-pw-url', overrides.url);
-        if (overrides.method)
-          res.setHeader('x-pw-method', overrides.method);
-        if (overrides.headers) {
-          for (const { name, value } of overrides.headers)
-            res.appendHeader(name, value);
-        }
-        res.end(overrides.postData);
-      },
-      async fulfill(response) {
-        res.setHeader('x-pw-direction', 'fulfill');
-        res.statusCode = response.status;
-        for (const { name, value } of response.headers)
+        if (url)
+          res.setHeader('x-pw-url', url);
+        if (method)
+          res.setHeader('x-pw-method', method);
+        for (const { name, value } of headers ?? [])
           res.appendHeader(name, value);
-        res.end(Buffer.from(response.body, response.isBase64 ? 'base64' : 'utf-8'));
-      },
-    });
-
-    await handler(route, request);
+        res.end(result.overrides.postData);
+        return;
+      }
+      case 'fulfill': {
+        const { response: { status, headers, body, isBase64 } } = result;
+        res.setHeader('x-pw-direction', 'fulfill');
+        res.statusCode = status;
+        for (const { name, value } of headers)
+          res.appendHeader(name, value);
+        res.end(Buffer.from(body, isBase64 ? 'base64' : 'utf-8'));
+        return;
+      }
+    }
   }
 
-  async _event(scope: string, guid: string, event: string, req: http.IncomingMessage, res: http.ServerResponse) {
-    const request = this._requests.get(scope + ':' + guid);
-    if (!request) {
-      res.statusCode = 404;
-      res.end();
-      return;
-    }
-
+  async _event(guid: string, event: string, req: http.IncomingMessage, res: http.ServerResponse) {
     switch (event) {
       case 'finished': {
-        console.log('finished ' + request.guid);
+        this._registry.finished(guid);
         break;
       }
       case 'failed': {
-        console.log('failed ' + request.guid);
+        this._registry.failed(guid);
         break;
       }
       case 'response': {
@@ -467,9 +496,8 @@ class ServerInterceptionAPI extends HttpServer {
         const httpVersion = req.headers['x-playwright-http-version'] as string;
         delete req.headersDistinct['x-playwright-http-version'];
         const headers = headersArray(req);
-        const body = await collectBody(req);
-        new Response(request, status, statusText, headers, timing, async () => body, false, httpVersion);
-        console.log('response ' + request.guid);
+        // TODO: clean up hanging request after test ends.
+        this._registry.response(guid, status, statusText, headers, () => collectBody(req), timing, httpVersion);
         break;
       }
       default: {
