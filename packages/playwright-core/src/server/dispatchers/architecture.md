@@ -28,6 +28,6 @@ X-Playwright-Request-GUID: <guid>
 This direction is then enacted by the instrumentation on the app.
 The instrumentation also uses the GUID to report lifecycle events to the server:
 
-POST /<workerId>/<appId>/__playwright/requests/<guid>/finished
-POST /<workerId>/<appId>/__playwright/requests/<guid>/failed
-POST /<workerId>/<appId>/__playwright/requests/<guid>/response
+POST /<workerId>/<appId>/__playwright/<guid>/finished
+POST /<workerId>/<appId>/__playwright/<guid>/failed
+POST /<workerId>/<appId>/__playwright/<guid>/response

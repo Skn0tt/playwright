@@ -20,7 +20,7 @@ import path from 'path';
 import os from 'os';
 import type * as channels from '@protocol/channels';
 import { ManualPromise } from '../../utils/manualPromise';
-import { assert, calculateSha1, createGuid, removeFolders } from '../../utils';
+import { assert, calculateSha1, createGuid, HttpServer, removeFolders } from '../../utils';
 import type { RootDispatcher } from './dispatcher';
 import { Dispatcher } from './dispatcher';
 import { yazl, yauzl } from '../../zipBundle';
@@ -41,7 +41,7 @@ import type { Playwright } from '../playwright';
 import { SdkObject } from '../../server/instrumentation';
 import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
-import type { Request, Route } from '../network';
+import { Request, Route } from '../network';
 import { RequestDispatcher, RouteDispatcher } from './networkDispatchers';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
@@ -282,26 +282,103 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
     if (params.patterns.length === 0)
       return this._interceptionRegistry.setRequestInterceptor(params.scope);
 
-    this._interceptionRegistry.setRequestInterceptor(params.scope, async (route, request) => {
-      const match = params.patterns.find(pattern => true);
-      if (!match)
-        return route.continue({ isFallback: false });
-
+    this._interceptionRegistry.setRequestInterceptor(params.scope, [params.patterns, async (route, request) => {
       this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
-    });
+    }]);
   }
 }
 
-type Interceptor = (route: Route, request: Request) => Promise<void>;
+type InterceptorHandler = (route: Route, request: Request) => Promise<void>;
+type Interceptor = [patterns: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams['patterns'], handler: InterceptorHandler];
 
 class ServerInterceptionRegistry {
   private _interceptors = new Map<string, Interceptor>();
+
+  api = new ServerInterceptionAPI(this);
 
   setRequestInterceptor(scope: string, interceptor?: Interceptor) {
     if (interceptor)
       this._interceptors.set(scope, interceptor);
     else
       this._interceptors.delete(scope);
+  }
+
+  match(scope: string, url: string): InterceptorHandler | undefined {
+    if (!this._interceptors.has(scope))
+      return;
+
+    const interceptor = this._interceptors.get(scope)!;
+    if (!interceptor)
+      return;
+
+    const [patterns, handler] = interceptor;
+    for (const pattern of patterns) {
+      if (pattern.glob === url)
+        return handler;
+    }
+  }
+}
+
+function headersArray(req: Pick<http.IncomingMessage, 'headersDistinct'>): HeadersArray {
+  return Object.entries(req.headersDistinct).flatMap(([name, values = []]) => values.map(value => ({ name, value })));
+}
+
+class ServerInterceptionAPI extends HttpServer {
+  private readonly _registry: ServerInterceptionRegistry;
+  constructor(registry: ServerInterceptionRegistry) {
+    super();
+    this._registry = registry;
+    this.routePrefix('/', (req, res) => {
+      this._handleRequest(req, res);
+      return true;
+    });
+  }
+
+  async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+    const path = req.url ?? '/';
+    const [scope, /* unused appId */, rest] = path.split('/', 2);
+    if (req.method === 'POST' && rest.startsWith('/__playwright/resolve'))
+      return this._resolve(scope, req, res);
+
+  }
+
+  async _resolve(scope: string, req: http.IncomingMessage, res: http.ServerResponse) {
+    res.setHeader('Content-Type', 'application/json');
+
+    const url = decodeURIComponent(req.headers['x-playwright-url'] as string);
+    delete req.headersDistinct['x-playwright-url'];
+    const method = req.headers['x-playwright-method'] as string;
+    delete req.headersDistinct['x-playwright-method'];
+
+    const handler = this._registry.match(scope, url);
+    if (!handler) {
+      res.end(JSON.stringify({ result: 'continue', overrides: {} }));
+      return;
+    }
+
+    const headers = headersArray(req);
+    const body = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(chunks)));
+      req.on('error', reject);
+    });
+
+    const request = new Request(null as any, null, null, null, undefined, url, '', method, body, headers);
+    res.setHeader('X-Playwright-GUID', request.guid);
+    const route = new Route(request, {
+      async abort(errorCode) {
+        res.end(JSON.stringify({ result: 'abort', errorCode }));
+      },
+      async continue(overrides) {
+        res.end(JSON.stringify({ result: 'continue', overrides }));
+      },
+      async fulfill(response) {
+        res.end(JSON.stringify({ result: 'fulfill', response }));
+      },
+    });
+
+    await handler(route, request);
   }
 }
 
