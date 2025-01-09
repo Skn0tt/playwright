@@ -16,21 +16,19 @@
 import type * as api from '../../types/types';
 import type * as channels from '@protocol/channels';
 import * as network from './network';
-import { ChannelOwner } from './channelOwner';
 import { urlMatchesEqual, type URLMatch } from '../utils/isomorphic/urlMatch';
-import type { BrowserContext } from './browserContext';
+import type { LocalUtils } from './localUtils';
 
-export class Server extends ChannelOwner<channels.ServerChannel> implements api.Server {
+export class Server implements api.Server {
   _routes: network.RouteHandler[] = [];
-  private readonly _port: number;
-  private _context: BrowserContext;
+  private _localUtils: LocalUtils;
+  private _scope: string;
 
-  constructor(parent: ChannelOwner, type: string, guid: string, initializer: channels.ServerInitializer) {
-    super(parent, type, guid, initializer);
-    this._port = initializer.port;
-    this._context = parent as BrowserContext;
+  constructor(localUtils: LocalUtils, scope = '') {
+    this._localUtils = localUtils;
+    this._scope = scope;
 
-    this._channel.on('route', ({ route }) => this._onRoute(network.Route.from(route)));
+    this._localUtils.on('route', ({ route }) => this._onRoute(network.Route.from(route)));
   }
 
   static from(server: channels.ServerChannel): Server {
@@ -68,12 +66,9 @@ export class Server extends ChannelOwner<channels.ServerChannel> implements api.
   }
 
   async _onRoute(route: network.Route) {
-    route._context = this._context;
+    route._context = null as any;
     const routeHandlers = this._routes.slice();
     for (const routeHandler of routeHandlers) {
-      // If the page or the context was closed we stall all requests right away.
-      if (this._context._closeWasCalled)
-        return;
       if (!routeHandler.matches(route.request().url()))
         continue;
       const index = this._routes.indexOf(routeHandler);
@@ -83,7 +78,7 @@ export class Server extends ChannelOwner<channels.ServerChannel> implements api.
         this._routes.splice(index, 1);
       const handled = await routeHandler.handle(route);
       if (!this._routes.length)
-        this._wrapApiCall(() => this._updateInterceptionPatterns(), true).catch(() => {});
+        this._updateInterceptionPatterns();
       if (handled)
         return;
     }
@@ -94,6 +89,6 @@ export class Server extends ChannelOwner<channels.ServerChannel> implements api.
 
   private async _updateInterceptionPatterns() {
     const patterns = network.RouteHandler.prepareInterceptionPatterns(this._routes);
-    await this._channel.setNetworkInterceptionPatterns({ patterns });
+    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, scope: this._scope });
   }
 }

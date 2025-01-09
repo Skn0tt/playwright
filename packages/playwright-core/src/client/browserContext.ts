@@ -268,7 +268,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   }
 
   async newServer(correlationToken?: string): Promise<Server> {
-    return Server.from((await this._channel.newServer({ correlationToken })).server);
+    return new Server(this._connection.localUtils(), correlationToken);
   }
 
   async cookies(urls?: string | string[]): Promise<network.NetworkCookie[]> {
