@@ -43,7 +43,7 @@ import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
 import type { ResourceTiming } from '../network';
 import { Request, Response, Route } from '../network';
-import { RequestDispatcher, RouteDispatcher } from './networkDispatchers';
+import { RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
 import { URLPattern } from 'urlpattern-polyfill';
 import type { BrowserContext } from '../browserContext';
 
@@ -279,7 +279,7 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
     this._stackSessions.delete(stacksId!);
   }
 
-  _interceptionRegistry = new ServerInterceptionRegistry();
+  _interceptionRegistry = new ServerInterceptionRegistry(this);
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
     if (params.patterns.length === 0)
@@ -301,6 +301,11 @@ class ServerInterceptionRegistry {
 
   private _api?: ServerInterceptionAPI;
   private readonly _requests = new Map<string, Request>();
+  private readonly _dispatcher: LocalUtilsDispatcher;
+
+  constructor(dispatcher: LocalUtilsDispatcher) {
+    this._dispatcher = dispatcher;
+  }
 
   async start() {
     if (!this._api) {
@@ -365,18 +370,28 @@ class ServerInterceptionRegistry {
   }
 
   finished(guid: string) {
+    const request = this._requests.get(guid);
+    if (!request)
+      throw new Error('Internal error: missing request for response');
     this._requests.delete(guid);
+    this._dispatcher.emit('requestfinished', { request: RequestDispatcher.from(null as any, request) });
   }
 
   failed(guid: string) {
+    const request = this._requests.get(guid);
+    if (!request)
+      throw new Error('Internal error: missing request for response');
     this._requests.delete(guid);
+    this._dispatcher.emit('requestfailed', { request: RequestDispatcher.from(null as any, request) });
   }
 
   response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, timing: ResourceTiming, httpVersion: string) {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
-    new Response(request, status, statusText, headers, timing, body, false, httpVersion);
+    this._requests.delete(guid);
+    const response = new Response(request, status, statusText, headers, timing, body, false, httpVersion);
+    this._dispatcher.emit('response', { response: ResponseDispatcher.from(null as any, response) });
   }
 }
 
