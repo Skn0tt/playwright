@@ -15,33 +15,51 @@
  */
 import test, { expect } from '@playwright/test';
 
-test('ssr mocking', async ({ page, server }) => {
-  await server.route('https://jsonplaceholder.typicode.com/posts', async (route, request) => {
-    console.log('mocking', request.url());
-    await route.fulfill({
-      json: [
-        {
-          id: 1,
-          title: 'Hello, World!',
-        },
-        {
-          id: 2,
-          title: 'Second post',
-        },
-        {
-          id: 2,
-          title: 'Third post',
-        }
-      ]
+test.describe('ssr mocking', () => {
+  test('fulfill', async ({ page, server }) => {
+    await server.route('https://jsonplaceholder.typicode.com/posts', async (route, request) => {
+      await route.fulfill({
+        json: [
+          {
+            id: 1,
+            title: 'Hello, World!',
+          },
+          {
+            id: 2,
+            title: 'Second post',
+          },
+          {
+            id: 2,
+            title: 'Third post',
+          }
+        ]
+      });
     });
+
+    await page.goto('http://localhost:3000/posts');
+
+    await expect(page.getByRole('list')).toMatchAriaSnapshot(`
+      - list:
+        - listitem: Hello, World!
+        - listitem: Second post
+        - listitem: Third post
+    `);
   });
 
-  await page.goto('http://localhost:3000/posts');
+  test('continue', async ({ page, server }) => {
+    await server.route('https://jsonplaceholder.typicode.com/posts', async (route, request) => {
+      const url = new URL(request.url());
+      url.searchParams.set('id', '42');
+      await route.continue({ url: url.toString() });
+    });
 
-  await expect(page.getByRole('list')).toMatchAriaSnapshot(`
-    - list:
-      - listitem: Hello, World!
-      - listitem: Second post
-      - listitem: Third post
-  `);
+    await page.goto('http://localhost:3000/posts');
+
+    await expect(page.getByRole('list')).toMatchAriaSnapshot(`
+      - list:
+        - listitem: Hello, World!
+        - listitem: Second post
+        - listitem: Third post
+    `);
+  });
 });
