@@ -60,4 +60,13 @@ test.describe('ssr mocking', () => {
         - listitem: commodi ullam sint et excepturi error explicabo praesentium voluptas
     `);
   });
+
+  test('abort', async ({ request, server }) => {
+    await server.route('https://jsonplaceholder.typicode.com/posts', async (route, request) => {
+      await route.abort();
+    });
+
+    const response = await request.get('http://localhost:3000/posts');
+    await expect(response).not.toBeOK();
+  });
 });
