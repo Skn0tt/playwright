@@ -407,6 +407,7 @@ async function collectBody(req: http.IncomingMessage) {
   });
 }
 
+// TODO: turn this into general-purpose API
 class ServerInterceptionAPI extends HttpServer {
   private readonly _registry: ServerInterceptionRegistry;
   constructor(registry: ServerInterceptionRegistry) {
