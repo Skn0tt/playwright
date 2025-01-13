@@ -21081,21 +21081,19 @@ export interface Server {
 
   /**
    * Removes a route created with
-   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route).
-   * When [`handler`](https://playwright.dev/docs/api/class-server#server-unroute-option-handler) is not specified,
-   * removes all routes for the [`url`](https://playwright.dev/docs/api/class-server#server-unroute-option-url).
+   * [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route). When
+   * [`handler`](https://playwright.dev/docs/api/class-server#server-unroute-option-handler) is not specified, removes
+   * all routes for the [`url`](https://playwright.dev/docs/api/class-server#server-unroute-option-url).
    * @param url A glob pattern, regex pattern or predicate receiving [URL] used to register a routing with
-   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route).
+   * [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route).
    * @param handler Optional handler function used to register a routing with
-   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route).
+   * [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route).
    */
   unroute(url: string|RegExp|((url: URL) => boolean), handler?: ((route: Route, request: Request) => Promise<any>|any)): Promise<void>;
 
   /**
    * Removes all routes created with
-   * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route)
-   * and
-   * [browserContext.routeFromHAR(har[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route-from-har).
+   * [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route).
    * @param options
    */
   unrouteAll(options?: {
