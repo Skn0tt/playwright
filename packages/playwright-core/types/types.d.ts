@@ -21064,6 +21064,135 @@ export interface Selectors {
  */
 export interface Server {
   /**
+   * Emitted when a server issues a request. The [request] object is read-only. In order to intercept and mutate
+   * requests, see [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route).
+   */
+  on(event: 'request', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when a request fails, for example by timing out.
+   */
+  on(event: 'requestfailed', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when a request finishes successfully after downloading the response body. For a successful response, the
+   * sequence of events is `request`, `response` and `requestfinished`.
+   */
+  on(event: 'requestfinished', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when [response] status and headers are received for a request. For a successful response, the sequence of
+   * events is `request`, `response` and `requestfinished`.
+   */
+  on(event: 'response', listener: (response: Response) => any): this;
+
+  /**
+   * Adds an event listener that will be automatically removed after it is triggered once. See `addListener` for more information about this event.
+   */
+  once(event: 'request', listener: (request: Request) => any): this;
+
+  /**
+   * Adds an event listener that will be automatically removed after it is triggered once. See `addListener` for more information about this event.
+   */
+  once(event: 'requestfailed', listener: (request: Request) => any): this;
+
+  /**
+   * Adds an event listener that will be automatically removed after it is triggered once. See `addListener` for more information about this event.
+   */
+  once(event: 'requestfinished', listener: (request: Request) => any): this;
+
+  /**
+   * Adds an event listener that will be automatically removed after it is triggered once. See `addListener` for more information about this event.
+   */
+  once(event: 'response', listener: (response: Response) => any): this;
+
+  /**
+   * Emitted when a server issues a request. The [request] object is read-only. In order to intercept and mutate
+   * requests, see [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route).
+   */
+  addListener(event: 'request', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when a request fails, for example by timing out.
+   */
+  addListener(event: 'requestfailed', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when a request finishes successfully after downloading the response body. For a successful response, the
+   * sequence of events is `request`, `response` and `requestfinished`.
+   */
+  addListener(event: 'requestfinished', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when [response] status and headers are received for a request. For a successful response, the sequence of
+   * events is `request`, `response` and `requestfinished`.
+   */
+  addListener(event: 'response', listener: (response: Response) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  removeListener(event: 'request', listener: (request: Request) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  removeListener(event: 'requestfailed', listener: (request: Request) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  removeListener(event: 'requestfinished', listener: (request: Request) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  removeListener(event: 'response', listener: (response: Response) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  off(event: 'request', listener: (request: Request) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  off(event: 'requestfailed', listener: (request: Request) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  off(event: 'requestfinished', listener: (request: Request) => any): this;
+
+  /**
+   * Removes an event listener added by `on` or `addListener`.
+   */
+  off(event: 'response', listener: (response: Response) => any): this;
+
+  /**
+   * Emitted when a server issues a request. The [request] object is read-only. In order to intercept and mutate
+   * requests, see [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route).
+   */
+  prependListener(event: 'request', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when a request fails, for example by timing out.
+   */
+  prependListener(event: 'requestfailed', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when a request finishes successfully after downloading the response body. For a successful response, the
+   * sequence of events is `request`, `response` and `requestfinished`.
+   */
+  prependListener(event: 'requestfinished', listener: (request: Request) => any): this;
+
+  /**
+   * Emitted when [response] status and headers are received for a request. For a successful response, the sequence of
+   * events is `request`, `response` and `requestfinished`.
+   */
+  prependListener(event: 'response', listener: (response: Response) => any): this;
+
+  /**
    * Lorem ipsum
    * @param url A glob pattern, regex pattern or predicate receiving [URL] to match while routing. When a
    * [`baseURL`](https://playwright.dev/docs/api/class-browser#browser-new-context-option-base-url) via the context

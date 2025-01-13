@@ -15,12 +15,12 @@
  */
 
 import type EventEmitter from 'events';
-import fs from 'fs';
+import fs, { chownSync } from 'fs';
 import path from 'path';
 import os from 'os';
 import type * as channels from '@protocol/channels';
 import { ManualPromise } from '../../utils/manualPromise';
-import { assert, calculateSha1, createGuid, HttpServer, removeFolders } from '../../utils';
+import { assert, calculateSha1, createGuid, HttpServer, removeFolders, urlMatches } from '../../utils';
 import type { RootDispatcher } from './dispatcher';
 import { Dispatcher } from './dispatcher';
 import { yazl, yauzl } from '../../zipBundle';
@@ -278,39 +278,60 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
     this._stackSessions.delete(stacksId!);
   }
 
-  _interceptionRegistry = new ServerInterceptionRegistry(this);
+  _interceptionRegistry = new ServerInterceptionRegistry();
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
     if (params.patterns.length === 0)
       return this._interceptionRegistry.setRequestInterceptor(params.scope);
 
     await this._interceptionRegistry.start();
-    this._interceptionRegistry.setRequestInterceptor(params.scope, [params.patterns, async (route, request) => {
-      this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
-    }]);
+
+    const interceptor: Interceptor = {
+      patterns: params.patterns,
+      route: (route, request) => {
+        this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route), scope: params.scope });
+      },
+      request: request => {
+        this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request), scope: params.scope });
+      },
+      requestFinished: request => {
+        this._dispatchEvent('requestFinished', { request: RequestDispatcher.from(this.parentScope() as any, request), scope: params.scope });
+      },
+      requestFailed: request => {
+        this._dispatchEvent('requestFailed', { request: RequestDispatcher.from(this.parentScope() as any, request), scope: params.scope });
+      },
+      response: (request, response) => {
+        this._dispatchEvent('response', {
+          request: RequestDispatcher.from(this.parentScope() as any, request),
+          response: ResponseDispatcher.from(this.parentScope() as any, response),
+          scope: params.scope
+        });
+      },
+    };
+    this._interceptionRegistry.setRequestInterceptor(params.scope, interceptor);
   }
 }
 
-type InterceptorHandler = (route: Route, request: Request) => Promise<void>;
-type Interceptor = [patterns: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams['patterns'], handler: InterceptorHandler];
+interface Interceptor {
+  patterns: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams['patterns'];
+  route(route: Route, request: Request): void;
+  request(request: Request): void;
+  requestFinished(request: Request): void;
+  requestFailed(request: Request): void;
+  response(request: Request, response: Response): void;
+}
 type DoItFunction = (url: string, method: string, body: Buffer | null, headers: HeadersArray) => Promise<{ result: 'continue', guid: string, overrides: NormalizedContinueOverrides } | { result: 'abort', guid: string, errorCode: string } | { result: 'fulfill', guid: string, response: NormalizedFulfillResponse }>;
 
 class ServerInterceptionRegistry {
   private _interceptors = new Map<string, Interceptor>();
 
   private _api?: ServerInterceptionAPI;
-  private readonly _requests = new Map<string, Request>();
-  private readonly _dispatcher: LocalUtilsDispatcher;
-
-  constructor(dispatcher: LocalUtilsDispatcher) {
-    this._dispatcher = dispatcher;
-  }
+  private readonly _requests = new Map<string, { request: Request, interceptor: Interceptor }>();
 
   async start() {
     if (!this._api) {
-      const api = new ServerInterceptionAPI(this);
-      await api.start({ port: 8888 });
-      this._api = api;
+      this._api = new ServerInterceptionAPI(this);
+      await this._api.start({ port: 8888 });
     }
   }
 
@@ -329,7 +350,6 @@ class ServerInterceptionRegistry {
     if (!interceptor)
       return;
 
-    const [patterns, handler] = interceptor;
     const doIt: DoItFunction = (url, method, body, headers) => {
       return new Promise(resolve => {
         const fakeBrowserContext: BrowserContext = {
@@ -344,8 +364,10 @@ class ServerInterceptionRegistry {
         } as any;
 
         const request = new Request(fakeBrowserContext, null, null, null, undefined, url, '', method, body, headers);
+        interceptor.request(request);
+
         const guid = request.guid;
-        this._requests.set(guid, request);
+        this._requests.set(guid, { request, interceptor });
 
         const route = new Route(request, {
           async abort(errorCode) {
@@ -359,21 +381,21 @@ class ServerInterceptionRegistry {
           },
         });
 
-        handler(route, request);
+        interceptor.route(route, request);
       });
     };
 
-    for (const pattern of patterns) {
-      if (pattern.glob === url)
-        return doIt;
-    }
+    const urlMatchers = interceptor.patterns.map(pattern => pattern.regexSource ? new RegExp(pattern.regexSource, pattern.regexFlags!) : pattern.glob!);
+    const matchesSome = urlMatchers.some(urlMatch => urlMatches(undefined, url, urlMatch));
+    if (matchesSome)
+      return doIt;
   }
 
   finished(guid: string) {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
-    this._dispatcher.emit('requestfinished', { request: RequestDispatcher.from(null as any, request) });
+    request.interceptor.requestFinished(request.request);
   }
 
   failed(guid: string, error: string) {
@@ -381,7 +403,7 @@ class ServerInterceptionRegistry {
     if (!request)
       throw new Error('Internal error: missing request for response');
     this._requests.delete(guid);
-    this._dispatcher.emit('requestfailed', { request: RequestDispatcher.from(null as any, request) });
+    request.interceptor.requestFailed(request.request);
   }
 
   response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, timing: ResourceTiming, httpVersion: string) {
@@ -389,8 +411,8 @@ class ServerInterceptionRegistry {
     if (!request)
       throw new Error('Internal error: missing request for response');
     this._requests.delete(guid);
-    const response = new Response(request, status, statusText, headers, timing, body, false, httpVersion);
-    this._dispatcher.emit('response', { response: ResponseDispatcher.from(null as any, response) });
+    const response = new Response(request.request, status, statusText, headers, timing, body, false, httpVersion);
+    request.interceptor.response(request.request, response);
   }
 }
 

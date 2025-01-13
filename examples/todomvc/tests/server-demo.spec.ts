@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 import test, { expect } from '@playwright/test';
+import type { Request, Response } from '@playwright/test';
 
 test.describe('ssr mocking', () => {
   test('fulfill', async ({ page, server }) => {
@@ -68,5 +69,23 @@ test.describe('ssr mocking', () => {
 
     const response = await request.get('http://localhost:3000/posts');
     await expect(response).not.toBeOK();
+  });
+
+  test('events', async ({ page, server }) => {
+    const requests: Request[] = [];
+    const requestsFinished: Request[] = [];
+    const requestsFailed: Request[] = [];
+    const responses: Response[] = [];
+    server.on('request', r => requests.push(r));
+    server.on('requestfinished', r => requestsFinished.push(r));
+    server.on('requestfailed', r => requestsFailed.push(r));
+    server.on('response', r => responses.push(r));
+
+    await page.goto('http://localhost:3000/posts');
+
+    expect(requests).toHaveLength(1);
+    expect(requestsFinished).toHaveLength(1);
+    expect(responses).toHaveLength(1);
+    expect(requestsFailed).toHaveLength(0);
   });
 });

@@ -81,3 +81,30 @@ Optional handler function used to register a routing with [`method: Server.route
 - `handler` ?<[function]\([Route]\)>
 
 Optional handler function used to register a routing with [`method: Server.route`].
+
+## event: Server.request
+* since: v1.51
+- argument: <[Request]>
+
+Emitted when a server issues a request. The [request] object is read-only. In order to intercept and mutate requests, see
+[`method: Server.route`].
+
+## event: Server.requestfailed
+* since: v1.51
+- argument: <[Request]>
+
+Emitted when a request fails, for example by timing out.
+
+## event: Server.requestfinished
+* since: v1.51
+- argument: <[Request]>
+
+Emitted when a request finishes successfully after downloading the response body. For a successful response, the
+sequence of events is `request`, `response` and `requestfinished`.
+
+## event: Server.response
+* since: v1.51
+- argument: <[Response]>
+
+Emitted when [response] status and headers are received for a request. For a successful response, the sequence of events
+is `request`, `response` and `requestfinished`.

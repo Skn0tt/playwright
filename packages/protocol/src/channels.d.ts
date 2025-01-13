@@ -427,6 +427,10 @@ export type LocalUtilsInitializer = {
 };
 export interface LocalUtilsEventTarget {
   on(event: 'route', callback: (params: LocalUtilsRouteEvent) => void): this;
+  on(event: 'request', callback: (params: LocalUtilsRequestEvent) => void): this;
+  on(event: 'response', callback: (params: LocalUtilsResponseEvent) => void): this;
+  on(event: 'requestFailed', callback: (params: LocalUtilsRequestFailedEvent) => void): this;
+  on(event: 'requestFinished', callback: (params: LocalUtilsRequestFinishedEvent) => void): this;
 }
 export interface LocalUtilsChannel extends LocalUtilsEventTarget, Channel {
   _type_LocalUtils: boolean;
@@ -443,6 +447,24 @@ export interface LocalUtilsChannel extends LocalUtilsEventTarget, Channel {
 }
 export type LocalUtilsRouteEvent = {
   route: RouteChannel,
+  scope: string,
+};
+export type LocalUtilsRequestEvent = {
+  request: RequestChannel,
+  scope: string,
+};
+export type LocalUtilsResponseEvent = {
+  request: RequestChannel,
+  response: ResponseChannel,
+  scope: string,
+};
+export type LocalUtilsRequestFailedEvent = {
+  request: RequestChannel,
+  scope: string,
+};
+export type LocalUtilsRequestFinishedEvent = {
+  request: RequestChannel,
+  scope: string,
 };
 export type LocalUtilsZipParams = {
   zipFile: string,
@@ -557,6 +579,10 @@ export type LocalUtilsSetServerNetworkInterceptionPatternsResult = void;
 
 export interface LocalUtilsEvents {
   'route': LocalUtilsRouteEvent;
+  'request': LocalUtilsRequestEvent;
+  'response': LocalUtilsResponseEvent;
+  'requestFailed': LocalUtilsRequestFailedEvent;
+  'requestFinished': LocalUtilsRequestFinishedEvent;
 }
 
 // ----------- Root -----------

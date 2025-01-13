@@ -18,23 +18,65 @@ import * as network from './network';
 import { urlMatchesEqual, type URLMatch } from '../utils/isomorphic/urlMatch';
 import type { LocalUtils } from './localUtils';
 import type * as channels from '@protocol/channels';
+import { EventEmitter } from './eventEmitter';
 
-export class Server implements api.Server {
+export class Server extends EventEmitter implements api.Server {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
   private _scope: string;
 
-  private listener = ({ route }: channels.LocalUtilsRouteEvent) => this._onRoute(network.Route.from(route));
+  private routeListener = ({ route, scope }: channels.LocalUtilsRouteEvent) => {
+    if (scope === this._scope)
+      this._onRoute(network.Route.from(route));
+  };
+  private failedListener = ({ request, scope }: channels.LocalUtilsRequestFailedEvent) => {
+    if (scope === this._scope)
+      this.emit('requestfailed', network.Request.from(request));
+  };
+  private finishedListener = ({ request, scope }: channels.LocalUtilsRequestFinishedEvent) => {
+    if (scope === this._scope)
+      this.emit('requestfinished', network.Request.from(request));
+  };
+  private responseListener = ({ response, scope }: channels.LocalUtilsResponseEvent) => {
+    if (scope === this._scope)
+      this.emit('response', network.Response.from(response));
+  };
+  private requestListener = ({ request, scope }: channels.LocalUtilsRequestEvent) => {
+    if (scope === this._scope)
+      this.emit('request', network.Request.from(request));
+  };
 
   constructor(localUtils: LocalUtils, scope = '') {
+    super();
+
     this._localUtils = localUtils;
     this._scope = scope;
 
-    this._localUtils._channel.on('route', this.listener);
+    this._localUtils._channel.on('route', this.routeListener);
+    this._localUtils._channel.on('request', this.requestListener);
+    this._localUtils._channel.on('requestFailed', this.failedListener);
+    this._localUtils._channel.on('requestFinished', this.finishedListener);
+    this._localUtils._channel.on('response', this.responseListener);
   }
 
   dispose() {
-    this._localUtils._channel.off('route', this.listener);
+    this._localUtils._channel.off('route', this.routeListener);
+    this._localUtils._channel.off('request', this.requestListener);
+    this._localUtils._channel.off('requestFailed', this.failedListener);
+    this._localUtils._channel.off('requestFinished', this.finishedListener);
+    this._localUtils._channel.off('response', this.responseListener);
+  }
+
+  override on(type: string | symbol, listener: (...args: any[]) => any): this {
+    super.on(type, listener);
+    this._updateInterceptionPatterns();
+    return this;
+  }
+
+  override addListener(type: string | symbol, listener: (...args: any[]) => any): this {
+    super.addListener(type, listener);
+    this._updateInterceptionPatterns();
+    return this;
   }
 
   async route(url: URLMatch, handler: network.RouteHandlerCallback, options: { times?: number } = {}): Promise<void> {
@@ -90,7 +132,7 @@ export class Server implements api.Server {
   }
 
   private async _updateInterceptionPatterns() {
-    const patterns = network.RouteHandler.prepareInterceptionPatterns(this._routes);
+    const patterns = this.eventNames().length > 0 ? [{ glob: '**/*' }] : network.RouteHandler.prepareInterceptionPatterns(this._routes);
     await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, scope: this._scope });
   }
 }

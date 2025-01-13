@@ -248,6 +248,24 @@ scheme.LocalUtilsInitializer = tObject({
 });
 scheme.LocalUtilsRouteEvent = tObject({
   route: tChannel(['Route']),
+  scope: tString,
+});
+scheme.LocalUtilsRequestEvent = tObject({
+  request: tChannel(['Request']),
+  scope: tString,
+});
+scheme.LocalUtilsResponseEvent = tObject({
+  request: tChannel(['Request']),
+  response: tChannel(['Response']),
+  scope: tString,
+});
+scheme.LocalUtilsRequestFailedEvent = tObject({
+  request: tChannel(['Request']),
+  scope: tString,
+});
+scheme.LocalUtilsRequestFinishedEvent = tObject({
+  request: tChannel(['Request']),
+  scope: tString,
 });
 scheme.LocalUtilsZipParams = tObject({
   zipFile: tString,
