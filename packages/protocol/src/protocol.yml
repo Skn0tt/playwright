@@ -1136,12 +1136,6 @@ BrowserContext:
       returns:
         page: Page
 
-    newServer:
-      parameters:
-        correlationToken: string?
-      returns:
-        server: Server
-
     setDefaultNavigationTimeoutNoReply:
       parameters:
         timeout: number?
@@ -3764,48 +3758,3 @@ JsonPipe:
     closed:
       parameters:
         reason: string?
-
-Server:
-  type: interface
-
-  extends: EventTarget
-
-  initializer:
-    port: number
-
-  commands:
-    setNetworkInterceptionPatterns:
-      parameters:
-        patterns:
-          type: array
-          items:
-            type: object
-            properties:
-              glob: string?
-              regexSource: string?
-              regexFlags: string?
-
-  events:
-    route:
-      parameters:
-        route: Route
-
-    request:
-      parameters:
-        request: Request
-
-    requestFailed:
-      parameters:
-        request: Request
-        failureText: string?
-        responseEndTiming: number
-
-    requestFinished:
-      parameters:
-        request: Request
-        response: Response?
-        responseEndTiming: number
-
-    response:
-      parameters:
-        response: Response
