@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 import type * as api from '../../types/types';
-import type * as channels from '@protocol/channels';
 import * as network from './network';
 import { urlMatchesEqual, type URLMatch } from '../utils/isomorphic/urlMatch';
 import type { LocalUtils } from './localUtils';
@@ -29,10 +28,6 @@ export class Server implements api.Server {
     this._scope = scope;
 
     this._localUtils._channel.on('route', ({ route }) => this._onRoute(network.Route.from(route)));
-  }
-
-  static from(server: channels.ServerChannel): Server {
-    return (server as any)._object;
   }
 
   async route(url: URLMatch, handler: network.RouteHandlerCallback, options: { times?: number } = {}): Promise<void> {
