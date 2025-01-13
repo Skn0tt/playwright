@@ -437,6 +437,10 @@ class ServerInterceptionAPI extends HttpServer {
 
   }
 
+  override _handleCORS(request: http.IncomingMessage, response: http.ServerResponse): boolean {
+    return false;
+  }
+
   async _resolve(scope: string, req: http.IncomingMessage, res: http.ServerResponse) {
     const url = decodeURIComponent(req.headers['x-playwright-url'] as string);
     delete req.headersDistinct['x-playwright-url'];
@@ -473,6 +477,7 @@ class ServerInterceptionAPI extends HttpServer {
           res.setHeader('x-pw-method', method);
         for (const { name, value } of headers ?? [])
           res.appendHeader(name, value);
+        res.sendDate = false;
         res.end(result.overrides.postData);
         return;
       }
@@ -482,6 +487,7 @@ class ServerInterceptionAPI extends HttpServer {
         res.statusCode = status;
         for (const { name, value } of headers)
           res.appendHeader(name, value);
+        res.sendDate = false;
         res.end(Buffer.from(body, isBase64 ? 'base64' : 'utf-8'));
         return;
       }
