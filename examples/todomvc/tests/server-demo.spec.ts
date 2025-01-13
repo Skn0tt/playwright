@@ -57,9 +57,7 @@ test.describe('ssr mocking', () => {
 
     await expect(page.getByRole('list')).toMatchAriaSnapshot(`
       - list:
-        - listitem: Hello, World!
-        - listitem: Second post
-        - listitem: Third post
+        - listitem: commodi ullam sint et excepturi error explicabo praesentium voluptas
     `);
   });
 });
