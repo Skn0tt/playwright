@@ -376,7 +376,7 @@ class ServerInterceptionRegistry {
     this._dispatcher.emit('requestfinished', { request: RequestDispatcher.from(null as any, request) });
   }
 
-  failed(guid: string) {
+  failed(guid: string, error: string) {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
@@ -495,7 +495,8 @@ class ServerInterceptionAPI extends HttpServer {
         break;
       }
       case 'failed': {
-        this._registry.failed(guid);
+        const error = await collectBody(req);
+        this._registry.failed(guid, error.toString('utf-8'));
         break;
       }
       case 'response': {
