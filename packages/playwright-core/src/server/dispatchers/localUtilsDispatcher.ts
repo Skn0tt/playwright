@@ -293,7 +293,7 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
 
 type InterceptorHandler = (route: Route, request: Request) => Promise<void>;
 type Interceptor = [patterns: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams['patterns'], handler: InterceptorHandler];
-type DoItFunction = (url: string, method: string, body: Buffer | null, headers: HeadersArray) => Promise<{ result: 'continue', overrides: NormalizedContinueOverrides } | { result: 'abort', errorCode: string } | { result: 'fulfill', response: NormalizedFulfillResponse }>;
+type DoItFunction = (url: string, method: string, body: Buffer | null, headers: HeadersArray) => Promise<{ result: 'continue', guid: string, overrides: NormalizedContinueOverrides } | { result: 'abort', guid: string, errorCode: string } | { result: 'fulfill', guid: string, response: NormalizedFulfillResponse }>;
 
 class ServerInterceptionRegistry {
   private _interceptors = new Map<string, Interceptor>();
@@ -344,17 +344,18 @@ class ServerInterceptionRegistry {
         } as any;
 
         const request = new Request(fakeBrowserContext, null, null, null, undefined, url, '', method, body, headers);
-        this._requests.set(request.guid, request);
+        const guid = request.guid;
+        this._requests.set(guid, request);
 
         const route = new Route(request, {
           async abort(errorCode) {
-            resolve({ result: 'abort', errorCode });
+            resolve({ result: 'abort', guid, errorCode });
           },
           async continue(overrides) {
-            resolve({ result: 'continue', overrides });
+            resolve({ result: 'continue', guid, overrides });
           },
           async fulfill(response) {
-            resolve({ result: 'fulfill', response });
+            resolve({ result: 'fulfill', guid, response });
           },
         });
 
@@ -372,7 +373,6 @@ class ServerInterceptionRegistry {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
-    this._requests.delete(guid);
     this._dispatcher.emit('requestfinished', { request: RequestDispatcher.from(null as any, request) });
   }
 
@@ -451,7 +451,7 @@ class ServerInterceptionAPI extends HttpServer {
     const handler = this._registry.match(scope, url);
     if (!handler) {
       res.statusCode = 404;
-      res.setHeader('x-pw-direction', 'continue');
+      res.setHeader('x-playwright-direction', 'continue');
       res.end();
       return;
     }
@@ -462,20 +462,21 @@ class ServerInterceptionAPI extends HttpServer {
     const body = await collectBody(req);
 
     const result = await handler(url, method, body, headers);
+    res.setHeader('x-playwright-guid', result.guid);
     switch (result.result) {
       case 'abort': {
-        res.setHeader('x-pw-direction', 'abort');
-        res.setHeader('x-pw-error-code', result.errorCode);
+        res.setHeader('x-playwright-direction', 'abort');
+        res.setHeader('x-playwright-error-code', result.errorCode);
         res.end();
         return;
       }
       case 'continue': {
         const { overrides: { url, method, headers } } = result;
-        res.setHeader('x-pw-direction', 'continue');
+        res.setHeader('x-playwright-direction', 'continue');
         if (url)
-          res.setHeader('x-pw-url', url);
+          res.setHeader('x-playwright-url', url);
         if (method)
-          res.setHeader('x-pw-method', method);
+          res.setHeader('x-playwright-method', method);
         for (const { name, value } of headers ?? [])
           res.appendHeader(name, value);
         res.sendDate = false;
@@ -484,7 +485,7 @@ class ServerInterceptionAPI extends HttpServer {
       }
       case 'fulfill': {
         const { response: { status, headers, body, isBase64 } } = result;
-        res.setHeader('x-pw-direction', 'fulfill');
+        res.setHeader('x-playwright-direction', 'fulfill');
         res.statusCode = status;
         for (const { name, value } of headers)
           res.appendHeader(name, value);

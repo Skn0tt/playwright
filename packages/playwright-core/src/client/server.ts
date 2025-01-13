@@ -17,17 +17,24 @@ import type * as api from '../../types/types';
 import * as network from './network';
 import { urlMatchesEqual, type URLMatch } from '../utils/isomorphic/urlMatch';
 import type { LocalUtils } from './localUtils';
+import type * as channels from '@protocol/channels';
 
 export class Server implements api.Server {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
   private _scope: string;
 
+  private listener = ({ route }: channels.LocalUtilsRouteEvent) => this._onRoute(network.Route.from(route));
+
   constructor(localUtils: LocalUtils, scope = '') {
     this._localUtils = localUtils;
     this._scope = scope;
 
-    this._localUtils._channel.on('route', ({ route }) => this._onRoute(network.Route.from(route)));
+    this._localUtils._channel.on('route', this.listener);
+  }
+
+  dispose() {
+    this._localUtils._channel.off('route', this.listener);
   }
 
   async route(url: URLMatch, handler: network.RouteHandlerCallback, options: { times?: number } = {}): Promise<void> {

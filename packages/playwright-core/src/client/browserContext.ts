@@ -69,6 +69,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   _closeWasCalled = false;
   private _closeReason: string | undefined;
   private _harRouters: HarRouter[] = [];
+  private _servers: Server[] = [];
 
   static from(context: channels.BrowserContextChannel): BrowserContext {
     return (context as any)._object;
@@ -268,7 +269,9 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   }
 
   async newServer(correlationToken?: string): Promise<Server> {
-    return new Server(this._connection.localUtils(), correlationToken);
+    const server = new Server(this._connection.localUtils(), correlationToken);
+    this._servers.push(server);
+    return server;
   }
 
   async cookies(urls?: string | string[]): Promise<network.NetworkCookie[]> {
@@ -376,6 +379,11 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     this._harRouters = [];
   }
 
+  private _disposeServers() {
+    this._servers.forEach(server => server.dispose());
+    this._servers = [];
+  }
+
   async unrouteAll(options?: { behavior?: 'wait'|'ignoreErrors'|'default' }): Promise<void> {
     await this._unrouteInternal(this._routes, [], options?.behavior);
     this._disposeHarRouters();
@@ -460,6 +468,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
       this._browser._contexts.delete(this);
     this._browserType?._contexts?.delete(this);
     this._disposeHarRouters();
+    this._disposeServers();
     this.tracing._resetStackCounter();
     this.emit(Events.BrowserContext.Close, this);
   }
