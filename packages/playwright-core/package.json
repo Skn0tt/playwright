@@ -40,8 +40,5 @@
   "bin": {
     "playwright-core": "cli.js"
   },
-  "types": "types/types.d.ts",
-  "dependencies": {
-    "urlpattern-polyfill": "^10.0.0"
-  }
+  "types": "types/types.d.ts"
 }

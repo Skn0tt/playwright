@@ -44,7 +44,6 @@ import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
 import type { ResourceTiming } from '../network';
 import { Request, Response, Route } from '../network';
 import { RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
-import { URLPattern } from 'urlpattern-polyfill';
 import type { BrowserContext } from '../browserContext';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
@@ -420,24 +419,22 @@ class ServerInterceptionAPI extends HttpServer {
   }
 
   async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    const url = new URL(req.url!, 'http://localhost');
-    let result = new URLPattern({ pathname: '/:scope/:appId/__playwright/:rest' }).exec(url);
-    if (!result) {
-      res.statusCode = 404;
-      return res.end();
-    }
-    const { scope, rest } = result.pathname.groups;
-    if (req.method === 'POST' && rest === 'resolve')
-      return this._resolve(scope!, req, res);
+    const parts = req.url!.split('/');
 
-    result = new URLPattern({ pathname: '/:scope/:appId/__playwright/:guid/:event' }).exec(url);
-    if (!result) {
-      res.statusCode = 404;
-      return res.end();
+    if (parts[3] === '__playwright') {
+      // POST /:scope/:appId/__playwright/resolve
+      if (req.method === 'POST' && parts[4] === 'resolve')
+        return this._resolve(parts[1]!, req, res);
+
+      // /:scope/:appId/__playwright/:guid/:event
+      if (req.method === 'POST')
+        return this._event(parts[4]!, parts[5]!, req, res);
     }
-    const { guid, event } = result.pathname.groups;
-    if (req.method === 'POST')
-      return this._event(guid!, event!, req, res);
+
+    // potential future proxy endpoint
+    res.statusCode = 404;
+    return res.end();
+
   }
 
   async _resolve(scope: string, req: http.IncomingMessage, res: http.ServerResponse) {
