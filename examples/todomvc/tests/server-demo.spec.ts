@@ -106,4 +106,23 @@ test.describe('ssr mocking', () => {
     expect(responses).toHaveLength(1);
     expect(requestsFailed).toHaveLength(0);
   });
+
+  test('events', async ({ page, server }) => {
+    const requests: Request[] = [];
+    const requestsFinished: Request[] = [];
+    const requestsFailed: Request[] = [];
+    const responses: Response[] = [];
+    server.on('request', r => requests.push(r));
+    server.on('requestfinished', r => requestsFinished.push(r));
+    server.on('requestfailed', r => requestsFailed.push(r));
+    server.on('response', r => responses.push(r));
+
+    server.waitForRequest('https://jsonplaceholder.typicode.com/posts');
+    await page.goto('http://localhost:3000/posts');
+
+    expect(requests).toHaveLength(1);
+    expect(requestsFinished).toHaveLength(1);
+    expect(responses).toHaveLength(1);
+    expect(requestsFailed).toHaveLength(0);
+  });
 });

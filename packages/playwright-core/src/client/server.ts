@@ -145,7 +145,7 @@ export class Server extends EventEmitter implements api.Server {
     await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, scope: this._scope });
   }
 
-  async waitForRequest(urlOrPredicate: string | RegExp | ((r: network.Request) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<Request> {
+  async waitForRequest(urlOrPredicate: string | RegExp | ((r: network.Request) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Request> {
     const predicate = async (request: network.Request) => {
       if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
         return urlMatches(this._context._options.baseURL, request.url(), urlOrPredicate);
@@ -156,7 +156,7 @@ export class Server extends EventEmitter implements api.Server {
     return await this._waitForEvent(Events.Page.Request, { predicate, timeout: options.timeout }, logLine);
   }
 
-  async waitForResponse(urlOrPredicate: string | RegExp | ((r: network.Response) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<Response> {
+  async waitForResponse(urlOrPredicate: string | RegExp | ((r: network.Response) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Response> {
     const predicate = async (response: network.Response) => {
       if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
         return urlMatches(this._context._options.baseURL, response.url(), urlOrPredicate);

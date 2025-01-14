@@ -21260,6 +21260,72 @@ export interface Server {
    */
   waitForEvent(event: 'response', optionsOrPredicate?: { predicate?: (response: Response) => boolean | Promise<boolean>, timeout?: number } | ((response: Response) => boolean | Promise<boolean>)): Promise<Response>;
 
+
+  /**
+   * Waits for the matching request and returns it. See [waiting for event](https://playwright.dev/docs/events#waiting-for-event) for more
+   * details about events.
+   *
+   * **Usage**
+   *
+   * ```js
+   * // Start waiting for request before clicking. Note no await.
+   * const requestPromise = server.waitForRequest('https://example.com/resource');
+   * await page.getByText('trigger request').click();
+   * const request = await requestPromise;
+   *
+   * // Alternative way with a predicate. Note no await.
+   * const requestPromise = server.waitForRequest(request =>
+   *   request.url() === 'https://example.com' && request.method() === 'GET',
+   * );
+   * await page.getByText('trigger request').click();
+   * const request = await requestPromise;
+   * ```
+   *
+   * @param urlOrPredicate Request URL string, regex or predicate receiving [Request](https://playwright.dev/docs/api/class-request) object.
+   * @param options
+   */
+  waitForRequest(urlOrPredicate: string|RegExp|((request: Request) => boolean|Promise<boolean>), options?: {
+    /**
+     * Maximum wait time in milliseconds, defaults to 30 seconds, pass `0` to disable the timeout. The default value can
+     * be changed by using the
+     * [page.setDefaultTimeout(timeout)](https://playwright.dev/docs/api/class-page#page-set-default-timeout) method.
+     */
+    timeout?: number;
+  }): Promise<Request>;
+
+  /**
+   * Returns the matched response. See [waiting for event](https://playwright.dev/docs/events#waiting-for-event) for more details about
+   * events.
+   *
+   * **Usage**
+   *
+   * ```js
+   * // Start waiting for response before clicking. Note no await.
+   * const responsePromise = server.waitForResponse('https://example.com/resource');
+   * await page.getByText('trigger response').click();
+   * const response = await responsePromise;
+   *
+   * // Alternative way with a predicate. Note no await.
+   * const responsePromise = server.waitForResponse(response =>
+   *   response.url() === 'https://example.com' && response.status() === 200
+   *       && response.request().method() === 'GET'
+   * );
+   * await page.getByText('trigger response').click();
+   * const response = await responsePromise;
+   * ```
+   *
+   * @param urlOrPredicate Request URL string, regex or predicate receiving [Response](https://playwright.dev/docs/api/class-response) object.
+   * @param options
+   */
+  waitForResponse(urlOrPredicate: string|RegExp|((response: Response) => boolean|Promise<boolean>), options?: {
+    /**
+     * Maximum wait time in milliseconds, defaults to 30 seconds, pass `0` to disable the timeout. The default value can
+     * be changed by using the
+     * [browserContext.setDefaultTimeout(timeout)](https://playwright.dev/docs/api/class-browsercontext#browser-context-set-default-timeout)
+     * methods.
+     */
+    timeout?: number;
+  }): Promise<Response>;
 }
 
 /**
