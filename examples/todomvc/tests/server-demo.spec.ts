@@ -107,22 +107,15 @@ test.describe('ssr mocking', () => {
     expect(requestsFailed).toHaveLength(0);
   });
 
-  test('events', async ({ page, server }) => {
-    const requests: Request[] = [];
-    const requestsFinished: Request[] = [];
-    const requestsFailed: Request[] = [];
-    const responses: Response[] = [];
-    server.on('request', r => requests.push(r));
-    server.on('requestfinished', r => requestsFinished.push(r));
-    server.on('requestfailed', r => requestsFailed.push(r));
-    server.on('response', r => responses.push(r));
+  test('waitForEvents', async ({ page, server }) => {
+    const [request, response] = await Promise.all([
+      server.waitForRequest('https://jsonplaceholder.typicode.com/posts'),
+      server.waitForResponse('https://jsonplaceholder.typicode.com/posts'),
+      page.goto('http://localhost:3000/posts'),
+    ]);
 
-    server.waitForRequest('https://jsonplaceholder.typicode.com/posts');
-    await page.goto('http://localhost:3000/posts');
-
-    expect(requests).toHaveLength(1);
-    expect(requestsFinished).toHaveLength(1);
-    expect(responses).toHaveLength(1);
-    expect(requestsFailed).toHaveLength(0);
+    expect(request.url()).toBe('https://jsonplaceholder.typicode.com/posts');
+    expect(response.url()).toBe('https://jsonplaceholder.typicode.com/posts');
+    expect(await request.response()).toBe(response);
   });
 });

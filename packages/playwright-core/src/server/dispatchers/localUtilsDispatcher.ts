@@ -15,7 +15,7 @@
  */
 
 import type EventEmitter from 'events';
-import fs, { chownSync } from 'fs';
+import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import type * as channels from '@protocol/channels';
@@ -48,6 +48,7 @@ import type { BrowserContext } from '../browserContext';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
+  _type_EventTarget: boolean;
   private _harBackends = new Map<string, HarBackend>();
   private _stackSessions = new Map<string, {
     file: string,
@@ -64,6 +65,7 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
       deviceDescriptors,
     });
     this._type_LocalUtils = true;
+    this._type_EventTarget = true;
   }
 
   async zip(params: channels.LocalUtilsZipParams): Promise<void> {
