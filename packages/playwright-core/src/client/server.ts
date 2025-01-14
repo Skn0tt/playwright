@@ -68,6 +68,10 @@ export class Server extends EventEmitter implements api.Server {
     this._localUtils._channel.on('response', this.responseListener);
   }
 
+  async _start() {
+    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope });
+  }
+
   dispose() {
     this._localUtils._channel.off('route', this.routeListener);
     this._localUtils._channel.off('request', this.requestListener);
@@ -168,7 +172,9 @@ export class Server extends EventEmitter implements api.Server {
   }
 
   async waitForEvent(event: string, optionsOrPredicate: WaitForEventOptions = {}): Promise<any> {
-    return await this._waitForEvent(event, optionsOrPredicate, `waiting for event "${event}"`);
+    const result = await this._waitForEvent(event, optionsOrPredicate, `waiting for event "${event}"`);
+    await this._updateInterceptionPatterns();
+    return result;
   }
 
   private async _waitForEvent(event: string, optionsOrPredicate: WaitForEventOptions, logLine?: string): Promise<any> {

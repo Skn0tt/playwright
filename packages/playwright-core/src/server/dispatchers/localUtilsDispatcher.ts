@@ -283,10 +283,10 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
   _interceptionRegistry = new ServerInterceptionRegistry();
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
+    await this._interceptionRegistry.start();
+
     if (params.patterns.length === 0)
       return this._interceptionRegistry.setRequestInterceptor(params.scope);
-
-    await this._interceptionRegistry.start();
 
     const interceptor: Interceptor = {
       patterns: params.patterns,
