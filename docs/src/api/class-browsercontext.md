@@ -1027,9 +1027,9 @@ Returns all open pages in the context.
 
 lorem ipsum
 
-### param: BrowserContext.newServer.correlationToken
+### param: BrowserContext.newServer.port
 * since: v1.51
-- `correlationToken` ?<[string]>
+- `port` ?<[int]>
 
 loremp isum
 

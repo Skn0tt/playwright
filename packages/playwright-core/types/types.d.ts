@@ -9005,9 +9005,9 @@ export interface BrowserContext {
 
   /**
    * lorem ipsum
-   * @param correlationToken loremp isum
+   * @param port loremp isum
    */
-  newServer(correlationToken?: string): Promise<Server>;
+  newServer(port?: number): Promise<Server>;
 
   /**
    * Returns all open pages in the context.

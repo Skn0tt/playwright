@@ -283,13 +283,10 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
   _interceptionRegistry = new ServerInterceptionRegistry();
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
-    await this._interceptionRegistry.start();
-    const port = this._interceptionRegistry._api!.port();
+    await this._interceptionRegistry.start(params.port);
 
-    if (params.patterns.length === 0){
-      this._interceptionRegistry.setRequestInterceptor(params.scope);
-      return { port };
-    }
+    if (params.patterns.length === 0)
+      return this._interceptionRegistry.setRequestInterceptor(params.scope);
 
     const interceptor: Interceptor = {
       patterns: params.patterns,
@@ -314,8 +311,6 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
       },
     };
     this._interceptionRegistry.setRequestInterceptor(params.scope, interceptor);
-
-    return { port };
   }
 }
 
@@ -335,10 +330,10 @@ class ServerInterceptionRegistry {
   _api?: ServerInterceptionAPI;
   private readonly _requests = new Map<string, { request: Request, interceptor: Interceptor }>();
 
-  async start() {
+  async start(port: number) {
     if (!this._api) {
       this._api = new ServerInterceptionAPI(this);
-      await this._api.start();
+      await this._api.start({ port });
     }
   }
 

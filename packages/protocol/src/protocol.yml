@@ -652,6 +652,7 @@ LocalUtils:
     setServerNetworkInterceptionPatterns:
       parameters:
         scope: string
+        port: number
         patterns:
           type: array
           items:
@@ -660,8 +661,6 @@ LocalUtils:
               glob: string?
               regexSource: string?
               regexFlags: string?
-      returns:
-        port: number
   
   events:
     route:

@@ -32,6 +32,7 @@ export class Server extends EventEmitter implements api.Server {
   private _localUtils: LocalUtils;
   private _context: BrowserContext;
   private _scope: string;
+  private _port: number;
 
   private routeListener = ({ route, scope }: channels.LocalUtilsRouteEvent) => {
     if (scope === this._scope)
@@ -54,12 +55,13 @@ export class Server extends EventEmitter implements api.Server {
       this.emit('request', network.Request.from(request));
   };
 
-  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '') {
+  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '', port: number) {
     super();
 
     this._localUtils = localUtils;
     this._context = context;
     this._scope = scope;
+    this._port = port;
 
     this._localUtils._channel.on('route', this.routeListener);
     this._localUtils._channel.on('request', this.requestListener);
@@ -68,9 +70,8 @@ export class Server extends EventEmitter implements api.Server {
     this._localUtils._channel.on('response', this.responseListener);
   }
 
-  async _start() {
-    const { port } = await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope });
-    return port;
+  async _start(): Promise<void> {
+    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
   }
 
   dispose() {
@@ -147,7 +148,7 @@ export class Server extends EventEmitter implements api.Server {
 
   private async _updateInterceptionPatterns() {
     const patterns = this.eventNames().length > 0 ? [{ glob: '**/*' }] : network.RouteHandler.prepareInterceptionPatterns(this._routes);
-    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, scope: this._scope });
+    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, scope: this._scope, port: this._port });
   }
 
   async waitForRequest(urlOrPredicate: string | RegExp | ((r: network.Request) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Request> {

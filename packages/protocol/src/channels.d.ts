@@ -566,6 +566,7 @@ export type LocalUtilsTraceDiscardedOptions = {
 export type LocalUtilsTraceDiscardedResult = void;
 export type LocalUtilsSetServerNetworkInterceptionPatternsParams = {
   scope: string,
+  port: number,
   patterns: {
     glob?: string,
     regexSource?: string,
@@ -575,9 +576,7 @@ export type LocalUtilsSetServerNetworkInterceptionPatternsParams = {
 export type LocalUtilsSetServerNetworkInterceptionPatternsOptions = {
 
 };
-export type LocalUtilsSetServerNetworkInterceptionPatternsResult = {
-  port: number,
-};
+export type LocalUtilsSetServerNetworkInterceptionPatternsResult = void;
 
 export interface LocalUtilsEvents {
   'route': LocalUtilsRouteEvent;
