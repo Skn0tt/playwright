@@ -1689,10 +1689,11 @@ interface TestConfig<TestArgs = {}, WorkerArgs = {}> {
   updateSnapshots?: "all"|"changed"|"missing"|"none";
 
   /**
-   * Defines how to update the source code snapshots.
-   * - `'overwrite'` - Overwrite the source code snapshot with the actual result.
-   * - `'3way'` - Use a three-way merge to update the source code snapshot.
-   * - `'patch'` - Use a patch to update the source code snapshot. This is the default.
+   * Defines how to update snapshots in the source code.
+   * - `'patch'` - Create a unified diff file that can be used to update the source code later. This is the default.
+   * - `'3way'` - Generate merge conflict markers in source code. This allows user to manually pick relevant changes,
+   *   as if they are resolving a merge conflict in the IDE.
+   * - `'overwrite'` - Overwrite the source code with the new snapshot values.
    */
   updateSourceMethod?: "overwrite"|"3way"|"patch";
 
@@ -7817,7 +7818,20 @@ interface LocatorAssertions {
    * @param options
    */
   toBeChecked(options?: {
+    /**
+     * Provides state to assert for. Asserts for input to be checked by default. This option can't be used when
+     * [`indeterminate`](https://playwright.dev/docs/api/class-locatorassertions#locator-assertions-to-be-checked-option-indeterminate)
+     * is set to true.
+     */
     checked?: boolean;
+
+    /**
+     * Asserts that the element is in the indeterminate (mixed) state. Only supported for checkboxes and radio buttons.
+     * This option can't be true when
+     * [`checked`](https://playwright.dev/docs/api/class-locatorassertions#locator-assertions-to-be-checked-option-checked)
+     * is provided.
+     */
+    indeterminate?: boolean;
 
     /**
      * Time to retry the assertion for in milliseconds. Defaults to `timeout` in `TestConfig.expect`.
@@ -8678,6 +8692,29 @@ interface LocatorAssertions {
    * **Usage**
    *
    * ```js
+   * await page.goto('https://demo.playwright.dev/todomvc/');
+   * await expect(page.locator('body')).toMatchAriaSnapshot(`
+   *   - heading "todos"
+   *   - textbox "What needs to be done?"
+   * `);
+   * ```
+   *
+   * @param expected
+   * @param options
+   */
+  toMatchAriaSnapshot(expected: string, options?: {
+    /**
+     * Time to retry the assertion for in milliseconds. Defaults to `timeout` in `TestConfig.expect`.
+     */
+    timeout?: number;
+  }): Promise<void>;
+
+  /**
+   * Asserts that the target element matches the given [accessibility snapshot](https://playwright.dev/docs/aria-snapshots).
+   *
+   * **Usage**
+   *
+   * ```js
    * await expect(page.locator('body')).toMatchAriaSnapshot();
    * await expect(page.locator('body')).toMatchAriaSnapshot({ name: 'snapshot' });
    * await expect(page.locator('body')).toMatchAriaSnapshot({ path: '/path/to/snapshot.yml' });
@@ -8697,29 +8734,6 @@ interface LocatorAssertions {
      */
     path?: string;
 
-    /**
-     * Time to retry the assertion for in milliseconds. Defaults to `timeout` in `TestConfig.expect`.
-     */
-    timeout?: number;
-  }): Promise<void>;
-
-  /**
-   * Asserts that the target element matches the given [accessibility snapshot](https://playwright.dev/docs/aria-snapshots).
-   *
-   * **Usage**
-   *
-   * ```js
-   * await page.goto('https://demo.playwright.dev/todomvc/');
-   * await expect(page.locator('body')).toMatchAriaSnapshot(`
-   *   - heading "todos"
-   *   - textbox "What needs to be done?"
-   * `);
-   * ```
-   *
-   * @param expected
-   * @param options
-   */
-  toMatchAriaSnapshot(expected: string, options?: {
     /**
      * Time to retry the assertion for in milliseconds. Defaults to `timeout` in `TestConfig.expect`.
      */

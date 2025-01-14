@@ -29,7 +29,7 @@ import type { CSSComplexSelectorList } from '../../utils/isomorphic/cssParser';
 import { generateSelector, type GenerateSelectorOptions } from './selectorGenerator';
 import type * as channels from '@protocol/channels';
 import { Highlight } from './highlight';
-import { getChecked, getAriaDisabled, getAriaRole, getElementAccessibleName, getElementAccessibleDescription, getReadonly, getElementAccessibleErrorMessage } from './roleUtils';
+import { getAriaDisabled, getAriaRole, getElementAccessibleName, getElementAccessibleDescription, getReadonly, getElementAccessibleErrorMessage, getCheckedAllowMixed, getCheckedWithoutMixed } from './roleUtils';
 import { kLayoutSelectorNames, type LayoutSelectorName, layoutSelectorScore } from './layoutSelectorUtils';
 import { asLocator } from '../../utils/isomorphic/locatorGenerators';
 import type { Language } from '../../utils/isomorphic/locatorGenerators';
@@ -37,11 +37,11 @@ import { cacheNormalizedWhitespaces, normalizeWhiteSpace, trimStringWithEllipsis
 import { matchesAriaTree, getAllByAria, generateAriaTree, renderAriaTree } from './ariaSnapshot';
 import type { AriaNode, AriaSnapshot } from './ariaSnapshot';
 import type { AriaTemplateNode } from '@isomorphic/ariaSnapshot';
-import { parseYamlTemplate } from '@isomorphic/ariaSnapshot';
+import { parseAriaSnapshot } from '@isomorphic/ariaSnapshot';
 
 export type FrameExpectParams = Omit<channels.FrameExpectParams, 'expectedValue'> & { expectedValue?: any };
 
-export type ElementState = 'visible' | 'hidden' | 'enabled' | 'disabled' | 'editable' | 'checked' | 'unchecked' | 'mixed' | 'stable';
+export type ElementState = 'visible' | 'hidden' | 'enabled' | 'disabled' | 'editable' | 'checked' | 'unchecked' | 'indeterminate' | 'stable';
 export type ElementStateWithoutStable = Exclude<ElementState, 'stable'>;
 export type ElementStateQueryResult = { matches: boolean, received?: string | 'error:notconnected' };
 
@@ -86,7 +86,7 @@ export class InjectedScript {
     isElementVisible,
     isInsideScope,
     normalizeWhiteSpace,
-    parseYamlTemplate,
+    parseAriaSnapshot,
   };
 
   // eslint-disable-next-line no-restricted-globals
@@ -644,13 +644,23 @@ export class InjectedScript {
       };
     }
 
-    if (state === 'checked' || state === 'unchecked' || state === 'mixed') {
-      const need = state === 'checked' ? true : state === 'unchecked' ? false : 'mixed';
-      const checked = getChecked(element, false);
+    if (state === 'checked' || state === 'unchecked') {
+      const need = state === 'checked';
+      const checked = getCheckedWithoutMixed(element);
       if (checked === 'error')
         throw this.createStacklessError('Not a checkbox or radio button');
       return {
         matches: need === checked,
+        received: checked ? 'checked' : 'unchecked',
+      };
+    }
+
+    if (state === 'indeterminate') {
+      const checked = getCheckedAllowMixed(element);
+      if (checked === 'error')
+        throw this.createStacklessError('Not a checkbox or radio button');
+      return {
+        matches: checked === 'mixed',
         received: checked === true ? 'checked' : checked === false ? 'unchecked' : 'mixed',
       };
     }
@@ -1016,11 +1026,37 @@ export class InjectedScript {
       case 'mouse': event = new MouseEvent(type, eventInit); break;
       case 'keyboard': event = new KeyboardEvent(type, eventInit); break;
       case 'touch': {
-        eventInit.target ??= node;
-        eventInit.touches = eventInit.touches?.map((t: any) => t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }));
-        eventInit.targetTouches = eventInit.targetTouches?.map((t: any) => t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }));
-        eventInit.changedTouches = eventInit.changedTouches?.map((t: any) => t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }));
-        event = new TouchEvent(type, eventInit);
+        // WebKit does not support Touch constructor, but has deprecated createTouch and createTouchList methods.
+        if (this._browserName === 'webkit') {
+          const createTouch = (t: any) => {
+            if (t instanceof Touch)
+              return t;
+            // createTouch does not accept clientX/clientY, so we have to use pageX/pageY.
+            let pageX = t.pageX;
+            if (pageX === undefined && t.clientX !== undefined)
+              pageX = t.clientX + (this.document.scrollingElement?.scrollLeft || 0);
+            let pageY = t.pageY;
+            if (pageY === undefined && t.clientY !== undefined)
+              pageY = t.clientY + (this.document.scrollingElement?.scrollTop || 0);
+            return (this.document as any).createTouch(this.window, t.target ?? node, t.identifier, pageX, pageY, t.screenX, t.screenY, t.radiusX, t.radiusY, t.rotationAngle, t.force);
+          };
+          const createTouchList = (touches: any) => {
+            if (touches instanceof TouchList || !touches)
+              return touches;
+            return (this.document as any).createTouchList(...touches.map(createTouch));
+          };
+          eventInit.target ??= node;
+          eventInit.touches = createTouchList(eventInit.touches);
+          eventInit.targetTouches = createTouchList(eventInit.targetTouches);
+          eventInit.changedTouches = createTouchList(eventInit.changedTouches);
+          event = new TouchEvent(type, eventInit);
+        } else {
+          eventInit.target ??= node;
+          eventInit.touches = eventInit.touches?.map((t: any) => t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }));
+          eventInit.targetTouches = eventInit.targetTouches?.map((t: any) => t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }));
+          eventInit.changedTouches = eventInit.changedTouches?.map((t: any) => t instanceof Touch ? t : new Touch({ ...t, target: t.target ?? node }));
+          event = new TouchEvent(type, eventInit);
+        }
         break;
       }
       case 'pointer': event = new PointerEvent(type, eventInit); break;
@@ -1241,9 +1277,14 @@ export class InjectedScript {
           received: hasAttribute ? 'attribute present' : 'attribute not present',
         };
       } else if (expression === 'to.be.checked') {
-        result = this.elementState(element, 'checked');
-      } else if (expression === 'to.be.unchecked') {
-        result = this.elementState(element, 'unchecked');
+        const { checked, indeterminate } = options.expectedValue;
+        if (indeterminate) {
+          if (checked !== undefined)
+            throw this.createStacklessError('Can\'t assert indeterminate and checked at the same time');
+          result = this.elementState(element, 'indeterminate');
+        } else {
+          result = this.elementState(element, checked === false ? 'unchecked' : 'checked');
+        }
       } else if (expression === 'to.be.disabled') {
         result = this.elementState(element, 'disabled');
       } else if (expression === 'to.be.editable') {
