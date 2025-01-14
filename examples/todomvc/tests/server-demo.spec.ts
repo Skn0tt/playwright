@@ -48,7 +48,9 @@ test.describe('ssr mocking', () => {
   });
 
   test('continue', async ({ page, server }) => {
+    let routeCalls = 0;
     await server.route('https://jsonplaceholder.typicode.com/posts', async (route, request) => {
+      routeCalls++;
       const url = new URL(request.url());
       url.searchParams.set('id', '42');
       await route.continue({ url: url.toString() });
@@ -60,6 +62,7 @@ test.describe('ssr mocking', () => {
       - list:
         - listitem: commodi ullam sint et excepturi error explicabo praesentium voluptas
     `);
+    expect(routeCalls).toBe(1);
   });
 
   test('abort', async ({ request, server }) => {
