@@ -432,7 +432,7 @@ export interface LocalUtilsEventTarget {
   on(event: 'requestFailed', callback: (params: LocalUtilsRequestFailedEvent) => void): this;
   on(event: 'requestFinished', callback: (params: LocalUtilsRequestFinishedEvent) => void): this;
 }
-export interface LocalUtilsChannel extends LocalUtilsEventTarget, Channel {
+export interface LocalUtilsChannel extends LocalUtilsEventTarget, EventTargetChannel {
   _type_LocalUtils: boolean;
   zip(params: LocalUtilsZipParams, metadata?: CallMetadata): Promise<LocalUtilsZipResult>;
   harOpen(params: LocalUtilsHarOpenParams, metadata?: CallMetadata): Promise<LocalUtilsHarOpenResult>;

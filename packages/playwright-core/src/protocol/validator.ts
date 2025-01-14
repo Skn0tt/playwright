@@ -820,12 +820,14 @@ scheme.EventTargetWaitForEventInfoParams = tObject({
     error: tOptional(tString),
   }),
 });
+scheme.LocalUtilsWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.BrowserContextWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.PageWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.WebSocketWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.ElectronApplicationWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.AndroidDeviceWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
 scheme.EventTargetWaitForEventInfoResult = tOptional(tObject({}));
+scheme.LocalUtilsWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.BrowserContextWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.PageWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.WebSocketWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');

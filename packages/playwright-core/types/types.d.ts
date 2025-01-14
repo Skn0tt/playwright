@@ -21236,6 +21236,30 @@ export interface Server {
      */
     behavior?: "wait"|"ignoreErrors"|"default";
   }): Promise<void>;
+
+  /**
+   * Emitted when a server issues a request. The [request] object is read-only. In order to intercept and mutate
+   * requests, see [server.route(url, handler[, options])](https://playwright.dev/docs/api/class-server#server-route).
+   */
+  waitForEvent(event: 'request', optionsOrPredicate?: { predicate?: (request: Request) => boolean | Promise<boolean>, timeout?: number } | ((request: Request) => boolean | Promise<boolean>)): Promise<Request>;
+
+  /**
+   * Emitted when a request fails, for example by timing out.
+   */
+  waitForEvent(event: 'requestfailed', optionsOrPredicate?: { predicate?: (request: Request) => boolean | Promise<boolean>, timeout?: number } | ((request: Request) => boolean | Promise<boolean>)): Promise<Request>;
+
+  /**
+   * Emitted when a request finishes successfully after downloading the response body. For a successful response, the
+   * sequence of events is `request`, `response` and `requestfinished`.
+   */
+  waitForEvent(event: 'requestfinished', optionsOrPredicate?: { predicate?: (request: Request) => boolean | Promise<boolean>, timeout?: number } | ((request: Request) => boolean | Promise<boolean>)): Promise<Request>;
+
+  /**
+   * Emitted when [response] status and headers are received for a request. For a successful response, the sequence of
+   * events is `request`, `response` and `requestfinished`.
+   */
+  waitForEvent(event: 'response', optionsOrPredicate?: { predicate?: (response: Response) => boolean | Promise<boolean>, timeout?: number } | ((response: Response) => boolean | Promise<boolean>)): Promise<Response>;
+
 }
 
 /**

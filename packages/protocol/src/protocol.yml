@@ -529,6 +529,8 @@ ContextOptions:
 LocalUtils:
   type: interface
 
+  extends: EventTarget
+
   initializer:
     deviceDescriptors:
       type: array

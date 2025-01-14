@@ -15,14 +15,22 @@
  */
 import type * as api from '../../types/types';
 import * as network from './network';
-import { urlMatchesEqual, type URLMatch } from '../utils/isomorphic/urlMatch';
+import { urlMatches, urlMatchesEqual, type URLMatch } from '../utils/isomorphic/urlMatch';
 import type { LocalUtils } from './localUtils';
 import type * as channels from '@protocol/channels';
 import { EventEmitter } from './eventEmitter';
+import type { WaitForEventOptions } from './types';
+import type { BrowserContext } from './browserContext';
+import { Waiter } from './waiter';
+import { Events } from './events';
+import { isString } from '../utils/isomorphic/stringUtils';
+import { isRegExp } from '../utils';
+import { trimUrl } from './page';
 
 export class Server extends EventEmitter implements api.Server {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
+  private _context: BrowserContext;
   private _scope: string;
 
   private routeListener = ({ route, scope }: channels.LocalUtilsRouteEvent) => {
@@ -46,10 +54,11 @@ export class Server extends EventEmitter implements api.Server {
       this.emit('request', network.Request.from(request));
   };
 
-  constructor(localUtils: LocalUtils, scope = '') {
+  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '') {
     super();
 
     this._localUtils = localUtils;
+    this._context = context;
     this._scope = scope;
 
     this._localUtils._channel.on('route', this.routeListener);
@@ -84,7 +93,7 @@ export class Server extends EventEmitter implements api.Server {
     await this._updateInterceptionPatterns();
   }
 
-  async unrouteAll(options?: { behavior?: 'wait'|'ignoreErrors'|'default' }): Promise<void> {
+  async unrouteAll(options?: { behavior?: 'wait' | 'ignoreErrors' | 'default' }): Promise<void> {
     await this._unrouteInternal(this._routes, [], options?.behavior);
   }
 
@@ -100,7 +109,7 @@ export class Server extends EventEmitter implements api.Server {
     await this._unrouteInternal(removed, remaining, 'default');
   }
 
-  private async _unrouteInternal(removed: network.RouteHandler[], remaining: network.RouteHandler[], behavior?: 'wait'|'ignoreErrors'|'default'): Promise<void> {
+  private async _unrouteInternal(removed: network.RouteHandler[], remaining: network.RouteHandler[], behavior?: 'wait' | 'ignoreErrors' | 'default'): Promise<void> {
     this._routes = remaining;
     await this._updateInterceptionPatterns();
     if (!behavior || behavior === 'default')
@@ -128,11 +137,52 @@ export class Server extends EventEmitter implements api.Server {
     }
     // If the page is closed or unrouteAll() was called without waiting and interception disabled,
     // the method will throw an error - silence it.
-    await route._innerContinue(true /* isFallback */).catch(() => {});
+    await route._innerContinue(true /* isFallback */).catch(() => { });
   }
 
   private async _updateInterceptionPatterns() {
     const patterns = this.eventNames().length > 0 ? [{ glob: '**/*' }] : network.RouteHandler.prepareInterceptionPatterns(this._routes);
     await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, scope: this._scope });
   }
+
+  async waitForRequest(urlOrPredicate: string | RegExp | ((r: network.Request) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<Request> {
+    const predicate = async (request: network.Request) => {
+      if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
+        return urlMatches(this._context._options.baseURL, request.url(), urlOrPredicate);
+      return await urlOrPredicate(request);
+    };
+    const trimmedUrl = trimUrl(urlOrPredicate);
+    const logLine = trimmedUrl ? `waiting for request ${trimmedUrl}` : undefined;
+    return await this._waitForEvent(Events.Page.Request, { predicate, timeout: options.timeout }, logLine);
+  }
+
+  async waitForResponse(urlOrPredicate: string | RegExp | ((r: network.Response) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<Response> {
+    const predicate = async (response: network.Response) => {
+      if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
+        return urlMatches(this._context._options.baseURL, response.url(), urlOrPredicate);
+      return await urlOrPredicate(response);
+    };
+    const trimmedUrl = trimUrl(urlOrPredicate);
+    const logLine = trimmedUrl ? `waiting for response ${trimmedUrl}` : undefined;
+    return await this._waitForEvent(Events.Page.Response, { predicate, timeout: options.timeout }, logLine);
+  }
+
+  async waitForEvent(event: string, optionsOrPredicate: WaitForEventOptions = {}): Promise<any> {
+    return await this._waitForEvent(event, optionsOrPredicate, `waiting for event "${event}"`);
+  }
+
+  private async _waitForEvent(event: string, optionsOrPredicate: WaitForEventOptions, logLine?: string): Promise<any> {
+    return await this._localUtils._wrapApiCall(async () => {
+      const timeout = this._context._timeoutSettings.timeout(typeof optionsOrPredicate === 'function' ? {} : optionsOrPredicate);
+      const predicate = typeof optionsOrPredicate === 'function' ? optionsOrPredicate : optionsOrPredicate.predicate;
+      const waiter = Waiter.createForEvent(this._localUtils, event);
+      if (logLine)
+        waiter.log(logLine);
+      waiter.rejectOnTimeout(timeout, `Timeout ${timeout}ms exceeded while waiting for event "${event}"`);
+      const result = await waiter.waitForEvent(this, event, predicate as any);
+      waiter.dispose();
+      return result;
+    });
+  }
+
 }

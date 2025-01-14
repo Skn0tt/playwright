@@ -108,3 +108,50 @@ sequence of events is `request`, `response` and `requestfinished`.
 
 Emitted when [response] status and headers are received for a request. For a successful response, the sequence of events
 is `request`, `response` and `requestfinished`.
+
+## async method: Server.waitForEvent
+* since: v1.51
+* langs: js, python
+  - alias-python: expect_event
+- returns: <[any]>
+
+Waits for event to fire and passes its value into the predicate function. Returns when the predicate returns truthy
+value. Will throw an error if the page is closed before the event is fired. Returns the event data value.
+
+**Usage**
+
+```js
+const requestPromise = server.waitForEvent('request');
+await page.getByText('Download file').click();
+const download = await requestPromise;
+```
+
+```python async
+async with server.expect_event("request") as event_info:
+    await page.get_by_role("button")
+frame = await event_info.value
+```
+
+```python sync
+with server.expect_event("request") as event_info:
+    page.get_by_role("button")
+frame = event_info.value
+```
+
+### param: Server.waitForEvent.event = %%-wait-for-event-event-%%
+* since: v1.51
+
+### param: Server.waitForEvent.optionsOrPredicate
+* since: v1.51
+* langs: js
+- `optionsOrPredicate` ?<[function]|[Object]>
+  - `predicate` <[function]> Receives the event data and resolves to truthy value when the waiting should resolve.
+  - `timeout` ?<[float]> Maximum time to wait for in milliseconds. Defaults to `0` - no timeout. The default value can be changed via `actionTimeout` option in the config, or by using the [`method: BrowserContext.setDefaultTimeout`] or [`method: Page.setDefaultTimeout`] methods.
+
+Either a predicate that receives an event or an options object. Optional.
+
+### option: Server.waitForEvent.predicate = %%-wait-for-event-predicate-%%
+* since: v1.51
+
+### option: Server.waitForEvent.timeout = %%-wait-for-event-timeout-%%
+* since: v1.51
