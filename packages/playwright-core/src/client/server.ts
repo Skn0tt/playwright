@@ -123,7 +123,7 @@ export class Server extends EventEmitter implements api.Server {
   }
 
   async _onRoute(route: network.Route) {
-    route._context = null as any;
+    route._context = this._context;
     const routeHandlers = this._routes.slice();
     for (const routeHandler of routeHandlers) {
       if (!routeHandler.matches(route.request().url()))
