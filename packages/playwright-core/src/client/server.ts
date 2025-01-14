@@ -69,7 +69,8 @@ export class Server extends EventEmitter implements api.Server {
   }
 
   async _start() {
-    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope });
+    const { port } = await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope });
+    return port;
   }
 
   dispose() {

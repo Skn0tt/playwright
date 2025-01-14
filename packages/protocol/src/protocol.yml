@@ -660,6 +660,8 @@ LocalUtils:
               glob: string?
               regexSource: string?
               regexFlags: string?
+      returns:
+        port: number
   
   events:
     route:

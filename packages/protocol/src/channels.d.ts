@@ -575,7 +575,9 @@ export type LocalUtilsSetServerNetworkInterceptionPatternsParams = {
 export type LocalUtilsSetServerNetworkInterceptionPatternsOptions = {
 
 };
-export type LocalUtilsSetServerNetworkInterceptionPatternsResult = void;
+export type LocalUtilsSetServerNetworkInterceptionPatternsResult = {
+  port: number,
+};
 
 export interface LocalUtilsEvents {
   'route': LocalUtilsRouteEvent;

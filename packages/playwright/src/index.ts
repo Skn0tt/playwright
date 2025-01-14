@@ -451,7 +451,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
   },
 
   server: async ({ context }, use, testInfo) => {
-    const server = await context.newServer('' + testInfo.parallelIndex);
+    const server = await context.newServer('0');
     await use(server);
     await server.unrouteAll();
   }

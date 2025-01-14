@@ -270,8 +270,9 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
 
   async newServer(correlationToken?: string): Promise<Server> {
     const server = new Server(this._connection.localUtils(), this, correlationToken);
-    await server._start();
+    const port = await server._start();
     this._servers.push(server);
+    await this.setExtraHTTPHeaders({ 'x-pw-port': '' + port });
     return server;
   }
 

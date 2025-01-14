@@ -342,7 +342,9 @@ scheme.LocalUtilsSetServerNetworkInterceptionPatternsParams = tObject({
     regexFlags: tOptional(tString),
   })),
 });
-scheme.LocalUtilsSetServerNetworkInterceptionPatternsResult = tOptional(tObject({}));
+scheme.LocalUtilsSetServerNetworkInterceptionPatternsResult = tObject({
+  port: tNumber,
+});
 scheme.RootInitializer = tOptional(tObject({}));
 scheme.RootInitializeParams = tObject({
   sdkLanguage: tEnum(['javascript', 'python', 'java', 'csharp']),
