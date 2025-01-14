@@ -74,9 +74,10 @@ test.describe('ssr mocking', () => {
   test('manipulate', async ({ page, server }) => {
     await server.route('https://jsonplaceholder.typicode.com/posts', async (route, request) => {
       const response = await route.fetch();
-      const json = await response.json();
-      console.log(json);
-      await route.fulfill({ response, body: json });
+      const json = await response.json() as any[];
+      json.splice(5, json.length);
+      json[0].title = 'Hello, World!';
+      await route.fulfill({ json });
     });
 
     await page.goto('http://localhost:3000/posts');
@@ -84,8 +85,10 @@ test.describe('ssr mocking', () => {
     await expect(page.getByRole('list')).toMatchAriaSnapshot(`
       - list:
         - listitem: Hello, World!
-        - listitem: Second post
-        - listitem: Third post
+        - listitem: qui est esse
+        - listitem: ea molestias quasi exercitationem repellat qui ipsa sit aut
+        - listitem: eum et est occaecati
+        - listitem: nesciunt quas odio
     `);
   });
 
