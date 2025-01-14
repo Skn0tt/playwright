@@ -472,6 +472,8 @@ class ServerInterceptionAPI extends HttpServer {
     const method = req.headers['x-playwright-method'] as string;
     delete req.headersDistinct['x-playwright-method'];
 
+    delete req.headersDistinct['host'];
+
     const handler = this._registry.match(scope, url);
     if (!handler) {
       res.statusCode = 404;
