@@ -108,9 +108,13 @@ test.describe('ssr mocking', () => {
   });
 
   test('waitForEvents', async ({ page, server }) => {
+    const requestPromise = server.waitForRequest('https://jsonplaceholder.typicode.com/posts')
+    const responsePromise = server.waitForResponse('https://jsonplaceholder.typicode.com/posts')
+
+    await page.waitForTimeout(1000);
     const [request, response] = await Promise.all([
-      server.waitForRequest('https://jsonplaceholder.typicode.com/posts'),
-      server.waitForResponse('https://jsonplaceholder.typicode.com/posts'),
+      requestPromise,
+      responsePromise,
       page.goto('http://localhost:3000/posts'),
     ]);
 
