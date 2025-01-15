@@ -560,8 +560,8 @@ For more details, see [WebSocketRoute].
 If you want to intercept network traffic originating from the server, you can use [Server] to spin up a HTTP proxy server that can intercept and mock network traffic.
 
 ```js
-test('gets the json from api and adds a new fruit', async ({ page, server }) => {
-  await server.route("https://headless-cms.example.com/posts", (route, request) => {
+test('calls the cms to fetch frontpage posts', async ({ page, server }) => {
+  await server.route("https://headless-cms.example.com/frontpage", (route, request) => {
     await route.fulfill({
       json: [
         { id: 1, title: 'Hello, World!' },
@@ -571,7 +571,7 @@ test('gets the json from api and adds a new fruit', async ({ page, server }) => 
     });
   })
 
-  await page.goto('http://localhost:3000/posts');
+  await page.goto('http://localhost:3000/');
 
   await expect(page.getByRole('list')).toMatchAriaSnapshot(`
     - list:
