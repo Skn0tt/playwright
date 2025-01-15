@@ -554,3 +554,111 @@ await page.RouteWebSocketAsync("wss://example.com/ws", ws => {
 ```
 
 For more details, see [WebSocketRoute].
+
+## Mock Application Server
+
+If you want to intercept network traffic originating from the server, you can use [Server] to spin up a HTTP proxy server that can intercept and mock network traffic.
+
+```js
+test('gets the json from api and adds a new fruit', async ({ page, server }) => {
+  await server.route("https://headless-cms.example.com/posts", (route, request) => {
+    await route.fulfill({
+      json: [
+        { id: 1, title: 'Hello, World!' },
+        { id: 2, title: 'Second post' },
+        { id: 2, title: 'Third post' }
+      ]
+    });
+  })
+
+  await page.goto('http://localhost:3000/posts');
+
+  await expect(page.getByRole('list')).toMatchAriaSnapshot(`
+    - list:
+      - listitem: Hello, World!
+      - listitem: Second post
+      - listitem: Third post
+  `);
+});
+```
+
+Under the hood, Playwright spins up one HTTP proxy server per worker process. Playwright injects the proxy server port into each outgoing browser request as the `x-playwright-proxy-port` header. You need to configure your application server to direct outgoing traffic through this proxy server.
+If you cannot access the current request headers at the time of making the API request, [disable parallelism](#disable-parallelism) and hard-code the proxy port to `8888`.
+
+### Recipes
+
+#### Axios
+
+```js
+const api = axios.create({
+  baseURL: "https://jsonplaceholder.typicode.com",
+});
+
+if (isUnderTest) {
+  api.interceptors.request.use(async config => {
+    const port = await headers().get("x-playwright-proxy-port"); // if you cannot access the request headers, disable parallelism and harcode to proxy port (8888 by default)
+    config.proxy = { protocol: "http", host: "localhost", port: +port };
+    return config;
+  });
+}
+```
+
+#### fetch / undici
+
+```js
+import { setGlobalDispatcher, getGlobalDispatcher } from "undici";
+
+if (isUnderTest) {
+  const proxyingDispatcher = getGlobalDispatcher().compose(dispatch => async (opts, handler) => {
+    const port = await headers().get("x-playwright-proxy-port"); // if you cannot access the request headers, disable parallelism and harcode to proxy port (8888 by default)
+    opts.path = opts.origin + opts.path;
+    opts.origin = `http://localhost:${port}`;
+    return dispatch(opts, handler);
+  })
+  setGlobalDispatcher(proxyingDispatcher);
+}
+```
+
+#### Python
+
+```python
+import requests
+
+if is_under_test:
+  port = request.headers.get("x-playwright-proxy-port") # if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
+  requests.get('http://example.org', proxies={ 'http': f'http://localhost:{port}' })
+```
+
+Set the `HTTP_PROXY` environment variable to `http://localhost:8888`.
+
+#### dotnet
+
+Use [`WebProxy`](https://learn.microsoft.com/en-us/dotnet/api/system.net.webproxy?view=net-9.0):
+
+```c#
+if (isUnderTest)
+{
+  var port = request.Headers["x-playwright-proxy-port"]; // if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
+  WebProxy proxyObject = new WebProxy($"http://localhost:{port}/", true);
+  HttpClient client = new HttpClient(new HttpClientHandler
+  {
+      Proxy = proxyObject
+  });
+}
+```
+
+#### Java
+
+https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html
+
+```java
+if (isUnderTest) {
+  String port = request.getHeader("x-playwright-proxy-port"); // if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
+  System.setProperty("http.proxyHost", "localhost");
+  System.setProperty("http.proxyPort", port);
+}
+
+// connection will be through playwright proxy.
+URL url = new URL("http://java.example.org/");
+InputStream in = url.openStream();
+```
