@@ -458,6 +458,10 @@ class ServerInterceptionAPI extends HttpServer {
       this._handleRequest(req, res);
       return true;
     });
+
+    this.server().on('connect', (req, socket, head) => {
+      socket.end('HTTP/1.1 405 Method Not Allowed\r\n\r\n');
+    });
   }
 
   async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
