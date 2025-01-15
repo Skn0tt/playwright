@@ -583,6 +583,8 @@ class ServerInterceptionAPI extends HttpServer {
 
   async _proxy(req: http.IncomingMessage, res: http.ServerResponse) {
     const scope = '0';
+    if (req.url?.startsWith('/'))
+      req.url = req.url.substring(1);
     const handler = this._registry.match(scope, req.url!);
     if (!handler) {
       res.statusCode = 404;

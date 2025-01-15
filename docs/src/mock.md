@@ -649,19 +649,26 @@ Set the `HTTP_PROXY` environment variable to `http://localhost:8888`.
 
 #### dotnet
 
-Use [`WebProxy`](https://learn.microsoft.com/en-us/dotnet/api/system.net.webproxy?view=net-9.0):
+Prepend the proxy URL to all your outgoing requests:
 
 ```c#
+using var client = new HttpClient();
+
+var proxyBaseURL = "";
 if (isUnderTest)
 {
-  var port = request.Headers["x-playwright-proxy-port"]; // if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
-  WebProxy proxyObject = new WebProxy($"http://localhost:{port}/", true);
-  HttpClient client = new HttpClient(new HttpClientHandler
-  {
-      Proxy = proxyObject
-  });
+  var proxyPort = httpContextAccessor.HttpContext?.Request.Headers["x-pw-port"] ?? StringValues.Empty;
+  if (!StringValues.IsNullOrEmpty(proxyPort))
+  {               
+    proxyBaseURL = $"http://localhost:{proxyPort}/";
+  }
 }
+
+await client.GetAsync(proxyBaseURL + "https://api.example.com");
 ```
+
+[`WebProxy`](https://learn.microsoft.com/en-us/dotnet/api/system.net.webproxy?view=net-9.0) does *not* work, because it will send all outgoing HTTPS traffic securely via HTTP CONNECT.
+This makes it impossible for Playwright to intercept the traffic.
 
 #### Java
 
