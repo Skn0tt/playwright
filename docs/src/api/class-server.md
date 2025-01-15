@@ -1,18 +1,37 @@
 # class: Server
 * since: v1.51
 
-Lorem Ipsum dolor
-async route(url: URLMatcher, handler: ServerRouteHandler) {
-        this.repo.registerServerRoute(this.mockId, url, handler);
-    }
 
-    on(event: 'response', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this;
-    on(event: 'request', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this;
-    on(event: 'requestfinished', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this;
-    on(event: 'requestfailed', listener: (req: http.IncomingMessage, res: http.ServerResponse) => void): this;
-    on(event: 'request' | 'response' | 'requestfinished' | 'requestfailed', listener: any) {
-        return super.on(event, listener);
-    };
+`Server` provides methods to intercept network traffic from your application server.
+
+```js
+const { webkit } = require('playwright');  // Or 'chromium' or 'firefox'.
+
+(async () => {
+  const browser = await webkit.launch();
+  const context = await browser.newContext();
+  const server = await context.newServer(8888); // point your application server to proxy all requests through this port
+
+  await server.route("https://headless-cms.example.com/posts", (route, request) => {
+    await route.fulfill({
+      json: [
+        { id: 1, title: 'Hello, World!' },
+        { id: 2, title: 'Second post' },
+        { id: 2, title: 'Third post' }
+      ]
+    });
+  })
+
+  const page = await context.newPage();
+  await page.goto('https://localhost:3000/posts');
+
+  console.log(await page.getByRole('list').ariaSnapshot())
+  // - list:
+  //    - listitem: Hello, World!
+  //    - listitem: Second post
+  //    - listitem: Third post
+})();
+```
 
 ## async method: Server.route
 * since: v1.51
