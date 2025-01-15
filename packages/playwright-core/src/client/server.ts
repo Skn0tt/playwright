@@ -32,7 +32,7 @@ export class Server extends EventEmitter implements api.Server {
   private _localUtils: LocalUtils;
   private _context: BrowserContext;
   private _scope: string;
-  private _port: number;
+  private _port?: number;
 
   private routeListener = ({ route, scope }: channels.LocalUtilsRouteEvent) => {
     if (scope === this._scope)
@@ -55,7 +55,7 @@ export class Server extends EventEmitter implements api.Server {
       this.emit('request', network.Request.from(request));
   };
 
-  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '', port: number) {
+  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '', port?: number) {
     super();
 
     this._localUtils = localUtils;
@@ -70,8 +70,9 @@ export class Server extends EventEmitter implements api.Server {
     this._localUtils._channel.on('response', this.responseListener);
   }
 
-  async _start(): Promise<void> {
-    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
+  async _start(): Promise<number> {
+    const { port } = await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
+    return port;
   }
 
   dispose() {
