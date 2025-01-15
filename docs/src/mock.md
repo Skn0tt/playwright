@@ -587,7 +587,7 @@ If you cannot access the current request headers at the time of making the API r
 
 ### Recipes
 
-#### Axios
+#### Node.js Axios
 
 ```js
 const api = axios.create({
@@ -603,7 +603,23 @@ if (isUnderTest) {
 }
 ```
 
-#### fetch / undici
+#### Node.js `http`
+
+```js
+const port = request.headers.get("x-playwright-proxy-port"); // if you cannot access the request headers, disable parallelism and harcode to proxy port (8888 by default)
+var options = {
+  host: "localhost",
+  port: +port,
+  path: "http://example.org" // put the full URL here instead of just the path
+};
+http.request(options, ...);
+
+// or
+const proxy = `http://localhost:${port}/`;
+http.request(proxy + "http://example.org",  ...);
+```
+
+#### Node.js fetch / undici
 
 ```js
 import { setGlobalDispatcher, getGlobalDispatcher } from "undici";
