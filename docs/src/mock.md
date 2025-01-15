@@ -657,8 +657,8 @@ using var client = new HttpClient();
 var proxyBaseURL = "";
 if (isUnderTest)
 {
-  var proxyPort = httpContextAccessor.HttpContext?.Request.Headers["x-pw-port"] ?? StringValues.Empty;
-  if (!StringValues.IsNullOrEmpty(proxyPort))
+  var proxyPort = httpContextAccessor.HttpContext?.Request.Headers["x-pw-port"]; // if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
+  if (proxyPort.HasValue)
   {               
     proxyBaseURL = $"http://localhost:{proxyPort}/";
   }
