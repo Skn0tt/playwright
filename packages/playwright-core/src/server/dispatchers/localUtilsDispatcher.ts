@@ -36,7 +36,8 @@ import type { Progress } from '../progress';
 import { ProgressController } from '../progress';
 import { fetchData } from '../../utils/network';
 import type { HTTPRequestParams } from '../../utils/network';
-import type http from 'http';
+import http from 'http';
+import https from 'https';
 import type { Playwright } from '../playwright';
 import { SdkObject } from '../../server/instrumentation';
 import { serializeClientSideCallMetadata } from '../../utils';
@@ -45,6 +46,9 @@ import type { ResourceTiming } from '../network';
 import { Request, Response, Route } from '../network';
 import { RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
 import type { BrowserContext } from '../browserContext';
+import url from 'url';
+import { pipeline } from 'stream/promises';
+import { Transform } from 'stream';
 
 export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
@@ -356,13 +360,13 @@ class ServerInterceptionRegistry {
       return new Promise(resolve => {
         const fakeBrowserContext: BrowserContext = {
           attribution: null,
-          addRouteInFlight() {},
-          removeRouteInFlight() {},
+          addRouteInFlight() { },
+          removeRouteInFlight() { },
           instrumentation: {
-            onBeforeCall() {},
-            onAfterCall() {}
+            onBeforeCall() { },
+            onAfterCall() { }
           },
-          emit() {}
+          emit() { }
         } as any;
 
         const request = new Request(fakeBrowserContext, null, null, null, undefined, url, '', method, body, headers);
@@ -422,6 +426,19 @@ function headersArray(req: Pick<http.IncomingMessage, 'headersDistinct'>): Heade
   return Object.entries(req.headersDistinct).flatMap(([name, values = []]) => values.map(value => ({ name, value })));
 }
 
+function headersArrayToOutgoingHeaders(headers: HeadersArray) {
+  const result: http.OutgoingHttpHeaders = {};
+  for (const { name, value } of headers) {
+    if (result[name] === undefined)
+      result[name] = value;
+    else if (Array.isArray(result[name]))
+      result[name].push(value);
+    else
+      result[name] = [result[name] as string, value];
+  }
+  return result;
+}
+
 async function collectBody(req: http.IncomingMessage) {
   return await new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -456,10 +473,7 @@ class ServerInterceptionAPI extends HttpServer {
         return this._event(parts[4]!, parts[5]!, req, res);
     }
 
-    // potential future proxy endpoint
-    res.statusCode = 404;
-    return res.end();
-
+    return this._proxy(req, res);
   }
 
   override _handleCORS(request: http.IncomingMessage, response: http.ServerResponse): boolean {
@@ -557,6 +571,102 @@ class ServerInterceptionAPI extends HttpServer {
     res.statusCode = 200;
     res.end();
   }
+
+  async _proxy(req: http.IncomingMessage, res: http.ServerResponse) {
+    const scope = '0';
+    const handler = this._registry.match(scope, req.url!);
+    if (!handler) {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+
+    const headers = headersArray(req);
+    const body = await collectBody(req);
+
+    const result = await handler(req.url!, req.method!, body, headers);
+    switch (result.result) {
+      case 'abort': {
+        req.destroy(result.errorCode ? new Error(result.errorCode) : undefined);
+        return;
+      }
+      case 'continue': {
+        const { overrides } = result;
+        const proxyUrl = url.parse(overrides.url ?? req.url!);
+        const httpLib = proxyUrl.protocol === 'https:' ? https : http;
+        const proxyHeaders = overrides.headers ?? headers;
+        const proxyMethod = overrides.method ?? req.method;
+        const proxyBody = overrides.postData ?? body;
+
+        return new Promise<void>(resolve => {
+          const proxyReq = httpLib.request({
+            ...proxyUrl,
+            headers: headersArrayToOutgoingHeaders(proxyHeaders),
+            method: proxyMethod,
+          }, async proxyRes => {
+            res.writeHead(proxyRes.statusCode!, proxyRes.headers);
+
+            try {
+              const chunks: Buffer[] = [];
+              await pipeline(
+                  proxyRes,
+                  new Transform({
+                    transform(chunk, encoding, callback) {
+                      chunks.push(chunk);
+                      callback(undefined, chunk);
+                    },
+                  }),
+                  res
+              );
+
+              this._registry.response(
+                  result.guid,
+                  proxyRes.statusCode!,
+                  proxyRes.statusMessage!, headersArray(proxyRes),
+                  async () => Buffer.concat(chunks),
+                  {
+                    startTime: 0,
+                    domainLookupStart: 0,
+                    domainLookupEnd: 0,
+                    connectStart: 0,
+                    secureConnectionStart: 0,
+                    connectEnd: 0,
+                    requestStart: 0,
+                    responseStart: 0,
+                  },
+                  proxyRes.httpVersion
+              );
+              resolve();
+            } catch (error) {
+              this._registry.failed(result.guid, error.toString());
+              resolve();
+            }
+          });
+
+          proxyReq.on('error', error => {
+            this._registry.failed(result.guid, error.toString());
+            res.statusCode = 502;
+            res.end(resolve);
+          });
+          proxyReq.end(proxyBody, () => {
+            this._registry.finished(result.guid);
+          });
+        });
+      }
+      case 'fulfill': {
+        const { response: { status, headers, body, isBase64 } } = result;
+        res.statusCode = status;
+        for (const { name, value } of headers)
+          res.appendHeader(name, value);
+        res.sendDate = false;
+        res.end(Buffer.from(body, isBase64 ? 'base64' : 'utf-8'));
+        return;
+      }
+      default: {
+        throw new Error('Unexpected result');
+      }
+    }
+  }
 }
 
 const redirectStatus = [301, 302, 303, 307, 308];
@@ -579,7 +689,8 @@ class HarBackend {
       redirectURL?: string,
       status?: number,
       headers?: HeadersArray,
-      body?: Buffer }> {
+    body?: Buffer
+  }> {
     let entry;
     try {
       entry = await this._harFindResponse(url, method, headers, postData);
