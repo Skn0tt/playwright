@@ -36,7 +36,34 @@ const { webkit } = require('playwright');  // Or 'chromium' or 'firefox'.
 ## async method: Server.route
 * since: v1.51
 
-Lorem ipsum
+
+Routing provides the capability to modify network requests that are made by a server.
+
+Once routing is enabled, every request matching the url pattern will stall unless it's continued, fulfilled or aborted.
+
+**Usage**
+
+An example of a naive handler that aborts all requests to a specific domain:
+
+```js
+const page = await browser.newPage();
+const server = await page.context().newServer(8888)
+await server.route('https://api.example.com', route => route.abort()); // simulates this API being unreachable
+await page.goto('http://localhost:3000');
+```
+
+It is possible to examine the request to decide the route action. For example, mocking all requests that contain some post data, and leaving all other requests as is:
+
+```js
+await serer.route('https://api.example.com/*', async route => {
+  if (route.request().postData().includes('my-string'))
+    await route.fulfill({ body: 'mocked-data' });
+  else
+    await route.continue();  
+})
+```
+
+To remove a route with its handler you can use [`method: Server.unroute`].
 
 ### param: Server.route.url
 * since: v1.51

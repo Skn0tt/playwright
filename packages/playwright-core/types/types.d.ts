@@ -21216,7 +21216,36 @@ export interface Server {
   prependListener(event: 'response', listener: (response: Response) => any): this;
 
   /**
-   * Lorem ipsum
+   * Routing provides the capability to modify network requests that are made by a server.
+   *
+   * Once routing is enabled, every request matching the url pattern will stall unless it's continued, fulfilled or
+   * aborted.
+   *
+   * **Usage**
+   *
+   * An example of a naive handler that aborts all requests to a specific domain:
+   *
+   * ```js
+   * const page = await browser.newPage();
+   * const server = await page.context().newServer(8888)
+   * await server.route('https://api.example.com', route => route.abort()); // simulates this API being unreachable
+   * await page.goto('http://localhost:3000');
+   * ```
+   *
+   * It is possible to examine the request to decide the route action. For example, mocking all requests that contain
+   * some post data, and leaving all other requests as is:
+   *
+   * ```js
+   * await serer.route('https://api.example.com/*', async route => {
+   *   if (route.request().postData().includes('my-string'))
+   *     await route.fulfill({ body: 'mocked-data' });
+   *   else
+   *     await route.continue();
+   * })
+   * ```
+   *
+   * To remove a route with its handler you can use
+   * [server.unroute(url[, handler])](https://playwright.dev/docs/api/class-server#server-unroute).
    * @param url A glob pattern, regex pattern or predicate receiving [URL] to match while routing. When a
    * [`baseURL`](https://playwright.dev/docs/api/class-browser#browser-new-context-option-base-url) via the context
    * options was provided and the passed URL is a path, it gets merged via the
