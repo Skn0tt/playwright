@@ -581,6 +581,8 @@ class ServerInterceptionAPI extends HttpServer {
       return;
     }
 
+    delete req.headersDistinct.host;
+
     const headers = headersArray(req);
     const body = await collectBody(req);
 
