@@ -585,6 +585,13 @@ class ServerInterceptionAPI extends HttpServer {
     const scope = '0';
     if (req.url?.startsWith('/'))
       req.url = req.url.substring(1);
+
+    // Java URL likes removing double slashes from the pathname.
+    if (req.url?.startsWith('http:/') && !req.url?.startsWith('http://'))
+      req.url = req.url.replace('http:/', 'http://');
+    if (req.url?.startsWith('https:/') && !req.url?.startsWith('https://'))
+      req.url = req.url.replace('https:/', 'https://');
+
     const handler = this._registry.match(scope, req.url!);
     if (!handler) {
       res.statusCode = 404;
