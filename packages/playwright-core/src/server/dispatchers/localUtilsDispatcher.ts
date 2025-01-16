@@ -465,6 +465,7 @@ class ServerInterceptionAPI extends HttpServer {
     });
 
     this.server().on('connect', (req, socket, head) => {
+      // TODO: create connection to this very same server, use that for proxying. ideally don't even go through network.
       socket.end('HTTP/1.1 405 Method Not Allowed\r\n\r\n');
     });
   }
