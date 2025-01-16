@@ -587,6 +587,11 @@ If you cannot access the current request headers at the time of making the API r
 
 ### Recipes
 
+you want to change any request to `https://myexample.com/api/v1/example` to `http://localhost:8888/https://myexample.com/api/v1/example`. If you're using environment variables to configure your base URLs, just prepend the proxy URL.
+If your HTTP clients support interceptors, go by the following recipes.
+If you only make requests to localhost, you can even use HTTP_PROXY.
+If there's https in the mix, don't! It'll use CONNECT and prevent Playwright from intercepting.
+
 #### Node.js Axios
 
 ```js
@@ -617,6 +622,8 @@ http.request(options, ...);
 // or
 const proxy = `http://localhost:${port}/`;
 http.request(proxy + "http://example.org",  ...);
+
+new URL("./something", process.env.MY_API_BASEURL)
 ```
 
 #### Node.js fetch / undici
@@ -645,7 +652,9 @@ if is_under_test:
   requests.get('http://example.org', proxies={ 'http': f'http://localhost:{port}' })
 ```
 
-Set the `HTTP_PROXY` environment variable to `http://localhost:8888`.
+OR:
+
+Set the `HTTP_PROXY` environment variable to `http://localhost:8888` and `HTTP_TRUST_ALL_CERTS=true`.
 
 #### dotnet
 
