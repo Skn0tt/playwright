@@ -1,15 +1,15 @@
-# class: Proxy
+# class: MockingProxy
 * since: v1.51
 
-`Proxy` allows you to intercept network traffic from your application server.
+`MockingProxy` allows you to intercept network traffic from your application server.
 
 ```js
-const { webkit } = require('playwright');  // Or 'chromium' or 'firefox'.
+const { webkit, mockingProxy } = require('playwright');  // Or 'chromium' or 'firefox'.
 
 (async () => {
   const browser = await webkit.launch();
   const context = await browser.newContext();
-  const server = await context.newProxy(8888); // point your application server to proxy all requests through this port
+  const server = await mockingProxy.newProxy(8888); // point your application server to MockingProxy all requests through this port
 
   await server.route("https://headless-cms.example.com/posts", (route, request) => {
     await route.fulfill({
@@ -32,11 +32,11 @@ const { webkit } = require('playwright');  // Or 'chromium' or 'firefox'.
 })();
 ```
 
-## async method: Proxy.route
+## async method: MockingProxy.route
 * since: v1.51
 
 
-Routing provides the capability to modify network requests that are made through the proxy.
+Routing provides the capability to modify network requests that are made through the MockingProxy.
 
 Once routing is enabled, every request matching the url pattern will stall unless it's continued, fulfilled or aborted.
 
@@ -46,7 +46,7 @@ An example of a naive handler that aborts all requests to a specific domain:
 
 ```js
 const page = await browser.newPage();
-const server = await page.context().newProxy(8888)
+const server = await page.context().newMockingProxy(8888)
 await server.route('https://api.example.com', route => route.abort()); // simulates this API being unreachable
 await page.goto('http://localhost:3000');
 ```
@@ -62,9 +62,9 @@ await serer.route('https://api.example.com/*', async route => {
 })
 ```
 
-To remove a route with its handler you can use [`method: Proxy.unroute`].
+To remove a route with its handler you can use [`method: MockingProxy.unroute`].
 
-### param: Proxy.route.url
+### param: MockingProxy.route.url
 * since: v1.51
 - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
 
@@ -72,89 +72,89 @@ A glob pattern, regex pattern or predicate receiving [URL] to match while routin
 When a [`option: Browser.newContext.baseURL`] via the context options was provided and the passed URL is a path,
 it gets merged via the [`new URL()`](https://developer.mozilla.org/en-US/docs/Web/API/URL/URL) constructor.
 
-### param: Proxy.route.handler
+### param: MockingProxy.route.handler
 * since: v1.51
 * langs: js, python
 - `handler` <[function]\([Route], [Request]\): [Promise<any>|any]>
 
 handler function to route the request.
 
-### param: Proxy.route.handler
+### param: MockingProxy.route.handler
 * since: v1.51
 * langs: csharp, java
 - `handler` <[function]\([Route]\)>
 
 handler function to route the request.
 
-### option: Proxy.route.times
+### option: MockingProxy.route.times
 * since: v1.51
 - `times` <[int]>
 
 How often a route should be used. By default it will be used every time.
 
-## async method: Proxy.unrouteAll
+## async method: MockingProxy.unrouteAll
 * since: v1.51
 
-Removes all routes created with [`method: Proxy.route`].
+Removes all routes created with [`method: MockingProxy.route`].
 
-### option: Proxy.unrouteAll.behavior = %%-unroute-all-options-behavior-%%
+### option: MockingProxy.unrouteAll.behavior = %%-unroute-all-options-behavior-%%
 * since: v1.51
 
-## async method: Proxy.unroute
+## async method: MockingProxy.unroute
 * since: v1.51
 
-Removes a route created with [`method: Proxy.route`]. When [`param: handler`] is not specified, removes all
+Removes a route created with [`method: MockingProxy.route`]. When [`param: handler`] is not specified, removes all
 routes for the [`param: url`].
 
-### param: Proxy.unroute.url
+### param: MockingProxy.unroute.url
 * since: v1.51
 - `url` <[string]|[RegExp]|[function]\([URL]\):[boolean]>
 
 A glob pattern, regex pattern or predicate receiving [URL] used to register a routing with
-[`method: Proxy.route`].
+[`method: MockingProxy.route`].
 
-### param: Proxy.unroute.handler
+### param: MockingProxy.unroute.handler
 * since: v1.51
 * langs: js, python
 - `handler` ?<[function]\([Route], [Request]\): [Promise<any>|any]>
 
-Optional handler function used to register a routing with [`method: Proxy.route`].
+Optional handler function used to register a routing with [`method: MockingProxy.route`].
 
-### param: Proxy.unroute.handler
+### param: MockingProxy.unroute.handler
 * since: v1.51
 * langs: csharp, java
 - `handler` ?<[function]\([Route]\)>
 
-Optional handler function used to register a routing with [`method: Proxy.route`].
+Optional handler function used to register a routing with [`method: MockingProxy.route`].
 
-## event: Proxy.request
+## event: MockingProxy.request
 * since: v1.51
 - argument: <[Request]>
 
-Emitted when a request passes through the proxy. The [request] object is read-only. In order to intercept and mutate requests, see
-[`method: Proxy.route`].
+Emitted when a request passes through the MockingProxy. The [request] object is read-only. In order to intercept and mutate requests, see
+[`method: MockingProxy.route`].
 
-## event: Proxy.requestfailed
+## event: MockingProxy.requestfailed
 * since: v1.51
 - argument: <[Request]>
 
 Emitted when a request fails, for example by timing out.
 
-## event: Proxy.requestfinished
+## event: MockingProxy.requestfinished
 * since: v1.51
 - argument: <[Request]>
 
 Emitted when a request finishes successfully after downloading the response body. For a successful response, the
 sequence of events is `request`, `response` and `requestfinished`.
 
-## event: Proxy.response
+## event: MockingProxy.response
 * since: v1.51
 - argument: <[Response]>
 
 Emitted when [response] status and headers are received for a request. For a successful response, the sequence of events
 is `request`, `response` and `requestfinished`.
 
-## async method: Proxy.waitForEvent
+## async method: MockingProxy.waitForEvent
 * since: v1.51
 * langs: js, python
   - alias-python: expect_event
@@ -166,27 +166,27 @@ value. Will throw an error if the page is closed before the event is fired. Retu
 **Usage**
 
 ```js
-const requestPromise = proxy.waitForEvent('request');
+const requestPromise = MockingProxy.waitForEvent('request');
 await page.getByText('Download file').click();
 const download = await requestPromise;
 ```
 
 ```python async
-async with proxy.expect_event("request") as event_info:
+async with MockingProxy.expect_event("request") as event_info:
     await page.get_by_role("button")
 frame = await event_info.value
 ```
 
 ```python sync
-with proxy.expect_event("request") as event_info:
+with MockingProxy.expect_event("request") as event_info:
     page.get_by_role("button")
 frame = event_info.value
 ```
 
-### param: Proxy.waitForEvent.event = %%-wait-for-event-event-%%
+### param: MockingProxy.waitForEvent.event = %%-wait-for-event-event-%%
 * since: v1.51
 
-### param: Proxy.waitForEvent.optionsOrPredicate
+### param: MockingProxy.waitForEvent.optionsOrPredicate
 * since: v1.51
 * langs: js
 - `optionsOrPredicate` ?<[function]|[Object]>
@@ -195,13 +195,13 @@ frame = event_info.value
 
 Either a predicate that receives an event or an options object. Optional.
 
-### option: Proxy.waitForEvent.predicate = %%-wait-for-event-predicate-%%
+### option: MockingProxy.waitForEvent.predicate = %%-wait-for-event-predicate-%%
 * since: v1.51
 
-### option: Proxy.waitForEvent.timeout = %%-wait-for-event-timeout-%%
+### option: MockingProxy.waitForEvent.timeout = %%-wait-for-event-timeout-%%
 * since: v1.51
 
-## async method: Proxy.waitForRequest
+## async method: MockingProxy.waitForRequest
 * since: v1.51
 * langs:
   * alias-python: expect_request
@@ -214,12 +214,12 @@ Waits for the matching request and returns it. See [waiting for event](../events
 
 ```js
 // Start waiting for request before clicking. Note no await.
-const requestPromise = proxy.waitForRequest('https://example.com/resource');
+const requestPromise = MockingProxy.waitForRequest('https://example.com/resource');
 await page.getByText('trigger request').click();
 const request = await requestPromise;
 
 // Alternative way with a predicate. Note no await.
-const requestPromise = proxy.waitForRequest(request =>
+const requestPromise = MockingProxy.waitForRequest(request =>
   request.url() === 'https://example.com' && request.method() === 'GET',
 );
 await page.getByText('trigger request').click();
@@ -228,86 +228,86 @@ const request = await requestPromise;
 
 ```java
 // Waits for the next request with the specified url
-Request request = proxy.waitForRequest("https://example.com/resource", () -> {
+Request request = MockingProxy.waitForRequest("https://example.com/resource", () -> {
   // Triggers the request
   page.getByText("trigger request").click();
 });
 
 // Waits for the next request matching some conditions
-Request request = proxy.waitForRequest(request -> "https://example.com".equals(request.url()) && "GET".equals(request.method()), () -> {
+Request request = MockingProxy.waitForRequest(request -> "https://example.com".equals(request.url()) && "GET".equals(request.method()), () -> {
   // Triggers the request
   page.getByText("trigger request").click();
 });
 ```
 
 ```python async
-async with proxy.expect_request("http://example.com/resource") as first:
+async with MockingProxy.expect_request("http://example.com/resource") as first:
     await page.get_by_text("trigger request").click()
 first_request = await first.value
 
 # or with a lambda
-async with proxy.expect_request(lambda request: request.url == "http://example.com" and request.method == "get") as second:
+async with MockingProxy.expect_request(lambda request: request.url == "http://example.com" and request.method == "get") as second:
     await page.get_by_text("trigger request").click()
 second_request = await second.value
 ```
 
 ```python sync
-with proxy.expect_request("http://example.com/resource") as first:
+with MockingProxy.expect_request("http://example.com/resource") as first:
     page.get_by_text("trigger request").click()
 first_request = first.value
 
 # or with a lambda
-with proxy.expect_request(lambda request: request.url == "http://example.com" and request.method == "get") as second:
+with MockingProxy.expect_request(lambda request: request.url == "http://example.com" and request.method == "get") as second:
     page.get_by_text("trigger request").click()
 second_request = second.value
 ```
 
 ```csharp
 // Waits for the next request with the specified url.
-await proxy.RunAndWaitForRequestAsync(async () =>
+await MockingProxy.RunAndWaitForRequestAsync(async () =>
 {
     await page.GetByText("trigger request").ClickAsync();
 }, "http://example.com/resource");
 
 // Alternative way with a predicate.
-await proxy.RunAndWaitForRequestAsync(async () =>
+await MockingProxy.RunAndWaitForRequestAsync(async () =>
 {
     await page.GetByText("trigger request").ClickAsync();
 }, request => request.Url == "https://example.com" && request.Method == "GET");
 ```
 
-## async method: Proxy.waitForRequest
+## async method: MockingProxy.waitForRequest
 * since: v1.51
 * langs: python
 - returns: <[EventContextManager]<[Request]>>
 
-### param: Proxy.waitForRequest.action = %%-csharp-wait-for-event-action-%%
+### param: MockingProxy.waitForRequest.action = %%-csharp-wait-for-event-action-%%
 * since: v1.51
 
-### param: Proxy.waitForRequest.urlOrPredicate
+### param: MockingProxy.waitForRequest.urlOrPredicate
 * since: v1.51
 - `urlOrPredicate` <[string]|[RegExp]|[function]\([Request]\):[boolean]>
 
 Request URL string, regex or predicate receiving [Request] object.
 
-### param: Proxy.waitForRequest.urlOrPredicate
+### param: MockingProxy.waitForRequest.urlOrPredicate
 * since: v1.51
 * langs: js
 - `urlOrPredicate` <[string]|[RegExp]|[function]\([Request]\):[boolean]|[Promise]<[boolean]>>
 
 Request URL string, regex or predicate receiving [Request] object.
 
-### option: Proxy.waitForRequest.timeout
+### option: MockingProxy.waitForRequest.timeout
 * since: v1.51
 - `timeout` <[float]>
 
 Maximum wait time in milliseconds, defaults to 30 seconds, pass `0` to disable the timeout. The default value can be
 changed by using the [`method: Page.setDefaultTimeout`] method.
 
-### param: Proxy.waitForRequest.callback = %%-java-wait-for-event-callback-%%
+### param: MockingProxy.waitForRequest.callback = %%-java-wait-for-event-callback-%%
 * since: v1.51
 
-## async method: Proxy.waitForRequestFinished
+## async method: MockingProxy.waitForRequestFinished
 * since: v1.51
 * langs: java, python, csharp
   - alias-python: expect_request_finished
@@ -317,27 +317,27 @@ changed by using the [`method: Page.setDefaultTimeout`] method.
 Performs action and waits for a [Request] to finish loading. If predicate is provided, it passes
 [Request] value into the `predicate` function and waits for `predicate(request)` to return a truthy value.
 
-## async method: Proxy.waitForRequestFinished
+## async method: MockingProxy.waitForRequestFinished
 * since: v1.51
 * langs: python
 - returns: <[EventContextManager]<[Request]>>
 
-### param: Proxy.waitForRequestFinished.action = %%-csharp-wait-for-event-action-%%
+### param: MockingProxy.waitForRequestFinished.action = %%-csharp-wait-for-event-action-%%
 * since: v1.51
 
-### option: Proxy.waitForRequestFinished.predicate
+### option: MockingProxy.waitForRequestFinished.predicate
 * since: v1.51
 - `predicate` <[function]\([Request]\):[boolean]>
 
 Receives the [Request] object and resolves to truthy value when the waiting should resolve.
 
-### option: Proxy.waitForRequestFinished.timeout = %%-wait-for-event-timeout-%%
+### option: MockingProxy.waitForRequestFinished.timeout = %%-wait-for-event-timeout-%%
 * since: v1.51
 
-### param: Proxy.waitForRequestFinished.callback = %%-java-wait-for-event-callback-%%
+### param: MockingProxy.waitForRequestFinished.callback = %%-java-wait-for-event-callback-%%
 * since: v1.51
 
-## async method: Proxy.waitForResponse
+## async method: MockingProxy.waitForResponse
 * since: v1.51
 * langs:
   * alias-python: expect_response
@@ -350,12 +350,12 @@ Returns the matched response. See [waiting for event](../events.md#waiting-for-e
 
 ```js
 // Start waiting for response before clicking. Note no await.
-const responsePromise = proxy.waitForResponse('https://example.com/resource');
+const responsePromise = MockingProxy.waitForResponse('https://example.com/resource');
 await page.getByText('trigger response').click();
 const response = await responsePromise;
 
 // Alternative way with a predicate. Note no await.
-const responsePromise = proxy.waitForResponse(response =>
+const responsePromise = MockingProxy.waitForResponse(response =>
   response.url() === 'https://example.com' && response.status() === 200
       && response.request().method() === 'GET'
 );
@@ -365,39 +365,39 @@ const response = await responsePromise;
 
 ```java
 // Waits for the next response with the specified url
-Response response = proxy.waitForResponse("https://example.com/resource", () -> {
+Response response = MockingProxy.waitForResponse("https://example.com/resource", () -> {
   // Triggers the response
   page.getByText("trigger response").click();
 });
 
 // Waits for the next response matching some conditions
-Response response = proxy.waitForResponse(response -> "https://example.com".equals(response.url()) && response.status() == 200 && "GET".equals(response.request().method()), () -> {
+Response response = MockingProxy.waitForResponse(response -> "https://example.com".equals(response.url()) && response.status() == 200 && "GET".equals(response.request().method()), () -> {
   // Triggers the response
   page.getByText("trigger response").click();
 });
 ```
 
 ```python async
-async with proxy.expect_response("https://example.com/resource") as response_info:
+async with MockingProxy.expect_response("https://example.com/resource") as response_info:
     await page.get_by_text("trigger response").click()
 response = await response_info.value
 return response.ok
 
 # or with a lambda
-async with proxy.expect_response(lambda response: response.url == "https://example.com" and response.status == 200 and response.request.method == "get") as response_info:
+async with MockingProxy.expect_response(lambda response: response.url == "https://example.com" and response.status == 200 and response.request.method == "get") as response_info:
     await page.get_by_text("trigger response").click()
 response = await response_info.value
 return response.ok
 ```
 
 ```python sync
-with proxy.expect_response("https://example.com/resource") as response_info:
+with MockingProxy.expect_response("https://example.com/resource") as response_info:
     page.get_by_text("trigger response").click()
 response = response_info.value
 return response.ok
 
 # or with a lambda
-with proxy.expect_response(lambda response: response.url == "https://example.com" and response.status == 200 and response.request.method == "get") as response_info:
+with MockingProxy.expect_response(lambda response: response.url == "https://example.com" and response.status == 200 and response.request.method == "get") as response_info:
     page.get_by_text("trigger response").click()
 response = response_info.value
 return response.ok
@@ -405,44 +405,44 @@ return response.ok
 
 ```csharp
 // Waits for the next response with the specified url.
-await proxy.RunAndWaitForResponseAsync(async () =>
+await MockingProxy.RunAndWaitForResponseAsync(async () =>
 {
     await page.GetByText("trigger response").ClickAsync();
 }, "http://example.com/resource");
 
 // Alternative way with a predicate.
-await proxy.RunAndWaitForResponseAsync(async () =>
+await MockingProxy.RunAndWaitForResponseAsync(async () =>
 {
     await page.GetByText("trigger response").ClickAsync();
 }, response => response.Url == "https://example.com" && response.Status == 200 && response.Request.Method == "GET");
 ```
 
-## async method: Proxy.waitForResponse
+## async method: MockingProxy.waitForResponse
 * since: v1.51
 * langs: python
 - returns: <[EventContextManager]<[Response]>>
 
-### param: Proxy.waitForResponse.action = %%-csharp-wait-for-event-action-%%
+### param: MockingProxy.waitForResponse.action = %%-csharp-wait-for-event-action-%%
 * since: v1.51
 
-### param: Proxy.waitForResponse.urlOrPredicate
+### param: MockingProxy.waitForResponse.urlOrPredicate
 * since: v1.51
 - `urlOrPredicate` <[string]|[RegExp]|[function]\([Response]\):[boolean]>
 
 Request URL string, regex or predicate receiving [Response] object.
 
-### param: Proxy.waitForResponse.urlOrPredicate
+### param: MockingProxy.waitForResponse.urlOrPredicate
 * since: v1.51
 * langs: js
 - `urlOrPredicate` <[string]|[RegExp]|[function]\([Response]\):[boolean]|[Promise]<[boolean]>>
 
 Request URL string, regex or predicate receiving [Response] object.
 
-### option: Proxy.waitForResponse.timeout
+### option: MockingProxy.waitForResponse.timeout
 * since: v1.51
 - `timeout` <[float]>
 
 Maximum wait time in milliseconds, defaults to 30 seconds, pass `0` to disable the timeout.
 
-### param: Proxy.waitForResponse.callback = %%-java-wait-for-event-callback-%%
+### param: MockingProxy.waitForResponse.callback = %%-java-wait-for-event-callback-%%
 * since: v1.51

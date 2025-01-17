@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import type { APIRequestContext, Browser, BrowserContext, BrowserContextOptions, Page, LaunchOptions, ViewportSize, Geolocation, HTTPCredentials, Locator, APIResponse, PageScreenshotOptions, Proxy } from 'playwright-core';
+import type { APIRequestContext, Browser, BrowserContext, BrowserContextOptions, Page, LaunchOptions, ViewportSize, Geolocation, HTTPCredentials, Locator, APIResponse, PageScreenshotOptions, MockingProxy } from 'playwright-core';
 export * from 'playwright-core';
 
 export type ReporterDescription = Readonly<
@@ -6918,7 +6918,7 @@ export interface PlaywrightTestArgs {
   /**
    * Lorem ipsum
    */
-  server: Server;
+  server: MockingProxy;
 }
 
 type ExcludeProps<A, B> = {
