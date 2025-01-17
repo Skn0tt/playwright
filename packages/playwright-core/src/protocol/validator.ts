@@ -336,16 +336,14 @@ scheme.LocalUtilsTraceDiscardedParams = tObject({
 scheme.LocalUtilsTraceDiscardedResult = tOptional(tObject({}));
 scheme.LocalUtilsSetServerNetworkInterceptionPatternsParams = tObject({
   scope: tString,
-  port: tOptional(tNumber),
+  port: tNumber,
   patterns: tArray(tObject({
     glob: tOptional(tString),
     regexSource: tOptional(tString),
     regexFlags: tOptional(tString),
   })),
 });
-scheme.LocalUtilsSetServerNetworkInterceptionPatternsResult = tObject({
-  port: tNumber,
-});
+scheme.LocalUtilsSetServerNetworkInterceptionPatternsResult = tOptional(tObject({}));
 scheme.RootInitializer = tOptional(tObject({}));
 scheme.RootInitializeParams = tObject({
   sdkLanguage: tEnum(['javascript', 'python', 'java', 'csharp']),

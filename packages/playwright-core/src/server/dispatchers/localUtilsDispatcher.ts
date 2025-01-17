@@ -60,6 +60,7 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
     tmpDir: string | undefined,
     callStacks: channels.ClientSideCallMetadata[]
   }>();
+  private _interceptionRegistry?: ServerInterceptionRegistry;
 
   constructor(scope: RootDispatcher, playwright: Playwright) {
     const localUtils = new SdkObject(playwright, 'localUtils', 'localUtils');
@@ -284,15 +285,16 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
     this._stackSessions.delete(stacksId!);
   }
 
-  _interceptionRegistry = new ServerInterceptionRegistry();
-
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
-    const port = await this._interceptionRegistry.start(params.port);
-
-    if (params.patterns.length === 0) {
-      this._interceptionRegistry.setRequestInterceptor(params.scope);
-      return { port };
+    if (!this._interceptionRegistry){
+      this._interceptionRegistry = new ServerInterceptionRegistry();
+      const server = new WorkerHttpServer();
+      await server.start({ port: params.port });
+      new MockingProxy(server, this._interceptionRegistry);
     }
+
+    if (params.patterns.length === 0)
+      return this._interceptionRegistry.setRequestInterceptor(params.scope);
 
     const interceptor: Interceptor = {
       patterns: params.patterns,
@@ -317,8 +319,6 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
       },
     };
     this._interceptionRegistry.setRequestInterceptor(params.scope, interceptor);
-
-    return { port };
   }
 }
 
@@ -334,17 +334,7 @@ type DoItFunction = (url: string, method: string, body: Buffer | null, headers: 
 
 class ServerInterceptionRegistry {
   private _interceptors = new Map<string, Interceptor>();
-
-  _api?: ServerInterceptionAPI;
   private readonly _requests = new Map<string, { request: Request, interceptor: Interceptor }>();
-
-  async start(port?: number) {
-    if (!this._api) {
-      this._api = new ServerInterceptionAPI(this);
-      await this._api.start({ port });
-    }
-    return this._api.port();
-  }
 
   setRequestInterceptor(scope: string, interceptor?: Interceptor) {
     if (interceptor)
@@ -453,132 +443,23 @@ async function collectBody(req: http.IncomingMessage) {
   });
 }
 
-// TODO: turn this into general-purpose API
-class ServerInterceptionAPI extends HttpServer {
-  private readonly _registry: ServerInterceptionRegistry;
-  constructor(registry: ServerInterceptionRegistry) {
-    super();
-    this._registry = registry;
-    this.routePrefix('/', (req, res) => {
-      this._handleRequest(req, res);
-      return true;
-    });
-
-    this.server().on('connect', (req, socket, head) => {
-      socket.end('HTTP/1.1 405 Method Not Allowed\r\n\r\n');
-    });
-  }
-
-  async _handleRequest(req: http.IncomingMessage, res: http.ServerResponse) {
-    const parts = req.url!.split('/');
-
-    if (parts[3] === '__playwright') {
-      // POST /:scope/:appId/__playwright/resolve
-      if (req.method === 'POST' && parts[4] === 'resolve')
-        return this._resolve(parts[1]!, req, res);
-
-      // /:scope/:appId/__playwright/:guid/:event
-      if (req.method === 'POST')
-        return this._event(parts[4]!, parts[5]!, req, res);
-    }
-
-    return this._proxy(req, res);
-  }
-
+class WorkerHttpServer extends HttpServer {
   override _handleCORS(request: http.IncomingMessage, response: http.ServerResponse): boolean {
     return false;
   }
+}
 
-  async _resolve(scope: string, req: http.IncomingMessage, res: http.ServerResponse) {
-    const url = decodeURIComponent(req.headers['x-playwright-url'] as string);
-    delete req.headersDistinct['x-playwright-url'];
-    const method = req.headers['x-playwright-method'] as string;
-    delete req.headersDistinct['x-playwright-method'];
-
-    delete req.headersDistinct['host'];
-
-    const handler = this._registry.match(scope, url);
-    if (!handler) {
-      res.statusCode = 404;
-      res.setHeader('x-playwright-direction', 'continue');
-      res.end();
-      return;
-    }
-
-    res.statusCode = 200;
-
-    const headers = headersArray(req);
-    const body = await collectBody(req);
-
-    const result = await handler(url, method, body, headers);
-    res.setHeader('x-playwright-guid', result.guid);
-    switch (result.result) {
-      case 'abort': {
-        res.setHeader('x-playwright-direction', 'abort');
-        res.setHeader('x-playwright-error-code', result.errorCode);
-        res.end();
-        return;
-      }
-      case 'continue': {
-        const { overrides: { url, method, headers } } = result;
-        res.setHeader('x-playwright-direction', 'continue');
-        if (url)
-          res.setHeader('x-playwright-url', url);
-        if (method)
-          res.setHeader('x-playwright-method', method);
-        for (const { name, value } of headers ?? [])
-          res.appendHeader(name, value);
-        res.sendDate = false;
-        res.end(result.overrides.postData);
-        return;
-      }
-      case 'fulfill': {
-        const { response: { status, headers, body, isBase64 } } = result;
-        res.setHeader('x-playwright-direction', 'fulfill');
-        res.statusCode = status;
-        for (const { name, value } of headers)
-          res.appendHeader(name, value);
-        res.sendDate = false;
-        res.end(Buffer.from(body, isBase64 ? 'base64' : 'utf-8'));
-        return;
-      }
-    }
-  }
-
-  async _event(guid: string, event: string, req: http.IncomingMessage, res: http.ServerResponse) {
-    switch (event) {
-      case 'finished': {
-        this._registry.finished(guid);
-        break;
-      }
-      case 'failed': {
-        const error = await collectBody(req);
-        this._registry.failed(guid, error.toString('utf-8'));
-        break;
-      }
-      case 'response': {
-        const status = parseInt(req.headers['x-playwright-status'] as string, 10);
-        delete req.headersDistinct['x-playwright-status'];
-        const statusText = req.headers['x-playwright-status-text'] as string;
-        delete req.headersDistinct['x-playwright-status-text'];
-        const timing = JSON.parse(decodeURIComponent(req.headers['x-playwright-timing'] as string)) as ResourceTiming;
-        delete req.headersDistinct['x-playwright-timing'];
-        const httpVersion = req.headers['x-playwright-http-version'] as string;
-        delete req.headersDistinct['x-playwright-http-version'];
-        const headers = headersArray(req);
-        // TODO: clean up hanging request after test ends.
-        this._registry.response(guid, status, statusText, headers, () => collectBody(req), timing, httpVersion);
-        break;
-      }
-      default: {
-        res.statusCode = 400;
-        res.end('unknown event: ' + event);
-        return;
-      }
-    }
-
-    res.statusCode = 200;
-    res.end();
+class MockingProxy {
+  private readonly _registry: ServerInterceptionRegistry;
+  constructor(server: WorkerHttpServer, registry: ServerInterceptionRegistry) {
+    this._registry = registry;
+    server.routePrefix('/', (req, res) => {
+      this._proxy(req, res);
+      return true;
+    });
+    server.server().on('connect', (req, socket, head) => {
+      socket.end('HTTP/1.1 405 Method Not Allowed\r\n\r\n');
+    });
   }
 
   async _proxy(req: http.IncomingMessage, res: http.ServerResponse) {
