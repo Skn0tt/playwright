@@ -466,7 +466,7 @@ class MockingProxy {
     });
   }
 
-  async _proxy(req: http.IncomingMessage, res: http.ServerResponse) {
+  private async _proxy(req: http.IncomingMessage, res: http.ServerResponse) {
     const scope = '0';
     if (req.url?.startsWith('/'))
       req.url = req.url.substring(1);
