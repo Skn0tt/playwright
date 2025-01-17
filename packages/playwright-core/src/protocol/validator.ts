@@ -226,6 +226,29 @@ scheme.APIResponse = tObject({
   headers: tArray(tType('NameValue')),
 });
 scheme.LifecycleEvent = tEnum(['load', 'domcontentloaded', 'networkidle', 'commit']);
+scheme.EventTargetInitializer = tOptional(tObject({}));
+scheme.EventTargetWaitForEventInfoParams = tObject({
+  info: tObject({
+    waitId: tString,
+    phase: tEnum(['before', 'after', 'log']),
+    event: tOptional(tString),
+    message: tOptional(tString),
+    error: tOptional(tString),
+  }),
+});
+scheme.LocalUtilsWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
+scheme.BrowserContextWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
+scheme.PageWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
+scheme.WebSocketWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
+scheme.ElectronApplicationWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
+scheme.AndroidDeviceWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
+scheme.EventTargetWaitForEventInfoResult = tOptional(tObject({}));
+scheme.LocalUtilsWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
+scheme.BrowserContextWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
+scheme.PageWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
+scheme.WebSocketWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
+scheme.ElectronApplicationWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
+scheme.AndroidDeviceWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.LocalUtilsInitializer = tObject({
   deviceDescriptors: tArray(tObject({
     name: tString,
@@ -811,29 +834,6 @@ scheme.BrowserStopTracingParams = tOptional(tObject({}));
 scheme.BrowserStopTracingResult = tObject({
   artifact: tChannel(['Artifact']),
 });
-scheme.EventTargetInitializer = tOptional(tObject({}));
-scheme.EventTargetWaitForEventInfoParams = tObject({
-  info: tObject({
-    waitId: tString,
-    phase: tEnum(['before', 'after', 'log']),
-    event: tOptional(tString),
-    message: tOptional(tString),
-    error: tOptional(tString),
-  }),
-});
-scheme.LocalUtilsWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
-scheme.BrowserContextWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
-scheme.PageWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
-scheme.WebSocketWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
-scheme.ElectronApplicationWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
-scheme.AndroidDeviceWaitForEventInfoParams = tType('EventTargetWaitForEventInfoParams');
-scheme.EventTargetWaitForEventInfoResult = tOptional(tObject({}));
-scheme.LocalUtilsWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
-scheme.BrowserContextWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
-scheme.PageWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
-scheme.WebSocketWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
-scheme.ElectronApplicationWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
-scheme.AndroidDeviceWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.BrowserContextInitializer = tObject({
   isChromium: tBoolean,
   requestContext: tChannel(['APIRequestContext']),
