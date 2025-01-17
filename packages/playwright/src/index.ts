@@ -469,6 +469,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     if (!_mockingProxy)
       throw new Error('Configure use.mockingProxy!');
     await use(_mockingProxy);
+    await _mockingProxy.unrouteAll();
   }
 });
 
