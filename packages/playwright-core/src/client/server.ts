@@ -27,7 +27,7 @@ import { isString } from '../utils/isomorphic/stringUtils';
 import { isRegExp } from '../utils';
 import { trimUrl } from './page';
 
-export class Server extends EventEmitter implements api.Server {
+export class Server extends EventEmitter implements api.Proxy {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
   private _context: BrowserContext;

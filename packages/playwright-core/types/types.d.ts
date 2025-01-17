@@ -9007,7 +9007,7 @@ export interface BrowserContext {
    * lorem ipsum
    * @param port loremp isum
    */
-  newServer(port?: number): Promise<Server>;
+  newProxy(port?: number): Promise<Proxy>;
 
   /**
    * Returns all open pages in the context.

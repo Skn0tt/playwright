@@ -268,7 +268,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     return Page.from((await this._channel.newPage()).page);
   }
 
-  async newServer(port?: number): Promise<Server> {
+  async newProxy(port?: number): Promise<Server> {
     const server = new Server(this._connection.localUtils(), this, '0', port);
     const serverPort = await server._start();
     this._servers.push(server);

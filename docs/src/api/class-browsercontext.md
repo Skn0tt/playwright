@@ -1021,13 +1021,13 @@ Creates a new page in the browser context.
 
 Returns all open pages in the context.
 
-## async method: BrowserContext.newServer
+## async method: BrowserContext.newProxy
 * since: v1.51
-- returns: <[Server]>
+- returns: <[Proxy]>
 
 lorem ipsum
 
-### param: BrowserContext.newServer.port
+### param: BrowserContext.newProxy.port
 * since: v1.51
 - `port` ?<[int]>
 
