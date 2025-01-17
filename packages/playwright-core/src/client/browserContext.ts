@@ -455,7 +455,6 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
       this._browser._contexts.delete(this);
     this._browserType?._contexts?.delete(this);
     this._disposeHarRouters();
-    this._disposeServers();
     this.tracing._resetStackCounter();
     this.emit(Events.BrowserContext.Close, this);
   }
