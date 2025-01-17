@@ -461,7 +461,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
       return await use(undefined);
 
     const testInfoImpl = test.info() as TestInfoImpl;
-    if (typeof mockingProxyOption === 'number' && testInfoImpl.config.workers > 1)
+    if (typeof mockingProxyOption.port === 'number' && testInfoImpl.config.workers > 1)
       throw new Error('todo: youre using it wrong');
 
     const port = typeof mockingProxyOption.port === 'number' ? mockingProxyOption.port : await getFreePort();
