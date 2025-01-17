@@ -27,11 +27,18 @@ import { isString } from '../utils/isomorphic/stringUtils';
 import { isRegExp } from '../utils';
 import { trimUrl } from './page';
 
+export class MockingProxyFactory implements api.MockingProxyFactory {
+  constructor(private _localUtils: LocalUtils) {}
+  async newProxy(port: number): Promise<api.MockingProxy> {
+    return await MockingProxy.create(this._localUtils, undefined, port);
+  }
+}
+
 export class MockingProxy extends EventEmitter implements api.MockingProxy {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
-  private _context: BrowserContext;
-  private _scope: string;
+  private _context: BrowserContext | undefined;
+  private _scope: string = '';
   private _port: number;
 
   private routeListener = ({ route, scope }: channels.LocalUtilsRouteEvent) => {
@@ -55,12 +62,11 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
       this.emit('request', network.Request.from(request));
   };
 
-  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '', port: number) {
+  private constructor(localUtils: LocalUtils, context: BrowserContext | undefined, port: number) {
     super();
 
     this._localUtils = localUtils;
     this._context = context;
-    this._scope = scope;
     this._port = port;
 
     this._localUtils._channel.on('route', this.routeListener);
@@ -70,8 +76,14 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
     this._localUtils._channel.on('response', this.responseListener);
   }
 
-  async _start() {
+  private async _start() {
     await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
+  }
+
+  static async create(localUtils: LocalUtils, context: BrowserContext | undefined, port: number) {
+    const instance = new MockingProxy(localUtils, context, port);
+    await instance._start();
+    return instance;
   }
 
   dispose() {
@@ -125,7 +137,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   }
 
   async _onRoute(route: network.Route) {
-    route._context = this._context;
+    route._context = this._context!; // TODO: remove !
     const routeHandlers = this._routes.slice();
     for (const routeHandler of routeHandlers) {
       if (!routeHandler.matches(route.request().url()))
@@ -154,7 +166,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   async waitForRequest(urlOrPredicate: string | RegExp | ((r: network.Request) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Request> {
     const predicate = async (request: network.Request) => {
       if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
-        return urlMatches(this._context._options.baseURL, request.url(), urlOrPredicate);
+        return urlMatches(this._context?._options.baseURL, request.url(), urlOrPredicate);
       return await urlOrPredicate(request);
     };
     const trimmedUrl = trimUrl(urlOrPredicate);
@@ -165,7 +177,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   async waitForResponse(urlOrPredicate: string | RegExp | ((r: network.Response) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Response> {
     const predicate = async (response: network.Response) => {
       if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
-        return urlMatches(this._context._options.baseURL, response.url(), urlOrPredicate);
+        return urlMatches(this._context?._options.baseURL, response.url(), urlOrPredicate);
       return await urlOrPredicate(response);
     };
     const trimmedUrl = trimUrl(urlOrPredicate);
@@ -181,7 +193,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
 
   private async _waitForEvent(event: string, optionsOrPredicate: WaitForEventOptions, logLine?: string): Promise<any> {
     return await this._localUtils._wrapApiCall(async () => {
-      const timeout = this._context._timeoutSettings.timeout(typeof optionsOrPredicate === 'function' ? {} : optionsOrPredicate);
+      const timeout = this._context!._timeoutSettings.timeout(typeof optionsOrPredicate === 'function' ? {} : optionsOrPredicate); // TODO: remove !
       const predicate = typeof optionsOrPredicate === 'function' ? optionsOrPredicate : optionsOrPredicate.predicate;
       const waiter = Waiter.createForEvent(this._localUtils, event);
       if (logLine)
