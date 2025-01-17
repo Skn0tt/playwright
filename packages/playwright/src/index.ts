@@ -451,6 +451,9 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
   },
 
   server: async ({ context }, use, testInfo) => {
+    // TODO: use different port, make it random, search gh for usage
+    // TODO: make port configurable
+    // TODO: check if port is taken
     const server = await context.newServer(testInfo.config.workers === 1 ? 8888 : undefined);
     await use(server);
     await server.unrouteAll();
