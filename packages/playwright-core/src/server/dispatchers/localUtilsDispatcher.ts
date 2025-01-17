@@ -485,7 +485,7 @@ class MockingProxy {
     const headers = headersArray(req);
     const body = await collectBody(req);
 
-    const result = await handler(req.url!, req.method!, body, headers);
+    const result = await handler(req.method!, body, headers);
     switch (result.result) {
       case 'abort': {
         req.destroy(result.errorCode ? new Error(result.errorCode) : undefined);
