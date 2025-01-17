@@ -20203,6 +20203,12 @@ export interface MockingProxy {
   prependListener(event: 'response', listener: (response: Response) => any): this;
 
   /**
+   * Inject into BrowserContext or APIRequestContext.
+   * @param context
+   */
+  inject(context: BrowserContext|APIRequestContext): Promise<void>;
+
+  /**
    * Routing provides the capability to modify network requests that are made through the MockingProxy.
    *
    * Once routing is enabled, every request matching the url pattern will stall unless it's continued, fulfilled or
