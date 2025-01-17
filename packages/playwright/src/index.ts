@@ -74,6 +74,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
   screenshot: ['off', { scope: 'worker', option: true }],
   video: ['off', { scope: 'worker', option: true }],
   trace: ['off', { scope: 'worker', option: true }],
+  mockingProxy: [undefined, { scope: 'worker', option: true }],
 
   _browserOptions: [async ({ playwright, headless, channel, launchOptions }, use) => {
     const options: LaunchOptions = {
