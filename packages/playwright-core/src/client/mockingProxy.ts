@@ -20,24 +20,25 @@ import type { LocalUtils } from './localUtils';
 import type * as channels from '@protocol/channels';
 import { EventEmitter } from './eventEmitter';
 import type { WaitForEventOptions } from './types';
-import type { BrowserContext } from './browserContext';
 import { Waiter } from './waiter';
 import { Events } from './events';
 import { isString } from '../utils/isomorphic/stringUtils';
 import { isRegExp } from '../utils';
 import { trimUrl } from './page';
+import { TimeoutSettings } from '../common/timeoutSettings';
+import type { APIRequestContext } from './fetch';
 
 export class MockingProxyFactory implements api.MockingProxyFactory {
-  constructor(private _localUtils: LocalUtils) {}
+  constructor(private _localUtils: LocalUtils, private _request: APIRequestContext) {}
   async newProxy(port: number): Promise<api.MockingProxy> {
-    return await MockingProxy.create(this._localUtils, undefined, port);
+    return await MockingProxy.create(this._localUtils, this._request, port);
   }
 }
 
 export class MockingProxy extends EventEmitter implements api.MockingProxy {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
-  private _context: BrowserContext | undefined;
+  private _request: APIRequestContext;
   private _scope: string = '';
   private _port: number;
   private _timeoutSettings = new TimeoutSettings();
@@ -63,11 +64,11 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
       this.emit('request', network.Request.from(request));
   };
 
-  private constructor(localUtils: LocalUtils, context: BrowserContext | undefined, port: number) {
+  private constructor(localUtils: LocalUtils, request: APIRequestContext, port: number) {
     super();
 
     this._localUtils = localUtils;
-    this._context = context;
+    this._request = request;
     this._port = port;
 
     this._localUtils._channel.on('route', this.routeListener);
@@ -81,8 +82,8 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
     await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
   }
 
-  static async create(localUtils: LocalUtils, context: BrowserContext | undefined, port: number) {
-    const instance = new MockingProxy(localUtils, context, port);
+  static async create(localUtils: LocalUtils, request: APIRequestContext, port: number) {
+    const instance = new MockingProxy(localUtils, request, port);
     await instance._start();
     return instance;
   }
@@ -138,7 +139,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   }
 
   async _onRoute(route: network.Route) {
-    route._context = this._context!; // TODO: remove !
+    route._request = this._request;
     const routeHandlers = this._routes.slice();
     for (const routeHandler of routeHandlers) {
       if (!routeHandler.matches(route.request().url()))
