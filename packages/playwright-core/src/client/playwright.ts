@@ -41,7 +41,7 @@ export class Playwright extends ChannelOwner<channels.PlaywrightChannel> {
   constructor(parent: ChannelOwner, type: string, guid: string, initializer: channels.PlaywrightInitializer) {
     super(parent, type, guid, initializer);
     this.request = new APIRequest(this);
-    this.mockingProxy = new MockingProxyFactory(this._connection.localUtils());
+    this.mockingProxy = new MockingProxyFactory(this._connection.localUtils(), this.request.newContext());
     this.chromium = BrowserType.from(initializer.chromium);
     this.chromium._playwright = this;
     this.firefox = BrowserType.from(initializer.firefox);

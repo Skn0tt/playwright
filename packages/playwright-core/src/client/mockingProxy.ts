@@ -29,7 +29,7 @@ import { TimeoutSettings } from '../common/timeoutSettings';
 import type { APIRequestContext } from './fetch';
 
 export class MockingProxyFactory implements api.MockingProxyFactory {
-  constructor(private _localUtils: LocalUtils, private _request: APIRequestContext) {}
+  constructor(private _localUtils: LocalUtils, private _request: Promise<APIRequestContext>) {}
   async newProxy(port: number): Promise<api.MockingProxy> {
     return await MockingProxy.create(this._localUtils, this._request, port);
   }
@@ -38,7 +38,7 @@ export class MockingProxyFactory implements api.MockingProxyFactory {
 export class MockingProxy extends EventEmitter implements api.MockingProxy {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
-  private _request: APIRequestContext;
+  private _request: Promise<APIRequestContext>;
   private _scope: string = '';
   private _port: number;
   private _timeoutSettings = new TimeoutSettings();
@@ -64,7 +64,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
       this.emit('request', network.Request.from(request));
   };
 
-  private constructor(localUtils: LocalUtils, request: APIRequestContext, port: number) {
+  private constructor(localUtils: LocalUtils, request: Promise<APIRequestContext>, port: number) {
     super();
 
     this._localUtils = localUtils;
@@ -82,7 +82,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
     await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
   }
 
-  static async create(localUtils: LocalUtils, request: APIRequestContext, port: number) {
+  static async create(localUtils: LocalUtils, request: Promise<APIRequestContext>, port: number) {
     const instance = new MockingProxy(localUtils, request, port);
     await instance._start();
     return instance;
@@ -139,7 +139,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   }
 
   async _onRoute(route: network.Route) {
-    route._request = this._request;
+    route._request = await this._request;
     const routeHandlers = this._routes.slice();
     for (const routeHandler of routeHandlers) {
       if (!routeHandler.matches(route.request().url()))
