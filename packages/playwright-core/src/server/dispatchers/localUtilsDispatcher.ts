@@ -290,7 +290,7 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
       this._interceptionRegistry = new ServerInterceptionRegistry();
       const server = new WorkerHttpServer();
       await server.start({ port: params.port });
-      new MockingProxy(server, this._interceptionRegistry);
+      new MockingProxy(this._interceptionRegistry).install(server);
     }
 
     if (params.patterns.length === 0)
@@ -451,8 +451,12 @@ class WorkerHttpServer extends HttpServer {
 
 class MockingProxy {
   private readonly _registry: ServerInterceptionRegistry;
-  constructor(server: WorkerHttpServer, registry: ServerInterceptionRegistry) {
+
+  constructor(registry: ServerInterceptionRegistry) {
     this._registry = registry;
+  }
+
+  install(server: WorkerHttpServer) {
     server.routePrefix('/', (req, res) => {
       this._proxy(req, res);
       return true;
