@@ -27,12 +27,12 @@ import { isString } from '../utils/isomorphic/stringUtils';
 import { isRegExp } from '../utils';
 import { trimUrl } from './page';
 
-export class Server extends EventEmitter implements api.Proxy {
+export class MockingProxy extends EventEmitter implements api.MockingProxy {
   _routes: network.RouteHandler[] = [];
   private _localUtils: LocalUtils;
   private _context: BrowserContext;
   private _scope: string;
-  private _port?: number;
+  private _port: number;
 
   private routeListener = ({ route, scope }: channels.LocalUtilsRouteEvent) => {
     if (scope === this._scope)
@@ -55,7 +55,7 @@ export class Server extends EventEmitter implements api.Proxy {
       this.emit('request', network.Request.from(request));
   };
 
-  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '', port?: number) {
+  constructor(localUtils: LocalUtils, context: BrowserContext, scope = '', port: number) {
     super();
 
     this._localUtils = localUtils;
@@ -70,9 +70,8 @@ export class Server extends EventEmitter implements api.Proxy {
     this._localUtils._channel.on('response', this.responseListener);
   }
 
-  async _start(): Promise<number> {
-    const { port } = await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
-    return port;
+  async _start() {
+    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
   }
 
   dispose() {

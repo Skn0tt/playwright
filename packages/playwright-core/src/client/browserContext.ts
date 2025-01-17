@@ -44,7 +44,6 @@ import { Dialog } from './dialog';
 import { WebError } from './webError';
 import { TargetClosedError, parseError } from './errors';
 import { Clock } from './clock';
-import { Server } from './server';
 
 export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel> implements api.BrowserContext {
   _pages = new Set<Page>();
@@ -69,7 +68,6 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   _closeWasCalled = false;
   private _closeReason: string | undefined;
   private _harRouters: HarRouter[] = [];
-  private _servers: Server[] = [];
 
   static from(context: channels.BrowserContextChannel): BrowserContext {
     return (context as any)._object;
@@ -268,14 +266,6 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     return Page.from((await this._channel.newPage()).page);
   }
 
-  async newProxy(port?: number): Promise<Server> {
-    const server = new Server(this._connection.localUtils(), this, '0', port);
-    const serverPort = await server._start();
-    this._servers.push(server);
-    await this.setExtraHTTPHeaders({ 'x-pw-port': '' + serverPort });
-    return server;
-  }
-
   async cookies(urls?: string | string[]): Promise<network.NetworkCookie[]> {
     if (!urls)
       urls = [];
@@ -379,11 +369,6 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   private _disposeHarRouters() {
     this._harRouters.forEach(router => router.dispose());
     this._harRouters = [];
-  }
-
-  private _disposeServers() {
-    this._servers.forEach(server => server.dispose());
-    this._servers = [];
   }
 
   async unrouteAll(options?: { behavior?: 'wait'|'ignoreErrors'|'default' }): Promise<void> {
