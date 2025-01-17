@@ -20202,11 +20202,7 @@ export interface MockingProxy {
    */
   prependListener(event: 'response', listener: (response: Response) => any): this;
 
-  /**
-   * Inject into BrowserContext or APIRequestContext.
-   * @param context
-   */
-  inject(context: BrowserContext|APIRequestContext): Promise<void>;
+  port(): number;
 
   /**
    * Routing provides the capability to modify network requests that are made through the MockingProxy.

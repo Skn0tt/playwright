@@ -207,8 +207,8 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
     });
   }
 
-  async inject(context: api.BrowserContext | api.APIRequestContext): Promise<void> {
-
+  port(): number {
+    return this._port;
   }
 
 }

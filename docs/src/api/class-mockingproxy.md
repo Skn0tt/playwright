@@ -447,12 +447,7 @@ Maximum wait time in milliseconds, defaults to 30 seconds, pass `0` to disable t
 ### param: MockingProxy.waitForResponse.callback = %%-java-wait-for-event-callback-%%
 * since: v1.51
 
-## async method: MockingProxy.inject
+## method: MockingProxy.port
 * since: v1.51
-
-Inject into BrowserContext or APIRequestContext.
-
-### param: MockingProxy.inject.context
-* since: v1.51
-- `context` <[BrowserContext]|[APIRequestContext]>
+- returns: <[int]>
 

@@ -175,6 +175,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     baseURL,
     contextOptions,
     serviceWorkers,
+    _mockingProxy,
   }, use) => {
     const options: BrowserContextOptions = {};
     if (acceptDownloads !== undefined)
@@ -221,6 +222,8 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
       options.baseURL = baseURL;
     if (serviceWorkers !== undefined)
       options.serviceWorkers = serviceWorkers;
+    if (_mockingProxy)
+      options.extraHTTPHeaders = { ...options.extraHTTPHeaders, 'x-pw-proxy-port': String(_mockingProxy.port()) };
     await use({
       ...contextOptions,
       ...options,
@@ -330,7 +333,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
 
   }, { auto: 'all-hooks-included',  title: 'trace recording', box: true, timeout: 0 } as any],
 
-  _contextFactory: [async ({ browser, video, _reuseContext, _mockingProxy, _combinedContextOptions /** mitigate dep-via-auto lack of traceability */ }, use, testInfo) => {
+  _contextFactory: [async ({ browser, video, _reuseContext, _combinedContextOptions /** mitigate dep-via-auto lack of traceability */ }, use, testInfo) => {
     const testInfoImpl = testInfo as TestInfoImpl;
     const videoMode = normalizeVideoMode(video);
     const captureVideo = shouldCaptureVideo(videoMode, testInfo) && !_reuseContext;
@@ -367,8 +370,6 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
           await context.clock.install({ time: 0 });
         }, true);
       }
-
-      await _mockingProxy?.inject(context);
 
       return context;
     });
@@ -438,9 +439,8 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     await use(page);
   },
 
-  request: async ({ playwright, _mockingProxy }, use) => {
+  request: async ({ playwright }, use) => {
     const request = await playwright.request.newContext();
-    await _mockingProxy?.inject(request);
     await use(request);
     const hook = (test.info() as TestInfoImpl)._currentHookType();
     if (hook === 'beforeAll') {
