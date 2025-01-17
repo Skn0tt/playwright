@@ -16,7 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { APIRequestContext, BrowserContext, Browser, BrowserContextOptions, LaunchOptions, Page, Tracing, Video } from 'playwright-core';
+import type { APIRequestContext, BrowserContext, Browser, BrowserContextOptions, LaunchOptions, Page, Tracing, Video, MockingProxy } from 'playwright-core';
 import * as playwrightLibrary from 'playwright-core';
 import { createGuid, debugMode, addInternalStackPrefix, isString, asLocator, jsonStringifyForceASCII, zones } from 'playwright-core/lib/utils';
 import type { ExpectZone } from 'playwright-core/lib/utils';
@@ -56,7 +56,7 @@ type WorkerFixtures = PlaywrightWorkerArgs & PlaywrightWorkerOptions & {
   _optionContextReuseMode: ContextReuseMode,
   _optionConnectOptions: PlaywrightWorkerOptions['connectOptions'],
   _reuseContext: boolean,
-  _mockingProxyPort?: number,
+  _mockingProxy?: MockingProxy,
 };
 
 const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
@@ -452,28 +452,23 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     }
   },
 
-  _mockingProxyPort: [async ({ mockingProxy }, use) => {
-    let port: number | undefined;
-    if (typeof mockingProxy?.port === 'number')  {
-      const testInfoImpl = test.info() as TestInfoImpl;
-      if (testInfoImpl.config.workers > 1)
-        throw new Error("TODO: you're doing it wrong");
-      port = mockingProxy.port;
-    } else if (mockingProxy?.port === 'inject') {
-      port = await getFreePort();
-    }
-    await use(port);
+  _mockingProxy: [async ({ mockingProxy: mockingProxyOption, playwright }, use) => {
+    if (!mockingProxyOption)
+      return await use(undefined);
+
+    const testInfoImpl = test.info() as TestInfoImpl;
+    if (typeof mockingProxyOption === 'number' && testInfoImpl.config.workers > 1)
+      throw new Error('todo: youre using it wrong');
+
+    const port = typeof mockingProxyOption.port === 'number' ? mockingProxyOption.port : await getFreePort();
+    const mockingProxy = await playwright.mockingProxy.newProxy(port);
+    await use(mockingProxy);
   }, { scope: 'worker' }],
 
-  server: async ({ playwright, _mockingProxyPort }, use) => {
-    if (!_mockingProxyPort)
+  server: async ({ _mockingProxy }, use) => {
+    if (!_mockingProxy)
       throw new Error('Configure use.mockingProxy!');
-    // TODO: use different port, make it random, search gh for usage
-    // TODO: make port configurable
-    // TODO: check if port is taken
-    const server = await playwright.mockingProxy.newProxy(_mockingProxyPort);
-    await use(server);
-    await server.unrouteAll();
+    await use(_mockingProxy);
   }
 });
 
