@@ -295,8 +295,9 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     if (params.patterns.length === 0)
       return this._interceptionRegistry.setRequestInterceptor(params.scope);
 
+    const urlMatchers = params.patterns.map(pattern => pattern.regexSource ? new RegExp(pattern.regexSource, pattern.regexFlags!) : pattern.glob!);
     const interceptor: Interceptor = {
-      patterns: params.patterns,
+      matches: url => urlMatchers.some(urlMatch => urlMatches(undefined, url, urlMatch)),
       route: (route, request) => {
         this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route), scope: params.scope });
       },
@@ -322,15 +323,13 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
 }
 
 interface Interceptor {
-  patterns: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams['patterns'];
+  matches(url: string): boolean;
   route(route: Route, request: Request): void;
   request(request: Request): void;
   requestFinished(request: Request): void;
   requestFailed(request: Request): void;
   response(request: Request, response: Response): void;
 }
-type DoItFunction = (url: string, method: string, body: Buffer | null, headers: HeadersArray) => Promise<{ result: 'continue', guid: string, overrides: NormalizedContinueOverrides } | { result: 'abort', guid: string, errorCode: string } | { result: 'fulfill', guid: string, response: NormalizedFulfillResponse }>;
-
 
 class ServerInterceptionRegistry extends SdkObject implements RequestContext {
   private _interceptors = new Map<string, Interceptor>();
@@ -347,42 +346,38 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
       this._interceptors.delete(scope);
   }
 
-  match(scope: string, url: string): DoItFunction | undefined {
+  match(scope: string, url: string) {
     if (!this._interceptors.has(scope))
       return;
 
     const interceptor = this._interceptors.get(scope)!;
-    if (!interceptor)
+    if (!interceptor || !interceptor.matches(url))
       return;
 
-    const doIt: DoItFunction = (url, method, body, headers) => {
-      return new Promise(resolve => {
-        const request = new Request(this, null, null, null, undefined, url, '', method, body, headers);
-        interceptor.request(request);
+    return (method: string, body: Buffer | null, headers: HeadersArray) => {
+      const promise = new ManualPromise<{ result: 'continue', guid: string, overrides: NormalizedContinueOverrides } | { result: 'abort', guid: string, errorCode: string } | { result: 'fulfill', guid: string, response: NormalizedFulfillResponse }>();
 
-        const guid = request.guid;
-        this._requests.set(guid, { request, interceptor });
+      const request = new Request(this, null, null, null, undefined, url, '', method, body, headers);
+      interceptor.request(request);
 
-        const route = new Route(request, {
-          async abort(errorCode) {
-            resolve({ result: 'abort', guid, errorCode });
-          },
-          async continue(overrides) {
-            resolve({ result: 'continue', guid, overrides });
-          },
-          async fulfill(response) {
-            resolve({ result: 'fulfill', guid, response });
-          },
-        });
+      const guid = request.guid;
+      this._requests.set(guid, { request, interceptor });
 
-        interceptor.route(route, request);
+      const route = new Route(request, {
+        async abort(errorCode) {
+          promise.resolve({ result: 'abort', guid, errorCode });
+        },
+        async continue(overrides) {
+          promise.resolve({ result: 'continue', guid, overrides });
+        },
+        async fulfill(response) {
+          promise.resolve({ result: 'fulfill', guid, response });
+        },
       });
-    };
 
-    const urlMatchers = interceptor.patterns.map(pattern => pattern.regexSource ? new RegExp(pattern.regexSource, pattern.regexFlags!) : pattern.glob!);
-    const matchesSome = urlMatchers.some(urlMatch => urlMatches(undefined, url, urlMatch));
-    if (matchesSome)
-      return doIt;
+      interceptor.route(route, request);
+      return promise;
+    };
   }
 
   finished(guid: string) {
