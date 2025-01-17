@@ -7,9 +7,9 @@ see [MockingProxy].
 
 ## async method: MockingProxyFactory.newProxy
 * since: v1.16
-- returns: <[Proxy]>
+- returns: <[MockingProxy]>
 
-Creates a new instance of [Proxy].
+Creates a new instance of [MockingProxy].
 
 ### option: MockingProxyFactory.newProxy.port
 * since: v1.51

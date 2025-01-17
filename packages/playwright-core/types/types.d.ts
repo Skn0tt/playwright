@@ -20374,7 +20374,7 @@ export interface MockingProxy {
  */
 export interface MockingProxyFactory {
   /**
-   * Creates a new instance of [Proxy].
+   * Creates a new instance of [MockingProxy](https://playwright.dev/docs/api/class-mockingproxy).
    * @param options
    */
   newProxy(options?: {
@@ -20382,7 +20382,7 @@ export interface MockingProxyFactory {
      * Port to listen on. Defaults to random port.
      */
     port?: number;
-  }): Promise<Proxy>;
+  }): Promise<MockingProxy>;
 }
 
 /**
