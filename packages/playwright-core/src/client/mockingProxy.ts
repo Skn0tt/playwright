@@ -40,6 +40,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   private _context: BrowserContext | undefined;
   private _scope: string = '';
   private _port: number;
+  private _timeoutSettings = new TimeoutSettings();
 
   private routeListener = ({ route, scope }: channels.LocalUtilsRouteEvent) => {
     if (scope === this._scope)
@@ -166,7 +167,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   async waitForRequest(urlOrPredicate: string | RegExp | ((r: network.Request) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Request> {
     const predicate = async (request: network.Request) => {
       if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
-        return urlMatches(this._context?._options.baseURL, request.url(), urlOrPredicate);
+        return urlMatches(undefined, request.url(), urlOrPredicate);
       return await urlOrPredicate(request);
     };
     const trimmedUrl = trimUrl(urlOrPredicate);
@@ -177,7 +178,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   async waitForResponse(urlOrPredicate: string | RegExp | ((r: network.Response) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Response> {
     const predicate = async (response: network.Response) => {
       if (isString(urlOrPredicate) || isRegExp(urlOrPredicate))
-        return urlMatches(this._context?._options.baseURL, response.url(), urlOrPredicate);
+        return urlMatches(undefined, response.url(), urlOrPredicate);
       return await urlOrPredicate(response);
     };
     const trimmedUrl = trimUrl(urlOrPredicate);
@@ -193,7 +194,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
 
   private async _waitForEvent(event: string, optionsOrPredicate: WaitForEventOptions, logLine?: string): Promise<any> {
     return await this._localUtils._wrapApiCall(async () => {
-      const timeout = this._context!._timeoutSettings.timeout(typeof optionsOrPredicate === 'function' ? {} : optionsOrPredicate); // TODO: remove !
+      const timeout = this._timeoutSettings.timeout(typeof optionsOrPredicate === 'function' ? {} : optionsOrPredicate);
       const predicate = typeof optionsOrPredicate === 'function' ? optionsOrPredicate : optionsOrPredicate.predicate;
       const waiter = Waiter.createForEvent(this._localUtils, event);
       if (logLine)
