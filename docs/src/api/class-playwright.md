@@ -243,6 +243,10 @@ Selectors can be used to install custom selector engines. See
 
 This object can be used to launch or connect to WebKit, returning instances of [Browser].
 
+## property: Playwright.proxy
+* since: v1.8
+- type: <[ProxyFactory]>
+
 ## method: Playwright.close
 * since: v1.9
 * langs: java
