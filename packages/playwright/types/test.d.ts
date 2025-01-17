@@ -5918,6 +5918,12 @@ type ConnectOptions = {
    */
   timeout?: number;
 };
+type MockingProxyOptions = {
+  /**
+   * What port to start the mocking proxy on. If set to `"inject"`, Playwright will use a free port and inject it into all outgoing requests under the `x-playwright-proxy-port` parameter.
+   */
+  port: number | "inject";
+}
 
 /**
  * Playwright Test provides many options to configure test environment,
@@ -6165,6 +6171,24 @@ export interface PlaywrightWorkerOptions {
    * Learn more about [recording video](https://playwright.dev/docs/test-use-options#recording-options).
    */
   video: VideoMode | /** deprecated */ 'retry-with-video' | { mode: VideoMode, size?: ViewportSize };
+  /**
+   * **Usage**
+   *
+   * ```js
+   * // playwright.config.ts
+   * import { defineConfig } from '@playwright/test';
+   *
+   * export default defineConfig({
+   *   use: {
+   *     mockingProxy: {
+   *       port: 9956,
+   *     },
+   *   },
+   * });
+   * ```
+   *
+   */
+  mockingProxy: MockingProxyOptions | undefined;
 }
 
 export type ScreenshotMode = 'off' | 'on' | 'only-on-failure' | 'on-first-failure';
