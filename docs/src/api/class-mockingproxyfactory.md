@@ -11,8 +11,8 @@ see [MockingProxy].
 
 Creates a new instance of [MockingProxy].
 
-### option: MockingProxyFactory.newProxy.port
+### param: MockingProxyFactory.newProxy.port
 * since: v1.51
-- `port` ?<[int]>
+- `port` <[int]>
 
-Port to listen on. Defaults to random port.
+Port to listen on.

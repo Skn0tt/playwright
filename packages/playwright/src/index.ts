@@ -26,6 +26,7 @@ import { rootTestType } from './common/testType';
 import type { ContextReuseMode } from './common/config';
 import type { ApiCallData, ClientInstrumentation, ClientInstrumentationListener } from '../../playwright-core/src/client/clientInstrumentation';
 import { currentTestInfo } from './common/globals';
+import { getFreePort } from './util';
 export { expect } from './matchers/expect';
 export const _baseTest: TestType<{}, {}> = rootTestType.test;
 
@@ -55,6 +56,7 @@ type WorkerFixtures = PlaywrightWorkerArgs & PlaywrightWorkerOptions & {
   _optionContextReuseMode: ContextReuseMode,
   _optionConnectOptions: PlaywrightWorkerOptions['connectOptions'],
   _reuseContext: boolean,
+  _mockingProxyPort?: number,
 };
 
 const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
@@ -450,11 +452,26 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     }
   },
 
-  server: async ({ playwright }, use, testInfo) => {
+  _mockingProxyPort: [async ({ mockingProxy }, use) => {
+    let port: number | undefined;
+    if (typeof mockingProxy?.port === 'number')  {
+      const testInfoImpl = test.info() as TestInfoImpl;
+      if (testInfoImpl.config.workers > 1)
+        throw new Error("TODO: you're doing it wrong");
+      port = mockingProxy.port;
+    } else if (mockingProxy?.port === 'inject') {
+      port = await getFreePort();
+    }
+    await use(port);
+  }, { scope: 'worker' }],
+
+  server: async ({ playwright, _mockingProxyPort }, use) => {
+    if (!_mockingProxyPort)
+      throw new Error('Configure use.mockingProxy!');
     // TODO: use different port, make it random, search gh for usage
     // TODO: make port configurable
     // TODO: check if port is taken
-    const server = await playwright.mockingProxy.newProxy(testInfo.config.workers === 1 ? 8888 : undefined);
+    const server = await playwright.mockingProxy.newProxy(_mockingProxyPort);
     await use(server);
     await server.unrouteAll();
   }
