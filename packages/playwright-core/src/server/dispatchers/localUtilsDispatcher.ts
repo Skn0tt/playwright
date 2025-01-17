@@ -42,15 +42,14 @@ import type { Playwright } from '../playwright';
 import { SdkObject } from '../../server/instrumentation';
 import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
-import type { ResourceTiming } from '../network';
+import type { RequestContext, ResourceTiming } from '../network';
 import { Request, Response, Route } from '../network';
 import { RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
-import type { BrowserContext } from '../browserContext';
 import url from 'url';
 import { pipeline } from 'stream/promises';
 import { Transform } from 'stream';
 
-export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
+export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
   _type_EventTarget: boolean;
   private _harBackends = new Map<string, HarBackend>();
@@ -287,7 +286,7 @@ export class LocalUtilsDispatcher extends Dispatcher<{ guid: string }, channels.
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
     if (!this._interceptionRegistry){
-      this._interceptionRegistry = new ServerInterceptionRegistry();
+      this._interceptionRegistry = new ServerInterceptionRegistry(this._object);
       const server = new WorkerHttpServer();
       await server.start({ port: params.port });
       new MockingProxy(this._interceptionRegistry).install(server);
@@ -332,9 +331,14 @@ interface Interceptor {
 }
 type DoItFunction = (url: string, method: string, body: Buffer | null, headers: HeadersArray) => Promise<{ result: 'continue', guid: string, overrides: NormalizedContinueOverrides } | { result: 'abort', guid: string, errorCode: string } | { result: 'fulfill', guid: string, response: NormalizedFulfillResponse }>;
 
-class ServerInterceptionRegistry {
+
+class ServerInterceptionRegistry extends SdkObject implements RequestContext {
   private _interceptors = new Map<string, Interceptor>();
   private readonly _requests = new Map<string, { request: Request, interceptor: Interceptor }>();
+
+  constructor(parent: SdkObject) {
+    super(parent, 'serverInterceptionRegistry');
+  }
 
   setRequestInterceptor(scope: string, interceptor?: Interceptor) {
     if (interceptor)
@@ -353,18 +357,7 @@ class ServerInterceptionRegistry {
 
     const doIt: DoItFunction = (url, method, body, headers) => {
       return new Promise(resolve => {
-        const fakeBrowserContext: BrowserContext = {
-          attribution: null,
-          addRouteInFlight() { },
-          removeRouteInFlight() { },
-          instrumentation: {
-            onBeforeCall() { },
-            onAfterCall() { }
-          },
-          emit() { }
-        } as any;
-
-        const request = new Request(fakeBrowserContext, null, null, null, undefined, url, '', method, body, headers);
+        const request = new Request(this, null, null, null, undefined, url, '', method, body, headers);
         interceptor.request(request);
 
         const guid = request.guid;
@@ -414,6 +407,14 @@ class ServerInterceptionRegistry {
     this._requests.delete(guid);
     const response = new Response(request.request, status, statusText, headers, timing, body, false, httpVersion);
     request.interceptor.response(request.request, response);
+  }
+
+  addRouteInFlight(route: Route): void {
+
+  }
+
+  removeRouteInFlight(route: Route): void {
+
   }
 }
 
