@@ -123,6 +123,19 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     }, true);
   }, { scope: 'worker', timeout: 0 }],
 
+  _mockingProxy: [async ({ mockingProxy: mockingProxyOption, playwright }, use) => {
+    if (!mockingProxyOption)
+      return await use(undefined);
+
+    const testInfoImpl = test.info() as TestInfoImpl;
+    if (typeof mockingProxyOption.port === 'number' && testInfoImpl.config.workers > 1)
+      throw new Error(`Cannot share mocking proxy between multiple workers. Either disable parallel mode or set mockingProxy.port to 'inject'`);
+
+    const port = typeof mockingProxyOption.port === 'number' ? mockingProxyOption.port : await getFreePort();
+    const mockingProxy = await playwright.mockingProxy.newProxy(port);
+    await use(mockingProxy);
+  }, { scope: 'worker' }],
+
   acceptDownloads: [({ contextOptions }, use) => use(contextOptions.acceptDownloads ?? true), { option: true }],
   bypassCSP: [({ contextOptions }, use) => use(contextOptions.bypassCSP ?? false), { option: true }],
   colorScheme: [({ contextOptions }, use) => use(contextOptions.colorScheme === undefined ? 'light' : contextOptions.colorScheme), { option: true }],
@@ -455,19 +468,6 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
       await request.dispose();
     }
   },
-
-  _mockingProxy: [async ({ mockingProxy: mockingProxyOption, playwright }, use) => {
-    if (!mockingProxyOption)
-      return await use(undefined);
-
-    const testInfoImpl = test.info() as TestInfoImpl;
-    if (typeof mockingProxyOption.port === 'number' && testInfoImpl.config.workers > 1)
-      throw new Error(`Cannot share mocking proxy between multiple workers. Either disable parallel mode or set mockingProxy.port to 'inject'`);
-
-    const port = typeof mockingProxyOption.port === 'number' ? mockingProxyOption.port : await getFreePort();
-    const mockingProxy = await playwright.mockingProxy.newProxy(port);
-    await use(mockingProxy);
-  }, { scope: 'worker' }],
 
   server: async ({ _mockingProxy }, use) => {
     if (!_mockingProxy)
