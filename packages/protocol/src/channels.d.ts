@@ -472,24 +472,19 @@ export interface LocalUtilsChannel extends LocalUtilsEventTarget, EventTargetCha
 }
 export type LocalUtilsRouteEvent = {
   route: RouteChannel,
-  scope: string,
 };
 export type LocalUtilsRequestEvent = {
   request: RequestChannel,
-  scope: string,
 };
 export type LocalUtilsResponseEvent = {
   request: RequestChannel,
   response: ResponseChannel,
-  scope: string,
 };
 export type LocalUtilsRequestFailedEvent = {
   request: RequestChannel,
-  scope: string,
 };
 export type LocalUtilsRequestFinishedEvent = {
   request: RequestChannel,
-  scope: string,
 };
 export type LocalUtilsZipParams = {
   zipFile: string,
@@ -590,7 +585,6 @@ export type LocalUtilsTraceDiscardedOptions = {
 };
 export type LocalUtilsTraceDiscardedResult = void;
 export type LocalUtilsSetServerNetworkInterceptionPatternsParams = {
-  scope: string,
   port: number,
   patterns: {
     glob?: string,

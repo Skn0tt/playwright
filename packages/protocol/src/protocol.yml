@@ -673,7 +673,6 @@ LocalUtils:
         
     setServerNetworkInterceptionPatterns:
       parameters:
-        scope: string
         port: number
         patterns:
           type: array
@@ -688,24 +687,19 @@ LocalUtils:
     route:
       parameters:
         route: Route
-        scope: string
     request:
       parameters:
         request: Request
-        scope: string
     response:
       parameters:
         request: Request
         response: Response
-        scope: string
     requestFailed:
       parameters:
         request: Request
-        scope: string
     requestFinished:
       parameters:
         request: Request
-        scope: string
 
 Root:
   type: interface

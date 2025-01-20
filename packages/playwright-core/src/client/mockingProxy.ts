@@ -79,7 +79,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   }
 
   private async _start() {
-    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], scope: this._scope, port: this._port });
+    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns: [], port: this._port });
   }
 
   static async create(localUtils: LocalUtils, request: Promise<APIRequestContext>, port: number) {
@@ -162,7 +162,7 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
 
   private async _updateInterceptionPatterns() {
     const patterns = this.eventNames().length > 0 ? [{ glob: '**/*' }] : network.RouteHandler.prepareInterceptionPatterns(this._routes);
-    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, scope: this._scope, port: this._port });
+    await this._localUtils._channel.setServerNetworkInterceptionPatterns({ patterns, port: this._port });
   }
 
   async waitForRequest(urlOrPredicate: string | RegExp | ((r: network.Request) => boolean | Promise<boolean>), options: { timeout?: number } = {}): Promise<network.Request> {

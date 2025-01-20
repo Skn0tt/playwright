@@ -293,32 +293,31 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     }
 
     if (params.patterns.length === 0)
-      return this._interceptionRegistry.setRequestInterceptor(params.scope);
+      return this._interceptionRegistry.setRequestInterceptor();
 
     const urlMatchers = params.patterns.map(pattern => pattern.regexSource ? new RegExp(pattern.regexSource, pattern.regexFlags!) : pattern.glob!);
     const interceptor: Interceptor = {
       matches: url => urlMatchers.some(urlMatch => urlMatches(undefined, url, urlMatch)),
       route: (route, request) => {
-        this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route), scope: params.scope });
+        this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
       },
       request: request => {
-        this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request), scope: params.scope });
+        this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
       },
       requestFinished: request => {
-        this._dispatchEvent('requestFinished', { request: RequestDispatcher.from(this.parentScope() as any, request), scope: params.scope });
+        this._dispatchEvent('requestFinished', { request: RequestDispatcher.from(this.parentScope() as any, request) });
       },
       requestFailed: request => {
-        this._dispatchEvent('requestFailed', { request: RequestDispatcher.from(this.parentScope() as any, request), scope: params.scope });
+        this._dispatchEvent('requestFailed', { request: RequestDispatcher.from(this.parentScope() as any, request) });
       },
       response: (request, response) => {
         this._dispatchEvent('response', {
           request: RequestDispatcher.from(this.parentScope() as any, request),
           response: ResponseDispatcher.from(this.parentScope() as any, response),
-          scope: params.scope
         });
       },
     };
-    this._interceptionRegistry.setRequestInterceptor(params.scope, interceptor);
+    this._interceptionRegistry.setRequestInterceptor(interceptor);
   }
 }
 
@@ -332,26 +331,20 @@ interface Interceptor {
 }
 
 class ServerInterceptionRegistry extends SdkObject implements RequestContext {
-  private _interceptors = new Map<string, Interceptor>();
+  private _interceptor?: Interceptor;
   private readonly _requests = new Map<string, { request: Request, interceptor: Interceptor }>();
 
   constructor(parent: SdkObject) {
     super(parent, 'serverInterceptionRegistry');
   }
 
-  setRequestInterceptor(scope: string, interceptor?: Interceptor) {
-    if (interceptor)
-      this._interceptors.set(scope, interceptor);
-    else
-      this._interceptors.delete(scope);
+  setRequestInterceptor(interceptor?: Interceptor) {
+    this._interceptor = interceptor;
   }
 
-  match(scope: string, url: string) {
-    if (!this._interceptors.has(scope))
-      return;
-
-    const interceptor = this._interceptors.get(scope)!;
-    if (!interceptor || !interceptor.matches(url))
+  match(url: string) {
+    const interceptor = this._interceptor;
+    if (!interceptor?.matches(url))
       return;
 
     return (method: string, body: Buffer | null, headers: HeadersArray) => {
@@ -463,7 +456,6 @@ class MockingProxy {
   }
 
   private async _proxy(req: http.IncomingMessage, res: http.ServerResponse) {
-    const scope = '0';
     if (req.url?.startsWith('/'))
       req.url = req.url.substring(1);
 
@@ -473,10 +465,22 @@ class MockingProxy {
     if (req.url?.startsWith('https:/') && !req.url?.startsWith('https://'))
       req.url = req.url.replace('https:/', 'https://');
 
-    const handler = this._registry.match(scope, req.url!);
+
+    const handler = this._registry.match(req.url!);
     if (!handler) {
-      res.statusCode = 404;
-      res.end();
+      const httpLib = req.url?.startsWith('https:') ? https : http;
+      const proxyReq = httpLib.request(req.url!, {
+        headers: req.headers,
+        method: req.method,
+      }, proxyRes => {
+        res.writeHead(proxyRes.statusCode!, proxyRes.headers);
+        pipeline(proxyRes, res);
+      });
+      proxyReq.on('error', error => {
+        res.statusCode = 502;
+        res.end();
+      });
+      await pipeline(req, proxyReq);
       return;
     }
 
