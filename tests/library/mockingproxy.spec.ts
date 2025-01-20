@@ -16,6 +16,7 @@
 import type { APIRequestContext, MockingProxy, Route } from 'packages/playwright-test';
 import { playwrightTest as baseTest, expect } from '../config/browserTest';
 import { pipeline } from 'stream/promises';
+import { suppressCertificateWarning } from 'tests/config/utils';
 
 const test = baseTest.extend<{ proxiedRequest: APIRequestContext }, { mockproxy: MockingProxy }>({
   mockproxy: [async ({ playwright }, use, testInfo) => {
@@ -116,6 +117,33 @@ test.describe('transparent', () => {
 
     expect(await responseEvent.securityDetails()).toBe(null); // TODO: fixme
     expect(await responseEvent.serverAddr()).toBe(null); // TODO: Fixme
+  });
+
+  test('securityDetails', async ({ httpsServer, proxiedRequest, mockproxy }) => {
+    const oldValue = process.env['NODE_TLS_REJECT_UNAUTHORIZED'];
+    // https://stackoverflow.com/a/21961005/552185
+    process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';
+    suppressCertificateWarning();
+    try {
+      const [
+        event,
+        response
+      ] = await Promise.all([
+        mockproxy.waitForResponse('**/*'),
+        proxiedRequest.get(httpsServer.EMPTY_PAGE),
+      ]);
+
+      await expect(response).toBeOK();
+      expect(await event.securityDetails()).toEqual({
+        'issuer': 'playwright-test',
+        'protocol': 'TLSv1.3',
+        'subjectName': 'playwright-test',
+        'validFrom': expect.any(Number),
+        'validTo': expect.any(Number),
+      });
+    } finally {
+      process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = oldValue;
+    }
   });
 
   test('request with body', async ({ server, proxiedRequest, mockproxy }) => {

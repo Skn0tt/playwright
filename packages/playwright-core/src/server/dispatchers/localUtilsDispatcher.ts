@@ -42,7 +42,7 @@ import type { Playwright } from '../playwright';
 import { SdkObject } from '../../server/instrumentation';
 import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
-import type { RequestContext, ResourceTiming } from '../network';
+import type { RequestContext, ResourceTiming, SecurityDetails } from '../network';
 import { Request, Response, Route } from '../network';
 import { APIRequestContextDispatcher, RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
 import url from 'url';
@@ -50,6 +50,7 @@ import { pipeline } from 'stream/promises';
 import { Transform } from 'stream';
 import type { APIRequestContext } from '../fetch';
 import { GlobalAPIRequestContext } from '../fetch';
+import { TLSSocket } from 'tls';
 
 export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
@@ -401,14 +402,14 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     this._eventDelegate._onRequestFailed(request);
   }
 
-  response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, timing: ResourceTiming, httpVersion: string) {
+  response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, timing: ResourceTiming, securityDetails: SecurityDetails | undefined, httpVersion: string) {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
     const response = new Response(request, status, statusText, headers, timing, body, false, httpVersion);
     response.setRawResponseHeaders(headers);
     response.setResponseHeadersSize(null); // TODO: fixme. can we compute this?
-    response._securityDetailsFinished(undefined); // TODO: Fixme
+    response._securityDetailsFinished(securityDetails);
     response._serverAddrFinished(undefined); // TODO: Fixme
     this._eventDelegate._onResponse(request, response);
 
@@ -514,7 +515,17 @@ class MockingProxy {
             method: proxyMethod,
           }, async proxyRes => {
             res.writeHead(proxyRes.statusCode!, proxyRes.headers);
-
+            let securityDetails: SecurityDetails | undefined;
+            if (proxyRes.socket instanceof TLSSocket) {
+              const peerCertificate = proxyRes.socket.getPeerCertificate();
+              securityDetails = {
+                protocol: proxyRes.socket.getProtocol() ?? undefined,
+                subjectName: peerCertificate.subject.CN,
+                validFrom: new Date(peerCertificate.valid_from).getTime() / 1000,
+                validTo: new Date(peerCertificate.valid_to).getTime() / 1000,
+                issuer: peerCertificate.issuer.CN
+              };
+            }
             const chunks: Buffer[] = [];
             const response = this._registry.response(
                 result.guid,
@@ -531,6 +542,7 @@ class MockingProxy {
                   requestStart: 0,
                   responseStart: 0,
                 },
+                securityDetails,
                 proxyRes.httpVersion
             );
             try {
