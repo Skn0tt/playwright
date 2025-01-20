@@ -20,7 +20,7 @@ import path from 'path';
 import os from 'os';
 import type * as channels from '@protocol/channels';
 import { ManualPromise } from '../../utils/manualPromise';
-import { assert, calculateSha1, createGuid, HttpServer, removeFolders, urlMatches } from '../../utils';
+import { assert, calculateSha1, createGuid, eventsHelper, HttpServer, monotonicTime, removeFolders, urlMatches } from '../../utils';
 import type { RootDispatcher } from './dispatcher';
 import { Dispatcher } from './dispatcher';
 import { yazl, yauzl } from '../../zipBundle';
@@ -508,13 +508,30 @@ class MockingProxy {
         const proxyMethod = overrides?.method ?? req.method;
         const proxyBody = overrides?.postData ?? body;
 
+        const startAt = monotonicTime();
+        let connectEnd: number | undefined;
+        let connectStart: number | undefined;
+        let dnsLookupAt: number | undefined;
+        let tlsHandshakeAt: number | undefined;
+
         return new Promise<void>(resolve => {
           const proxyReq = httpLib.request({
             ...proxyUrl,
             headers: headersArrayToOutgoingHeaders(proxyHeaders),
             method: proxyMethod,
           }, async proxyRes => {
-            res.writeHead(proxyRes.statusCode!, proxyRes.headers);
+            const responseStart = monotonicTime();
+            const timings: ResourceTiming = {
+              startTime: startAt / 1000,
+              connectStart: connectStart ? (connectStart - startAt) : -1,
+              connectEnd: connectEnd ? (connectEnd - startAt) : -1,
+              domainLookupStart: -1,
+              domainLookupEnd: dnsLookupAt ? (dnsLookupAt - startAt) : -1,
+              requestStart: -1,
+              responseStart: (responseStart - startAt),
+              secureConnectionStart: tlsHandshakeAt ? (tlsHandshakeAt - startAt) : -1,
+            };
+
             let securityDetails: SecurityDetails | undefined;
             if (proxyRes.socket instanceof TLSSocket) {
               const peerCertificate = proxyRes.socket.getPeerCertificate();
@@ -532,20 +549,13 @@ class MockingProxy {
                 proxyRes.statusCode!,
                 proxyRes.statusMessage!, headersArray(proxyRes),
                 async () => Buffer.concat(chunks),
-                {
-                  startTime: 0,
-                  domainLookupStart: 0,
-                  domainLookupEnd: 0,
-                  connectStart: 0,
-                  secureConnectionStart: 0,
-                  connectEnd: 0,
-                  requestStart: 0,
-                  responseStart: 0,
-                },
+                timings,
                 securityDetails,
                 proxyRes.httpVersion
             );
+
             try {
+              res.writeHead(proxyRes.statusCode!, proxyRes.headers);
               await pipeline(
                   proxyRes,
                   new Transform({
@@ -569,6 +579,15 @@ class MockingProxy {
             this._registry.failed(result.guid, error.toString(), -1); // TODO: fix response end timing
             res.statusCode = 502;
             res.end(resolve);
+          });
+          proxyReq.once('socket', socket => {
+            if (proxyReq.reusedSocket)
+              return;
+
+            socket.once('lookup', () => { dnsLookupAt = monotonicTime(); });
+            socket.once('connectionAttempt', () => { connectStart = monotonicTime(); });
+            socket.once('connect', () => { connectEnd = monotonicTime(); });
+            socket.once('secureConnect', () => { tlsHandshakeAt = monotonicTime(); });
           });
           proxyReq.end(proxyBody);
         });
