@@ -462,7 +462,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
 
     const testInfoImpl = test.info() as TestInfoImpl;
     if (typeof mockingProxyOption.port === 'number' && testInfoImpl.config.workers > 1)
-      throw new Error('todo: youre using it wrong');
+      throw new Error(`Cannot share mocking proxy between multiple workers. Either disable parallel mode or set mockingProxy.port to 'inject'`);
 
     const port = typeof mockingProxyOption.port === 'number' ? mockingProxyOption.port : await getFreePort();
     const mockingProxy = await playwright.mockingProxy.newProxy(port);
@@ -471,7 +471,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
 
   server: async ({ _mockingProxy }, use) => {
     if (!_mockingProxy)
-      throw new Error('Configure use.mockingProxy!');
+      throw new Error(`The 'server' fixture is only available when 'mockingProxy' is enabled.`);
     await use(_mockingProxy);
     await _mockingProxy.unrouteAll();
   }
