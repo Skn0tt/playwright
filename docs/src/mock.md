@@ -557,7 +557,7 @@ For more details, see [WebSocketRoute].
 
 ## Mock Application Server
 
-If you want to intercept network traffic originating from the server, you can use [MockingProxy] to spin up a HTTP proxy server that can intercept and mock network traffic.
+If you want to intercept network traffic originating from the server, you can use [MockingProxy] to intercept and mock network traffic going through a proxy server.
 
 ```js
 test('calls the cms to fetch frontpage posts', async ({ page, server }) => {
@@ -582,17 +582,116 @@ test('calls the cms to fetch frontpage posts', async ({ page, server }) => {
 });
 ```
 
-Under the hood, Playwright spins up one HTTP proxy server per worker process. Playwright injects the proxy server port into each outgoing browser request as the `x-playwright-proxy-port` header. You need to configure your application server to direct outgoing traffic through this proxy server.
-If you cannot access the current request headers at the time of making the API request, [disable parallelism](#disable-parallelism) and hard-code the proxy port to `8888`.
+You can configure the port of the proxy server in the `playwright.config.ts` file.
 
-### Recipes
+```ts
+# playwright.config.ts
+export default defineConfig({
+  workers: 1, // disable parallelism because we can't share the proxy server across multiple workers
+  ...
+  use: {
+    ...
+    mockingProxy: {
+      port: 8123 // example port
+    }
+  },
+});
+```
 
-you want to change any request to `https://myexample.com/api/v1/example` to `http://localhost:8888/https://myexample.com/api/v1/example`. If you're using environment variables to configure your base URLs, just prepend the proxy URL.
-If your HTTP clients support interceptors, go by the following recipes.
-If you only make requests to localhost, you can even use HTTP_PROXY.
-If there's https in the mix, don't! It'll use CONNECT and prevent Playwright from intercepting.
+We need to disable parallelism because we can't share the proxy server across multiple workers.
 
-#### Node.js Axios
+Now, configure your application server to route HTTP traffic through `http://localhost:8123/`.
+
+#### `.env` file
+
+If you're using a `.env` file to configure API endpoints, prepend the proxy server URL:
+
+```env
+# .env.test
+CMS_BASE_URL=http://localhost:8123/https://headless-cms.example.com
+STOREFRONT_BASE_URL=http://localhost:8123/https://api.myexample.com
+```
+
+#### `HTTP_PROXY` environment variable
+
+If all your requests are going to localhost, you can use the `HTTP_PROXY` environment variable to route all requests through the proxy server.
+
+```bash
+HTTP_PROXY=http://localhost:8888
+```
+
+This environment variable is interpreted by many HTTP clients, including Node.js `axios` and Python `requests`. 
+
+Pay attention though: it's important that you use `HTTP_PROXY` and not `HTTPS_PROXY` because the latter will use [`CONNECT`-style proxying](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/CONNECT) where the proxy cannot intercept the traffic.
+
+#### Manual
+
+In your server code, prepend the proxy server URL to all outgoing requests:
+
+```js
+let proxyURL = isUnderTest ? 'http://localhost:8123/' : '';
+await axios.get(proxyURL + 'https://headless-cms.example.com/items');
+// or
+await fetch(proxyURL + 'https://headless-cms.example.com/frontpage');
+```
+
+```python
+proxy_url = "http://localhost:8123/" if is_under_test else ""
+requests.get(proxy_url + "https://headless-cms.example.com/frontpage")
+```
+
+```csharp
+var proxyURL = isUnderTest ? "http://localhost:8123/" : "";
+await client.GetAsync(proxyURL + "https://headless-cms.example.com/frontpage");
+```
+
+#### Injecting the proxy port
+
+The previous examples all use a single proxy server with a hard-coded port. This has the downside that you can't run tests in parallel.
+If your application allows accessing current request headers conveniently, you can use `inject` mode to dynamically create one proxy server per worker, and inject the port into the request headers.
+
+To do this, set `mockingProxy.port` to `'inject'` in your `playwright.config.ts`:
+
+```ts
+# playwright.config.ts
+export default defineConfig({
+  use: {
+    ...
+    mockingProxy: {
+      port: 'inject'
+    }
+  },
+});
+```
+
+Now, you can access the proxy port from the request headers:
+
+```js
+let proxyPort = await headers().get("x-playwright-proxy-port");
+let proxyURL = proxyPort ? `http://localhost:${proxyPort}/` : '';
+await axios.get(proxyURL + 'https://headless-cms.example.com/items');
+// or
+await fetch(proxyURL + 'https://headless-cms.example.com/frontpage');
+```
+
+```python
+proxy_port = request.headers.get("x-playwright-proxy-port")
+proxy_url = f"http://localhost:{proxy_port}/" if proxy_port else ""
+requests.get(proxy_url + "https://headless-cms.example.com/frontpage")
+```
+
+```csharp
+var proxyPort = httpContextAccessor.HttpContext?.Request.Headers["x-playwright-proxy-port"];
+var proxyURL = proxyPort.HasValue ? $"http://localhost:{proxyPort}/" : "";
+await client.GetAsync(proxyURL + "https://headless-cms.example.com/frontpage");
+```
+
+#### Interceptors
+
+If your HTTP client or runtime supports HTTP interceptors, you can use them to prepend the proxy URL to all outgoing requests
+with minimal changes to your existing code:
+
+##### Node.js Axios
 
 ```js
 const api = axios.create({
@@ -601,96 +700,23 @@ const api = axios.create({
 
 if (isUnderTest) {
   api.interceptors.request.use(async config => {
-    const port = await headers().get("x-playwright-proxy-port"); // if you cannot access the request headers, disable parallelism and harcode to proxy port (8888 by default)
-    config.proxy = { protocol: "http", host: "localhost", port: +port };
+    config.proxy = { protocol: "http", host: "localhost", port: 8123 };
     return config;
   });
 }
 ```
 
-#### Node.js `http`
-
-```js
-const port = request.headers.get("x-playwright-proxy-port"); // if you cannot access the request headers, disable parallelism and harcode to proxy port (8888 by default)
-var options = {
-  host: "localhost",
-  port: +port,
-  path: "http://example.org" // put the full URL here instead of just the path
-};
-http.request(options, ...);
-
-// or
-const proxy = `http://localhost:${port}/`;
-http.request(proxy + "http://example.org",  ...);
-
-new URL("./something", process.env.MY_API_BASEURL)
-```
-
-#### Node.js fetch / undici
+##### Node.js fetch / undici
 
 ```js
 import { setGlobalDispatcher, getGlobalDispatcher } from "undici";
 
 if (isUnderTest) {
-  const proxyingDispatcher = getGlobalDispatcher().compose(dispatch => async (opts, handler) => {
-    const port = await headers().get("x-playwright-proxy-port"); // if you cannot access the request headers, disable parallelism and harcode to proxy port (8888 by default)
+  const proxyingDispatcher = getGlobalDispatcher().compose(dispatch => (opts, handler) => {
     opts.path = opts.origin + opts.path;
-    opts.origin = `http://localhost:${port}`;
+    opts.origin = `http://localhost:8123`;
     return dispatch(opts, handler);
   })
   setGlobalDispatcher(proxyingDispatcher);
 }
-```
-
-#### Python
-
-```python
-import requests
-
-if is_under_test:
-  port = request.headers.get("x-playwright-proxy-port") # if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
-  requests.get('http://example.org', proxies={ 'http': f'http://localhost:{port}' })
-```
-
-OR:
-
-Set the `HTTP_PROXY` environment variable to `http://localhost:8888` and `HTTP_TRUST_ALL_CERTS=true`.
-
-#### dotnet
-
-Prepend the proxy URL to all your outgoing requests:
-
-```c#
-using var client = new HttpClient();
-
-var proxyBaseURL = "";
-if (isUnderTest)
-{
-  var proxyPort = httpContextAccessor.HttpContext?.Request.Headers["x-pw-port"]; // if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
-  if (proxyPort.HasValue)
-  {               
-    proxyBaseURL = $"http://localhost:{proxyPort}/";
-  }
-}
-
-await client.GetAsync(proxyBaseURL + "https://api.example.com");
-```
-
-[`WebProxy`](https://learn.microsoft.com/en-us/dotnet/api/system.net.webproxy?view=net-9.0) does *not* work, because it will send all outgoing HTTPS traffic securely via HTTP CONNECT.
-This makes it impossible for Playwright to intercept the traffic.
-
-#### Java
-
-https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html
-
-```java
-if (isUnderTest) {
-  String port = request.getHeader("x-playwright-proxy-port"); // if you cannot access the request, disable parallelism and harcode to proxy port (8888 by default)
-  System.setProperty("http.proxyHost", "localhost");
-  System.setProperty("http.proxyPort", port);
-}
-
-// connection will be through playwright proxy.
-URL url = new URL("http://java.example.org/");
-InputStream in = url.openStream();
 ```
