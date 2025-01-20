@@ -393,12 +393,11 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     });
   }
 
-  failed(guid: string, error: string, responseEndTiming: number) {
+  failed(guid: string, error: string) {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
     request._setFailureText(error);
-    request._responseEndTiming = responseEndTiming;
     this._eventDelegate._onRequestFailed(request);
   }
 
@@ -567,16 +566,16 @@ class MockingProxy {
                   res
               );
 
-              response.finished(Date.now());
+              response.finished(monotonicTime() - startAt);
               resolve();
             } catch (error) {
-              this._registry.failed(result.guid, error.toString(), -1); // TODO: fix response end timing
+              this._registry.failed(result.guid, error.toString());
               resolve();
             }
           });
 
           proxyReq.on('error', error => {
-            this._registry.failed(result.guid, error.toString(), -1); // TODO: fix response end timing
+            this._registry.failed(result.guid, error.toString());
             res.statusCode = 502;
             res.end(resolve);
           });
