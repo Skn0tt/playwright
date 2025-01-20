@@ -449,6 +449,7 @@ export type LocalUtilsInitializer = {
       defaultBrowserType: 'chromium' | 'firefox' | 'webkit',
     },
   }[],
+  requestContext: APIRequestContextChannel,
 };
 export interface LocalUtilsEventTarget {
   on(event: 'route', callback: (params: LocalUtilsRouteEvent) => void): this;

@@ -268,6 +268,7 @@ scheme.LocalUtilsInitializer = tObject({
       defaultBrowserType: tEnum(['chromium', 'firefox', 'webkit']),
     }),
   })),
+  requestContext: tChannel(['APIRequestContext']),
 });
 scheme.LocalUtilsRouteEvent = tObject({
   route: tChannel(['Route']),

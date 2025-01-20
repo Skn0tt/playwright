@@ -44,10 +44,12 @@ import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
 import type { RequestContext, ResourceTiming } from '../network';
 import { Request, Response, Route } from '../network';
-import { RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
+import { APIRequestContextDispatcher, RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
 import url from 'url';
 import { pipeline } from 'stream/promises';
 import { Transform } from 'stream';
+import type { APIRequestContext } from '../fetch';
+import { GlobalAPIRequestContext } from '../fetch';
 
 export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
@@ -59,15 +61,20 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     tmpDir: string | undefined,
     callStacks: channels.ClientSideCallMetadata[]
   }>();
+  _requestContext: APIRequestContext;
   private _interceptionRegistry?: ServerInterceptionRegistry;
 
   constructor(scope: RootDispatcher, playwright: Playwright) {
     const localUtils = new SdkObject(playwright, 'localUtils', 'localUtils');
     const deviceDescriptors = Object.entries(descriptors)
         .map(([name, descriptor]) => ({ name, descriptor }));
+
+    const requestContext = new GlobalAPIRequestContext(playwright, {});
     super(scope, localUtils, 'LocalUtils', {
       deviceDescriptors,
+      requestContext: APIRequestContextDispatcher.from(scope, requestContext),
     });
+    this._requestContext = requestContext;
     this._type_LocalUtils = true;
     this._type_EventTarget = true;
   }
@@ -344,10 +351,12 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
   private _interceptor?: Interceptor;
   private _eventDelegate: LocalUtilsDispatcher;
   private readonly _requests = new Map<string, Request>(); // TODO: dont memory leak requests
+  fetchRequest: APIRequestContext;
 
   constructor(parent: SdkObject, eventDelegate: LocalUtilsDispatcher) {
     super(parent, 'serverInterceptionRegistry');
     this._eventDelegate = eventDelegate;
+    this.fetchRequest = eventDelegate._requestContext;
   }
 
   setRequestInterceptor(interceptor?: Interceptor) {

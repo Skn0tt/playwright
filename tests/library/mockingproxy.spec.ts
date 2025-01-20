@@ -223,3 +223,27 @@ test('continue', async ({ server, proxiedRequest, mockproxy }) => {
   expect(response.headers()['x-override']).toBe('bar');
   expect(response.headers()['x-add']).toBe('baz');
 });
+
+test('fallback', async ({ server, proxiedRequest, mockproxy }) => {
+  server.setRoute('/foo', (req, res) => {
+    res.end('ok');
+  });
+  await mockproxy.route('**/endpoint', route => route.continue());
+  await mockproxy.route('**/endpoint', (route, request) => route.fallback({ url: new URL('./foo', request.url()).toString() }));
+  const response = await proxiedRequest.get(server.PREFIX + '/endpoint');
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toBe('ok');
+});
+
+test('fetch', async ({ server, proxiedRequest, mockproxy }) => {
+  server.setRoute('/foo', (req, res) => {
+    res.end('ok');
+  });
+  await mockproxy.route('**/endpoint', async (route, request) => {
+    const response = await route.fetch({ url: new URL('./foo', request.url()).toString() });
+    await route.fulfill({ response });
+  });
+  const response = await proxiedRequest.get(server.PREFIX + '/endpoint');
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toBe('ok');
+});

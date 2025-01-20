@@ -92,7 +92,7 @@ export interface RequestContext extends SdkObject {
   addRouteInFlight(route: Route): void;
   removeRouteInFlight(route: Route): void;
 
-  fetchRequest?: BrowserContextAPIRequestContext;
+  fetchRequest: APIRequestContext;
 }
 
 export class Request extends SdkObject {
@@ -286,7 +286,7 @@ export class Route extends SdkObject {
     let body = overrides.body;
     let isBase64 = overrides.isBase64 || false;
     if (body === undefined) {
-      if (overrides.fetchResponseUid && this._request._context.fetchRequest) {
+      if (overrides.fetchResponseUid) {
         const buffer = this._request._context.fetchRequest.fetchResponses.get(overrides.fetchResponseUid) || APIRequestContext.findResponseBody(overrides.fetchResponseUid);
         assert(buffer, 'Fetch response has been disposed');
         body = buffer.toString('base64');
