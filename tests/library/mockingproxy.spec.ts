@@ -104,19 +104,22 @@ test.describe('transparent', () => {
     });
 
     expect(request.timing()).toEqual({
-      'connectEnd': 0,
-      'connectStart': 0,
-      'domainLookupEnd': 0,
-      'domainLookupStart': 0,
-      'requestStart': 0,
+      'connectEnd': expect.any(Number),
+      'connectStart': expect.any(Number),
+      'domainLookupEnd': expect.any(Number),
+      'domainLookupStart': -1,
+      'requestStart': -1,
       'responseEnd': expect.any(Number),
-      'responseStart': 0,
-      'secureConnectionStart': 0,
-      'startTime': 0,
+      'responseStart': expect.any(Number),
+      'secureConnectionStart': -1,
+      'startTime': expect.any(Number),
     });
 
-    expect(await responseEvent.securityDetails()).toBe(null); // TODO: fixme
-    expect(await responseEvent.serverAddr()).toBe(null); // TODO: Fixme
+    expect(await responseEvent.securityDetails()).toBe(null);
+    expect(await responseEvent.serverAddr()).toEqual({
+      ipAddress: expect.any(String),
+      port: expect.any(Number),
+    });
   });
 
   test('securityDetails', async ({ httpsServer, proxiedRequest, mockproxy }) => {
@@ -165,8 +168,8 @@ test.describe('transparent', () => {
     expect(await requestEvent.sizes()).toEqual({ // TODO: fixme
       requestBodySize: 5,
       requestHeadersSize: 218,
-      responseBodySize: 0,
-      responseHeadersSize: 131,
+      responseBodySize: 5,
+      responseHeadersSize: 141,
     });
   });
 

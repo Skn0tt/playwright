@@ -533,11 +533,13 @@ class MockingProxy {
               secureConnectionStart: tlsHandshakeAt ? (tlsHandshakeAt - startAt) : -1,
             };
 
+            const socket = proxyRes.socket;
+
             let securityDetails: SecurityDetails | undefined;
-            if (proxyRes.socket instanceof TLSSocket) {
-              const peerCertificate = proxyRes.socket.getPeerCertificate();
+            if (socket instanceof TLSSocket) {
+              const peerCertificate = socket.getPeerCertificate();
               securityDetails = {
-                protocol: proxyRes.socket.getProtocol() ?? undefined,
+                protocol: socket.getProtocol() ?? undefined,
                 subjectName: peerCertificate.subject.CN,
                 validFrom: new Date(peerCertificate.valid_from).getTime() / 1000,
                 validTo: new Date(peerCertificate.valid_to).getTime() / 1000,
@@ -545,7 +547,7 @@ class MockingProxy {
               };
             }
 
-            const address = req.socket.address() as AddressInfo;
+            const address = socket.address() as AddressInfo;
             const responseBodyPromise = new ManualPromise<Buffer>();
             const response = this._registry.response(
                 result.guid,
@@ -555,7 +557,7 @@ class MockingProxy {
                 proxyRes.httpVersion,
                 timings,
                 securityDetails,
-                { ipAddress: address.family === 'IPv6' ? `[${address.family}]` : address.family, port: address.port },
+                { ipAddress: address.family === 'IPv6' ? `[${address.address}]` : address.address, port: address.port },
             );
 
             try {
@@ -577,7 +579,7 @@ class MockingProxy {
 
               response.finished(
                   monotonicTime() - startAt,
-                  proxyRes.socket.bytesRead - socketBytesReadStart,
+                  socket.bytesRead - socketBytesReadStart,
                   body.byteLength
               );
               resolve();
