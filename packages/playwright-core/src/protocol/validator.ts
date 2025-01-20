@@ -284,6 +284,8 @@ scheme.LocalUtilsRequestFailedEvent = tObject({
 });
 scheme.LocalUtilsRequestFinishedEvent = tObject({
   request: tChannel(['Request']),
+  response?: tChannel(['Response']),
+  responseEndTiming: tNumber,
 });
 scheme.LocalUtilsZipParams = tObject({
   zipFile: tString,

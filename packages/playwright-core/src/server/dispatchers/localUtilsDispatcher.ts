@@ -286,7 +286,7 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
     if (!this._interceptionRegistry){
-      this._interceptionRegistry = new ServerInterceptionRegistry(this._object);
+      this._interceptionRegistry = new ServerInterceptionRegistry(this._object, this);
       const server = new WorkerHttpServer();
       await server.start({ port: params.port });
       new MockingProxy(this._interceptionRegistry).install(server);
@@ -301,83 +301,81 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
       route: (route, request) => {
         this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
       },
-      request: request => {
-        this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
-      },
-      requestFinished: request => {
-        this._dispatchEvent('requestFinished', { request: RequestDispatcher.from(this.parentScope() as any, request) });
-      },
-      requestFailed: request => {
-        this._dispatchEvent('requestFailed', { request: RequestDispatcher.from(this.parentScope() as any, request) });
-      },
-      response: (request, response) => {
-        this._dispatchEvent('response', {
-          request: RequestDispatcher.from(this.parentScope() as any, request),
-          response: ResponseDispatcher.from(this.parentScope() as any, response),
-        });
-      },
     };
     this._interceptionRegistry.setRequestInterceptor(interceptor);
+  }
+
+  _onRequest(request: Request) {
+    this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
+  }
+  _onRequestFinished(request: Request, responseEndTiming: number, response?: Response) {
+    this._dispatchEvent('requestFinished', {
+      request: RequestDispatcher.from(this.parentScope() as any, request),
+      response: ResponseDispatcher.fromNullable(this.parentScope() as any, response ?? null),
+      responseEndTiming
+    });
+  }
+  _onRequestFailed(request: Request) {
+    this._dispatchEvent('requestFailed', { request: RequestDispatcher.from(this.parentScope() as any, request) });
+  }
+  _onResponse(request: Request, response: Response) {
+    this._dispatchEvent('response', {
+      request: RequestDispatcher.from(this.parentScope() as any, request),
+      response: ResponseDispatcher.from(this.parentScope() as any, response),
+    });
   }
 }
 
 interface Interceptor {
   matches(url: string): boolean;
   route(route: Route, request: Request): void;
-  request(request: Request): void;
-  requestFinished(request: Request): void;
-  requestFailed(request: Request): void;
-  response(request: Request, response: Response): void;
 }
+
+type InterceptorResult =
+| { result: 'continue', guid: string, overrides?: NormalizedContinueOverrides }
+| { result: 'abort', guid: string, errorCode: string }
+| { result: 'fulfill', guid: string, response: NormalizedFulfillResponse };
 
 class ServerInterceptionRegistry extends SdkObject implements RequestContext {
   private _interceptor?: Interceptor;
-  private readonly _requests = new Map<string, { request: Request, interceptor: Interceptor }>();
+  private _eventDelegate: LocalUtilsDispatcher;
+  private readonly _requests = new Map<string, Request>();
 
-  constructor(parent: SdkObject) {
+  constructor(parent: SdkObject, eventDelegate: LocalUtilsDispatcher) {
     super(parent, 'serverInterceptionRegistry');
+    this._eventDelegate = eventDelegate;
   }
 
   setRequestInterceptor(interceptor?: Interceptor) {
     this._interceptor = interceptor;
   }
 
-  match(url: string) {
+  handle(url: string, method: string, body: Buffer | null, headers: HeadersArray): Promise<InterceptorResult> {
+    const request = new Request(this, null, null, null, undefined, url, '', method, body, headers);
+    this._eventDelegate._onRequest(request);
+
+    const guid = request.guid;
+    this._requests.set(guid, request);
+
     const interceptor = this._interceptor;
     if (!interceptor?.matches(url))
-      return;
+      return Promise.resolve({ result: 'continue', guid });
 
-    return (method: string, body: Buffer | null, headers: HeadersArray) => {
-      const promise = new ManualPromise<{ result: 'continue', guid: string, overrides: NormalizedContinueOverrides } | { result: 'abort', guid: string, errorCode: string } | { result: 'fulfill', guid: string, response: NormalizedFulfillResponse }>();
-
-      const request = new Request(this, null, null, null, undefined, url, '', method, body, headers);
-      interceptor.request(request);
-
-      const guid = request.guid;
-      this._requests.set(guid, { request, interceptor });
-
+    return new Promise(resolve => {
       const route = new Route(request, {
         async abort(errorCode) {
-          promise.resolve({ result: 'abort', guid, errorCode });
+          resolve({ result: 'abort', guid, errorCode });
         },
         async continue(overrides) {
-          promise.resolve({ result: 'continue', guid, overrides });
+          resolve({ result: 'continue', guid, overrides });
         },
         async fulfill(response) {
-          promise.resolve({ result: 'fulfill', guid, response });
+          resolve({ result: 'fulfill', guid, response });
         },
       });
 
       interceptor.route(route, request);
-      return promise;
-    };
-  }
-
-  finished(guid: string) {
-    const request = this._requests.get(guid);
-    if (!request)
-      throw new Error('Internal error: missing request for response');
-    request.interceptor.requestFinished(request.request);
+    });
   }
 
   failed(guid: string, error: string) {
@@ -385,7 +383,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     if (!request)
       throw new Error('Internal error: missing request for response');
     this._requests.delete(guid);
-    request.interceptor.requestFailed(request.request);
+    this._eventDelegate._onRequestFailed(request);
   }
 
   response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, timing: ResourceTiming, httpVersion: string) {
@@ -393,8 +391,16 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     if (!request)
       throw new Error('Internal error: missing request for response');
     this._requests.delete(guid);
-    const response = new Response(request.request, status, statusText, headers, timing, body, false, httpVersion);
-    request.interceptor.response(request.request, response);
+    const response = new Response(request, status, statusText, headers, timing, body, false, httpVersion);
+    response.setRawResponseHeaders(headers);
+    this._eventDelegate._onResponse(request, response);
+
+    return {
+      finished: (responseEndTiming: number) => {
+        response._requestFinished(responseEndTiming);
+        this._eventDelegate._onRequestFinished(request, responseEndTiming, response);
+      }
+    };
   }
 
   addRouteInFlight(route: Route): void {
@@ -465,31 +471,10 @@ class MockingProxy {
     if (req.url?.startsWith('https:/') && !req.url?.startsWith('https://'))
       req.url = req.url.replace('https:/', 'https://');
 
-
-    const handler = this._registry.match(req.url!);
-    if (!handler) {
-      const httpLib = req.url?.startsWith('https:') ? https : http;
-      const proxyReq = httpLib.request(req.url!, {
-        headers: req.headers,
-        method: req.method,
-      }, proxyRes => {
-        res.writeHead(proxyRes.statusCode!, proxyRes.headers);
-        pipeline(proxyRes, res);
-      });
-      proxyReq.on('error', error => {
-        res.statusCode = 502;
-        res.end();
-      });
-      await pipeline(req, proxyReq);
-      return;
-    }
-
     delete req.headersDistinct.host;
-
     const headers = headersArray(req);
     const body = await collectBody(req);
-
-    const result = await handler(req.method!, body, headers);
+    const result = await this._registry.handle(req.url!, req.method!, body, headers);
     switch (result.result) {
       case 'abort': {
         req.destroy(result.errorCode ? new Error(result.errorCode) : undefined);
@@ -497,11 +482,11 @@ class MockingProxy {
       }
       case 'continue': {
         const { overrides } = result;
-        const proxyUrl = url.parse(overrides.url ?? req.url!);
+        const proxyUrl = url.parse(overrides?.url ?? req.url!);
         const httpLib = proxyUrl.protocol === 'https:' ? https : http;
-        const proxyHeaders = overrides.headers ?? headers;
-        const proxyMethod = overrides.method ?? req.method;
-        const proxyBody = overrides.postData ?? body;
+        const proxyHeaders = overrides?.headers ?? headers;
+        const proxyMethod = overrides?.method ?? req.method;
+        const proxyBody = overrides?.postData ?? body;
 
         return new Promise<void>(resolve => {
           const proxyReq = httpLib.request({
@@ -511,8 +496,25 @@ class MockingProxy {
           }, async proxyRes => {
             res.writeHead(proxyRes.statusCode!, proxyRes.headers);
 
+            const chunks: Buffer[] = [];
+            const response = this._registry.response(
+                result.guid,
+                proxyRes.statusCode!,
+                proxyRes.statusMessage!, headersArray(proxyRes),
+                async () => Buffer.concat(chunks),
+                {
+                  startTime: 0,
+                  domainLookupStart: 0,
+                  domainLookupEnd: 0,
+                  connectStart: 0,
+                  secureConnectionStart: 0,
+                  connectEnd: 0,
+                  requestStart: 0,
+                  responseStart: 0,
+                },
+                proxyRes.httpVersion
+            );
             try {
-              const chunks: Buffer[] = [];
               await pipeline(
                   proxyRes,
                   new Transform({
@@ -524,23 +526,7 @@ class MockingProxy {
                   res
               );
 
-              this._registry.response(
-                  result.guid,
-                  proxyRes.statusCode!,
-                  proxyRes.statusMessage!, headersArray(proxyRes),
-                  async () => Buffer.concat(chunks),
-                  {
-                    startTime: 0,
-                    domainLookupStart: 0,
-                    domainLookupEnd: 0,
-                    connectStart: 0,
-                    secureConnectionStart: 0,
-                    connectEnd: 0,
-                    requestStart: 0,
-                    responseStart: 0,
-                  },
-                  proxyRes.httpVersion
-              );
+              response.finished(Date.now());
               resolve();
             } catch (error) {
               this._registry.failed(result.guid, error.toString());
@@ -553,9 +539,7 @@ class MockingProxy {
             res.statusCode = 502;
             res.end(resolve);
           });
-          proxyReq.end(proxyBody, () => {
-            this._registry.finished(result.guid);
-          });
+          proxyReq.end(proxyBody);
         });
       }
       case 'fulfill': {

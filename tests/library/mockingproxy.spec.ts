@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { APIRequestContext, MockingProxy } from 'packages/playwright-test';
+import type { APIRequestContext, MockingProxy, Request, Response } from 'packages/playwright-test';
 import { playwrightTest as baseTest, expect } from '../config/browserTest';
 
 const test = baseTest.extend<{ proxiedRequest: APIRequestContext }, { mockproxy: MockingProxy }>({
@@ -38,41 +38,46 @@ test.beforeEach(async ({ mockproxy }) => {
   await mockproxy.unrouteAll();
 });
 
-test.only('proxy without routes is transparent', async ({ server, proxiedRequest }) => {
-  const response = await proxiedRequest.get(server.EMPTY_PAGE);
-  await expect(response).toBeOK();
-});
-
-test.only('proxy without routes doesnt generate events', async ({ server, proxiedRequest, mockproxy }) => {
+test('proxy without routes is transparent but generates events', async ({ server, proxiedRequest, mockproxy }) => {
   const events: string[] = [];
-  mockproxy.on('request', () => events.push('request'));
-  mockproxy.on('response', () => events.push('response'));
-  mockproxy.on('requestfinished', () => events.push('requestfinished'));
-  const response = await proxiedRequest.get(server.EMPTY_PAGE);
-  await expect(response).toBeOK();
-  expect(events).toEqual([]);
-});
-
-test('proxy generates events', async ({ server, proxiedRequest, mockproxy }) => {
-  const events: string[] = [];
-  const requests = [];
-  const responses = [];
-  const requestFinished = [];
-  mockproxy.on('request', request => {
+  mockproxy.on('request', () => {
     events.push('request');
-    requests.push(request);
   });
-  mockproxy.on('response', response => {
+  mockproxy.on('response', () => {
     events.push('response');
-    responses.push(response);
   });
-  mockproxy.on('requestfinished', request => {
+  mockproxy.on('requestfinished', () => {
     events.push('requestfinished');
-    requestFinished.push(request);
   });
 
   const response = await proxiedRequest.get(server.EMPTY_PAGE);
   await expect(response).toBeOK();
-
   expect(events).toEqual(['request', 'response', 'requestfinished']);
+});
+
+test('event properties', async ({ server, proxiedRequest, mockproxy }) => {
+  const [
+    requestFinished,
+    request,
+    responseEvent,
+    response
+  ] = await Promise.all([
+    mockproxy.waitForEvent('requestfinished'),
+    mockproxy.waitForRequest('**/*'),
+    mockproxy.waitForResponse('**/*'),
+    proxiedRequest.get(server.EMPTY_PAGE),
+  ]);
+
+  await expect(response).toBeOK();
+  expect(request).toBe(requestFinished);
+  expect(responseEvent.request()).toBe(request);
+
+  expect(request.url()).toBe(server.EMPTY_PAGE);
+  expect(responseEvent.url()).toBe(server.EMPTY_PAGE);
+
+  expect(responseEvent.status()).toBe(response.status());
+  expect(await responseEvent.headersArray()).toEqual(response.headersArray());
+  expect(await responseEvent.body()).toEqual(await response.body());
+
+  expect(await responseEvent.finished()).toBe(null);
 });

@@ -485,6 +485,8 @@ export type LocalUtilsRequestFailedEvent = {
 };
 export type LocalUtilsRequestFinishedEvent = {
   request: RequestChannel,
+  response?: ResponseChannel,
+  responseEndTiming: number,
 };
 export type LocalUtilsZipParams = {
   zipFile: string,

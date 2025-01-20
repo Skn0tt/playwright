@@ -700,6 +700,8 @@ LocalUtils:
     requestFinished:
       parameters:
         request: Request
+        response?: Response
+        responseEndTiming: number
 
 Root:
   type: interface
