@@ -57,7 +57,8 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     callStacks: channels.ClientSideCallMetadata[]
   }>();
   _requestContext: APIRequestContext;
-  private _interceptionRegistry?: ServerInterceptionRegistry;
+  private _interceptionRegistry;
+  private _server?: WorkerHttpServer;
 
   constructor(scope: RootDispatcher, playwright: Playwright) {
     const localUtils = new SdkObject(playwright, 'localUtils', 'localUtils');
@@ -72,6 +73,35 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     this._requestContext = requestContext;
     this._type_LocalUtils = true;
     this._type_EventTarget = true;
+
+    this._interceptionRegistry = new ServerInterceptionRegistry(this._object, this._requestContext, {
+      onRequest: request => {
+        this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
+      },
+      onRequestFinished: (request, response) => {
+        this._dispatchEvent('requestFinished', {
+          request: RequestDispatcher.from(this.parentScope() as any, request),
+          response: ResponseDispatcher.fromNullable(this.parentScope() as any, response ?? null),
+          responseEndTiming: request._responseEndTiming,
+        });
+      },
+      onRequestFailed: request => {
+        this._dispatchEvent('requestFailed', {
+          request: RequestDispatcher.from(this.parentScope() as any, request),
+          responseEndTiming: request._responseEndTiming,
+          failureText: request._failureText ?? undefined
+        });
+      },
+      onResponse: (request, response) => {
+        this._dispatchEvent('response', {
+          request: RequestDispatcher.from(this.parentScope() as any, request),
+          response: ResponseDispatcher.from(this.parentScope() as any, response),
+        });
+      },
+      onRoute: (route, request) => {
+        this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
+      },
+    });
   }
 
   async zip(params: channels.LocalUtilsZipParams): Promise<void> {
@@ -287,38 +317,10 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
   }
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
-    if (!this._interceptionRegistry){
-      this._interceptionRegistry = new ServerInterceptionRegistry(this._object, this._requestContext, {
-        onRequest: request => {
-          this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
-        },
-        onRequestFinished: (request, response) => {
-          this._dispatchEvent('requestFinished', {
-            request: RequestDispatcher.from(this.parentScope() as any, request),
-            response: ResponseDispatcher.fromNullable(this.parentScope() as any, response ?? null),
-            responseEndTiming: request._responseEndTiming,
-          });
-        },
-        onRequestFailed: request => {
-          this._dispatchEvent('requestFailed', {
-            request: RequestDispatcher.from(this.parentScope() as any, request),
-            responseEndTiming: request._responseEndTiming,
-            failureText: request._failureText ?? undefined
-          });
-        },
-        onResponse: (request, response) => {
-          this._dispatchEvent('response', {
-            request: RequestDispatcher.from(this.parentScope() as any, request),
-            response: ResponseDispatcher.from(this.parentScope() as any, response),
-          });
-        },
-        onRoute: (route, request) => {
-          this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
-        },
-      });
-      const server = new WorkerHttpServer();
-      await server.start({ port: params.port });
-      new MockingProxy(this._interceptionRegistry).install(server);
+    if (!this._server) {
+      this._server = new WorkerHttpServer();
+      new MockingProxy(this._interceptionRegistry).install(this._server);
+      await this._server.start({ port: params.port });
     }
 
     if (params.patterns.length === 0)
