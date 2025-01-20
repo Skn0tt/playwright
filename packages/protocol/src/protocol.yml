@@ -697,10 +697,12 @@ LocalUtils:
     requestFailed:
       parameters:
         request: Request
+        failureText: string?
+        responseEndTiming: number
     requestFinished:
       parameters:
         request: Request
-        response?: Response
+        response: Response?
         responseEndTiming: number
 
 Root:

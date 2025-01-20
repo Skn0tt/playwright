@@ -281,10 +281,12 @@ scheme.LocalUtilsResponseEvent = tObject({
 });
 scheme.LocalUtilsRequestFailedEvent = tObject({
   request: tChannel(['Request']),
+  failureText: tOptional(tString),
+  responseEndTiming: tNumber,
 });
 scheme.LocalUtilsRequestFinishedEvent = tObject({
   request: tChannel(['Request']),
-  response?: tChannel(['Response']),
+  response: tOptional(tChannel(['Response'])),
   responseEndTiming: tNumber,
 });
 scheme.LocalUtilsZipParams = tObject({

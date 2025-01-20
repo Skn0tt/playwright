@@ -308,15 +308,19 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
   _onRequest(request: Request) {
     this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
   }
-  _onRequestFinished(request: Request, responseEndTiming: number, response?: Response) {
+  _onRequestFinished(request: Request, response?: Response) {
     this._dispatchEvent('requestFinished', {
       request: RequestDispatcher.from(this.parentScope() as any, request),
       response: ResponseDispatcher.fromNullable(this.parentScope() as any, response ?? null),
-      responseEndTiming
+      responseEndTiming: request._responseEndTiming,
     });
   }
   _onRequestFailed(request: Request) {
-    this._dispatchEvent('requestFailed', { request: RequestDispatcher.from(this.parentScope() as any, request) });
+    this._dispatchEvent('requestFailed', {
+      request: RequestDispatcher.from(this.parentScope() as any, request),
+      responseEndTiming: request._responseEndTiming,
+      failureText: request._failureText ?? undefined
+    });
   }
   _onResponse(request: Request, response: Response) {
     this._dispatchEvent('response', {
@@ -379,11 +383,13 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     });
   }
 
-  failed(guid: string, error: string) {
+  failed(guid: string, error: string, responseEndTiming: number) {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
     this._requests.delete(guid);
+    request._setFailureText(error);
+    request._responseEndTiming = responseEndTiming;
     this._eventDelegate._onRequestFailed(request);
   }
 
@@ -404,7 +410,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
         response._requestFinished(responseEndTiming);
         response.setEncodedBodySize(null); // TODO: fixme. can we compute this?
         response.setTransferSize(null); // TODO: fixme. can we compute this?
-        this._eventDelegate._onRequestFinished(request, responseEndTiming, response);
+        this._eventDelegate._onRequestFinished(request, response);
       }
     };
   }
@@ -535,13 +541,13 @@ class MockingProxy {
               response.finished(Date.now());
               resolve();
             } catch (error) {
-              this._registry.failed(result.guid, error.toString());
+              this._registry.failed(result.guid, error.toString(), -1); // TODO: fix response end timing
               resolve();
             }
           });
 
           proxyReq.on('error', error => {
-            this._registry.failed(result.guid, error.toString());
+            this._registry.failed(result.guid, error.toString(), -1); // TODO: fix response end timing
             res.statusCode = 502;
             res.end(resolve);
           });

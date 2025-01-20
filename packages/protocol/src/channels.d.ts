@@ -482,6 +482,8 @@ export type LocalUtilsResponseEvent = {
 };
 export type LocalUtilsRequestFailedEvent = {
   request: RequestChannel,
+  failureText?: string,
+  responseEndTiming: number,
 };
 export type LocalUtilsRequestFinishedEvent = {
   request: RequestChannel,

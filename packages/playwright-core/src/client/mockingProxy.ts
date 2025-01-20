@@ -45,8 +45,12 @@ export class MockingProxy extends EventEmitter implements api.MockingProxy {
   private routeListener = ({ route }: channels.LocalUtilsRouteEvent) => {
     this._onRoute(network.Route.from(route));
   };
-  private failedListener = ({ request }: channels.LocalUtilsRequestFailedEvent) => {
-    this.emit('requestfailed', network.Request.from(request));
+  private failedListener = (params: channels.LocalUtilsRequestFailedEvent) => {
+    const request = network.Request.from(params.request);
+    if (params.failureText)
+      request._failureText = params.failureText;
+    request._setResponseEndTiming(params.responseEndTiming);
+    this.emit('requestfailed', request);
   };
   private finishedListener = (params: channels.LocalUtilsRequestFinishedEvent) => {
     const { responseEndTiming } = params;

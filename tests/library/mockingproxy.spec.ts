@@ -147,39 +147,26 @@ test.fixme('request with body', async ({ server, proxiedRequest, mockproxy }) =>
   expect(() => responseEvent.frame()).toThrowError('Assertion error');
 
   expect(request.failure()).toBe(null);
-
 });
 
-test.fixme('request failed', async ({ server, proxiedRequest, mockproxy }) => {
+test.only('request failed', async ({ server, proxiedRequest, mockproxy }) => {
+  server.setRoute('/failure', (req, res) => {
+    res.socket.destroy();
+  });
   const [
-    requestFinished,
     request,
-    responseEvent,
-    response
+    requestFailed,
+    response,
   ] = await Promise.all([
-    mockproxy.waitForEvent('requestfinished'),
     mockproxy.waitForRequest('**/*'),
-    mockproxy.waitForResponse('**/*'),
-    proxiedRequest.get(server.EMPTY_PAGE),
+    mockproxy.waitForEvent('requestfailed'),
+    proxiedRequest.get(server.PREFIX + '/failure'),
   ]);
 
-  await expect(response).toBeOK();
-  expect(request).toBe(requestFinished);
-  expect(responseEvent.request()).toBe(request);
-
-  expect(request.url()).toBe(server.EMPTY_PAGE);
-  expect(responseEvent.url()).toBe(server.EMPTY_PAGE);
-
-  expect(responseEvent.status()).toBe(response.status());
-  expect(await responseEvent.headersArray()).toEqual(response.headersArray());
-  expect(await responseEvent.body()).toEqual(await response.body());
-
-  expect(await responseEvent.finished()).toBe(null);
-
-  expect(request.serviceWorker()).toBe(null);
-  expect(() => request.frame()).toThrowError('Assertion error'); // TODO: improve error message
-  expect(() => responseEvent.frame()).toThrowError('Assertion error');
-
-  expect(request.failure()).toBe(null);
-
+  expect(response.status()).toEqual(502); // TODO: should the proxy also close the socket instead?
+  expect(request).toBe(requestFailed);
+  expect(request.failure()).toEqual({
+    errorText: 'Error: socket hang up',
+  });
+  expect(await request.response()).toBe(null);
 });
