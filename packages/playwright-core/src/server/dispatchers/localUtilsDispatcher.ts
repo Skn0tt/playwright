@@ -318,7 +318,10 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
             request: RequestDispatcher.from(this.parentScope() as any, request),
             response: ResponseDispatcher.from(this.parentScope() as any, response),
           });
-        }
+        },
+        onRoute: (route, request) => {
+          this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
+        },
       });
       const server = new WorkerHttpServer();
       await server.start({ port: params.port });
@@ -326,23 +329,13 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     }
 
     if (params.patterns.length === 0)
-      return this._interceptionRegistry.setRequestInterceptor();
+      return this._interceptionRegistry.setRequestInterceptor(undefined);
 
     const urlMatchers = params.patterns.map(pattern => pattern.regexSource ? new RegExp(pattern.regexSource, pattern.regexFlags!) : pattern.glob!);
-    const interceptor: Interceptor = {
-      matches: url => urlMatchers.some(urlMatch => urlMatches(undefined, url, urlMatch)),
-      route: (route, request) => {
-        this._dispatchEvent('route', { route: RouteDispatcher.from(RequestDispatcher.from(this.parentScope() as any, request), route) });
-      },
-    };
-    this._interceptionRegistry.setRequestInterceptor(interceptor);
+    this._interceptionRegistry.setRequestInterceptor(url => urlMatchers.some(urlMatch => urlMatches(undefined, url, urlMatch)));
   }
 }
 
-interface Interceptor {
-  matches(url: string): boolean;
-  route(route: Route, request: Request): void;
-}
 
 type InterceptorResult =
 | { result: 'continue', guid: string, overrides?: NormalizedContinueOverrides }
@@ -354,13 +347,14 @@ interface EventDelegate {
   onRequestFinished(request: Request, response: Response): void;
   onRequestFailed(request: Request): void;
   onResponse(request: Request, response: Response): void;
+  onRoute(route: Route, request: Request): void;
 }
 
 class ServerInterceptionRegistry extends SdkObject implements RequestContext {
-  private _interceptor?: Interceptor;
   private _eventDelegate: EventDelegate;
   private readonly _requests = new Map<string, Request>(); // TODO: dont memory leak requests
   fetchRequest: APIRequestContext;
+  private _matches?: (url: string) => boolean;
 
   constructor(parent: SdkObject, requestContext: APIRequestContext, eventDelegate: EventDelegate) {
     super(parent, 'serverInterceptionRegistry');
@@ -368,8 +362,8 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     this.fetchRequest = requestContext;
   }
 
-  setRequestInterceptor(interceptor?: Interceptor) {
-    this._interceptor = interceptor;
+  setRequestInterceptor(matches?: (url: string) => boolean) {
+    this._matches = matches;
   }
 
   handle(url: string, method: string, body: Buffer | null, headers: HeadersArray): Promise<InterceptorResult> {
@@ -380,8 +374,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     const guid = request.guid;
     this._requests.set(guid, request);
 
-    const interceptor = this._interceptor;
-    if (!interceptor?.matches(url))
+    if (!this._matches?.(url))
       return Promise.resolve({ result: 'continue', guid });
 
     return new Promise(resolve => {
@@ -397,7 +390,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
         },
       });
 
-      interceptor.route(route, request);
+      this._eventDelegate.onRoute(route, request);
     });
   }
 
