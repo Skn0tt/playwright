@@ -1816,7 +1816,6 @@ export type BrowserContextPauseResult = void;
 export type BrowserContextEnableRecorderParams = {
   language?: string,
   mode?: 'inspecting' | 'recording',
-  codegenMode?: 'actions' | 'trace-events',
   pauseOnNextStatement?: boolean,
   testIdAttributeName?: string,
   launchOptions?: any,
@@ -1830,7 +1829,6 @@ export type BrowserContextEnableRecorderParams = {
 export type BrowserContextEnableRecorderOptions = {
   language?: string,
   mode?: 'inspecting' | 'recording',
-  codegenMode?: 'actions' | 'trace-events',
   pauseOnNextStatement?: boolean,
   testIdAttributeName?: string,
   launchOptions?: any,
