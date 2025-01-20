@@ -20,7 +20,7 @@ import path from 'path';
 import os from 'os';
 import type * as channels from '@protocol/channels';
 import { ManualPromise } from '../../utils/manualPromise';
-import { assert, calculateSha1, createGuid, eventsHelper, HttpServer, monotonicTime, removeFolders, urlMatches } from '../../utils';
+import { assert, calculateSha1, createGuid, HttpServer, monotonicTime, removeFolders, urlMatches } from '../../utils';
 import type { RootDispatcher } from './dispatcher';
 import { Dispatcher } from './dispatcher';
 import { yazl, yauzl } from '../../zipBundle';
@@ -295,7 +295,31 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
 
   async setServerNetworkInterceptionPatterns(params: channels.LocalUtilsSetServerNetworkInterceptionPatternsParams, metadata?: CallMetadata): Promise<channels.LocalUtilsSetServerNetworkInterceptionPatternsResult> {
     if (!this._interceptionRegistry){
-      this._interceptionRegistry = new ServerInterceptionRegistry(this._object, this);
+      this._interceptionRegistry = new ServerInterceptionRegistry(this._object, this._requestContext, {
+        onRequest: request => {
+          this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
+        },
+        onRequestFinished: (request, response) => {
+          this._dispatchEvent('requestFinished', {
+            request: RequestDispatcher.from(this.parentScope() as any, request),
+            response: ResponseDispatcher.fromNullable(this.parentScope() as any, response ?? null),
+            responseEndTiming: request._responseEndTiming,
+          });
+        },
+        onRequestFailed: request => {
+          this._dispatchEvent('requestFailed', {
+            request: RequestDispatcher.from(this.parentScope() as any, request),
+            responseEndTiming: request._responseEndTiming,
+            failureText: request._failureText ?? undefined
+          });
+        },
+        onResponse: (request, response) => {
+          this._dispatchEvent('response', {
+            request: RequestDispatcher.from(this.parentScope() as any, request),
+            response: ResponseDispatcher.from(this.parentScope() as any, response),
+          });
+        }
+      });
       const server = new WorkerHttpServer();
       await server.start({ port: params.port });
       new MockingProxy(this._interceptionRegistry).install(server);
@@ -313,30 +337,6 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     };
     this._interceptionRegistry.setRequestInterceptor(interceptor);
   }
-
-  _onRequest(request: Request) {
-    this._dispatchEvent('request', { request: RequestDispatcher.from(this.parentScope() as any, request) });
-  }
-  _onRequestFinished(request: Request, response?: Response) {
-    this._dispatchEvent('requestFinished', {
-      request: RequestDispatcher.from(this.parentScope() as any, request),
-      response: ResponseDispatcher.fromNullable(this.parentScope() as any, response ?? null),
-      responseEndTiming: request._responseEndTiming,
-    });
-  }
-  _onRequestFailed(request: Request) {
-    this._dispatchEvent('requestFailed', {
-      request: RequestDispatcher.from(this.parentScope() as any, request),
-      responseEndTiming: request._responseEndTiming,
-      failureText: request._failureText ?? undefined
-    });
-  }
-  _onResponse(request: Request, response: Response) {
-    this._dispatchEvent('response', {
-      request: RequestDispatcher.from(this.parentScope() as any, request),
-      response: ResponseDispatcher.from(this.parentScope() as any, response),
-    });
-  }
 }
 
 interface Interceptor {
@@ -349,16 +349,23 @@ type InterceptorResult =
 | { result: 'abort', guid: string, errorCode: string }
 | { result: 'fulfill', guid: string, response: NormalizedFulfillResponse };
 
+interface EventDelegate {
+  onRequest(request: Request): void;
+  onRequestFinished(request: Request, response: Response): void;
+  onRequestFailed(request: Request): void;
+  onResponse(request: Request, response: Response): void;
+}
+
 class ServerInterceptionRegistry extends SdkObject implements RequestContext {
   private _interceptor?: Interceptor;
-  private _eventDelegate: LocalUtilsDispatcher;
+  private _eventDelegate: EventDelegate;
   private readonly _requests = new Map<string, Request>(); // TODO: dont memory leak requests
   fetchRequest: APIRequestContext;
 
-  constructor(parent: SdkObject, eventDelegate: LocalUtilsDispatcher) {
+  constructor(parent: SdkObject, requestContext: APIRequestContext, eventDelegate: EventDelegate) {
     super(parent, 'serverInterceptionRegistry');
     this._eventDelegate = eventDelegate;
-    this.fetchRequest = eventDelegate._requestContext;
+    this.fetchRequest = requestContext;
   }
 
   setRequestInterceptor(interceptor?: Interceptor) {
@@ -368,7 +375,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
   handle(url: string, method: string, body: Buffer | null, headers: HeadersArray): Promise<InterceptorResult> {
     const request = new Request(this, null, null, null, undefined, url, '', method, body, headers);
     request.setRawRequestHeaders(headers);
-    this._eventDelegate._onRequest(request);
+    this._eventDelegate.onRequest(request);
 
     const guid = request.guid;
     this._requests.set(guid, request);
@@ -399,7 +406,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     if (!request)
       throw new Error('Internal error: missing request for response');
     request._setFailureText(error);
-    this._eventDelegate._onRequestFailed(request);
+    this._eventDelegate.onRequestFailed(request);
   }
 
   response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, httpVersion: string, timing: ResourceTiming, securityDetails: SecurityDetails | undefined, serverAddr: RemoteAddr | undefined) {
@@ -410,7 +417,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     response.setRawResponseHeaders(headers);
     response._securityDetailsFinished(securityDetails);
     response._serverAddrFinished(serverAddr);
-    this._eventDelegate._onResponse(request, response);
+    this._eventDelegate.onResponse(request, response);
 
     return {
       finished: async (responseEndTiming: number, transferSize: number, encodedBodySize: number) => {
@@ -418,7 +425,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
         response.setTransferSize(transferSize);
         response.setEncodedBodySize(encodedBodySize);
         response.setResponseHeadersSize(transferSize - encodedBodySize);
-        this._eventDelegate._onRequestFinished(request, response);
+        this._eventDelegate.onRequestFinished(request, response);
       }
     };
   }
