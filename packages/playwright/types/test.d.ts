@@ -6940,7 +6940,8 @@ export interface PlaywrightTestArgs {
    */
   request: APIRequestContext;
   /**
-   * Lorem ipsum
+   * Instance of [MockingProxy](https://playwright.dev/docs/api/class-mockingproxy) that can be used to intercept
+   * network requests from your application server.
    */
   server: MockingProxy;
 }

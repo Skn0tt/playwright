@@ -117,4 +117,4 @@ test('basic test', async ({ request }) => {
 * since: v1.51
 - type: <[MockingProxy]>
 
-Lorem ipsum
+Instance of [MockingProxy] that can be used to intercept network requests from your application server.
