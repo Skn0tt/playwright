@@ -413,10 +413,10 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     this._eventDelegate._onResponse(request, response);
 
     return {
-      finished: (responseEndTiming: number) => {
+      finished: async (responseEndTiming: number, transferSize: number, encodedBodySize: number) => {
         response._requestFinished(responseEndTiming);
-        response.setEncodedBodySize(null); // TODO: fixme. can we compute this?
-        response.setTransferSize(null); // TODO: fixme. can we compute this?
+        response.setTransferSize(transferSize);
+        response.setEncodedBodySize(encodedBodySize);
         this._eventDelegate._onRequestFinished(request, response);
       }
     };
@@ -512,6 +512,7 @@ class MockingProxy {
         let connectStart: number | undefined;
         let dnsLookupAt: number | undefined;
         let tlsHandshakeAt: number | undefined;
+        let socketBytesReadStart = 0;
 
         return new Promise<void>(resolve => {
           const proxyReq = httpLib.request({
@@ -542,12 +543,12 @@ class MockingProxy {
                 issuer: peerCertificate.issuer.CN
               };
             }
-            const chunks: Buffer[] = [];
+            const responseBodyPromise = new ManualPromise<Buffer>();
             const response = this._registry.response(
                 result.guid,
                 proxyRes.statusCode!,
                 proxyRes.statusMessage!, headersArray(proxyRes),
-                async () => Buffer.concat(chunks),
+                () => responseBodyPromise,
                 timings,
                 securityDetails,
                 proxyRes.httpVersion
@@ -555,6 +556,8 @@ class MockingProxy {
 
             try {
               res.writeHead(proxyRes.statusCode!, proxyRes.headers);
+
+              const chunks: Buffer[] = [];
               await pipeline(
                   proxyRes,
                   new Transform({
@@ -565,8 +568,14 @@ class MockingProxy {
                   }),
                   res
               );
+              const body = Buffer.concat(chunks);
+              responseBodyPromise.resolve(body);
 
-              response.finished(monotonicTime() - startAt);
+              response.finished(
+                  monotonicTime() - startAt,
+                  proxyRes.socket.bytesRead - socketBytesReadStart,
+                  body.byteLength
+              );
               resolve();
             } catch (error) {
               this._registry.failed(result.guid, error.toString());
@@ -582,6 +591,8 @@ class MockingProxy {
           proxyReq.once('socket', socket => {
             if (proxyReq.reusedSocket)
               return;
+
+            socketBytesReadStart = socket.bytesRead;
 
             socket.once('lookup', () => { dnsLookupAt = monotonicTime(); });
             socket.once('connectionAttempt', () => { connectStart = monotonicTime(); });
