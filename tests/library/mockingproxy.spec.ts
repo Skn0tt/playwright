@@ -71,6 +71,7 @@ test('event properties', async ({ server, proxiedRequest, mockproxy }) => {
   await expect(response).toBeOK();
   expect(request).toBe(requestFinished);
   expect(responseEvent.request()).toBe(request);
+  expect(await request.response()).toBe(responseEvent);
 
   expect(request.url()).toBe(server.EMPTY_PAGE);
   expect(responseEvent.url()).toBe(server.EMPTY_PAGE);
@@ -80,4 +81,105 @@ test('event properties', async ({ server, proxiedRequest, mockproxy }) => {
   expect(await responseEvent.body()).toEqual(await response.body());
 
   expect(await responseEvent.finished()).toBe(null);
+
+  expect(request.serviceWorker()).toBe(null);
+  expect(() => request.frame()).toThrowError('Assertion error'); // TODO: improve error message
+  expect(() => responseEvent.frame()).toThrowError('Assertion error');
+
+  expect(request.failure()).toBe(null);
+  expect(request.isNavigationRequest()).toBe(false);
+  expect(request.redirectedFrom()).toBe(null);
+  expect(request.redirectedTo()).toBe(null);
+  expect(request.resourceType()).toBe(''); // TODO: should this be different?
+  expect(request.method()).toBe('GET');
+
+  expect(await request.sizes()).toEqual({
+    requestBodySize: 0,
+    requestHeadersSize: 164,
+    responseBodySize: 0,
+    responseHeadersSize: 197,
+  });
+
+  expect(request.timing()).toEqual({
+    'connectEnd': 0,
+    'connectStart': 0,
+    'domainLookupEnd': 0,
+    'domainLookupStart': 0,
+    'requestStart': 0,
+    'responseEnd': expect.any(Number),
+    'responseStart': 0,
+    'secureConnectionStart': 0,
+    'startTime': 0,
+  });
+
+  expect(await responseEvent.securityDetails()).toBe(null); // TODO: fixme
+  expect(await responseEvent.serverAddr()).toBe(null); // TODO: Fixme
+});
+
+test.fixme('request with body', async ({ server, proxiedRequest, mockproxy }) => {
+  const [
+    requestFinished,
+    request,
+    responseEvent,
+    response
+  ] = await Promise.all([
+    mockproxy.waitForEvent('requestfinished'),
+    mockproxy.waitForRequest('**/*'),
+    mockproxy.waitForResponse('**/*'),
+    proxiedRequest.get(server.EMPTY_PAGE),
+  ]);
+
+  await expect(response).toBeOK();
+  expect(request).toBe(requestFinished);
+  expect(responseEvent.request()).toBe(request);
+
+  expect(request.url()).toBe(server.EMPTY_PAGE);
+  expect(responseEvent.url()).toBe(server.EMPTY_PAGE);
+
+  expect(responseEvent.status()).toBe(response.status());
+  expect(await responseEvent.headersArray()).toEqual(response.headersArray());
+  expect(await responseEvent.body()).toEqual(await response.body());
+
+  expect(await responseEvent.finished()).toBe(null);
+
+  expect(request.serviceWorker()).toBe(null);
+  expect(() => request.frame()).toThrowError('Assertion error'); // TODO: improve error message
+  expect(() => responseEvent.frame()).toThrowError('Assertion error');
+
+  expect(request.failure()).toBe(null);
+
+});
+
+test.fixme('request failed', async ({ server, proxiedRequest, mockproxy }) => {
+  const [
+    requestFinished,
+    request,
+    responseEvent,
+    response
+  ] = await Promise.all([
+    mockproxy.waitForEvent('requestfinished'),
+    mockproxy.waitForRequest('**/*'),
+    mockproxy.waitForResponse('**/*'),
+    proxiedRequest.get(server.EMPTY_PAGE),
+  ]);
+
+  await expect(response).toBeOK();
+  expect(request).toBe(requestFinished);
+  expect(responseEvent.request()).toBe(request);
+
+  expect(request.url()).toBe(server.EMPTY_PAGE);
+  expect(responseEvent.url()).toBe(server.EMPTY_PAGE);
+
+  expect(responseEvent.status()).toBe(response.status());
+  expect(await responseEvent.headersArray()).toEqual(response.headersArray());
+  expect(await responseEvent.body()).toEqual(await response.body());
+
+  expect(await responseEvent.finished()).toBe(null);
+
+  expect(request.serviceWorker()).toBe(null);
+  expect(() => request.frame()).toThrowError('Assertion error'); // TODO: improve error message
+  expect(() => responseEvent.frame()).toThrowError('Assertion error');
+
+  expect(request.failure()).toBe(null);
+
 });

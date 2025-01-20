@@ -352,6 +352,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
 
   handle(url: string, method: string, body: Buffer | null, headers: HeadersArray): Promise<InterceptorResult> {
     const request = new Request(this, null, null, null, undefined, url, '', method, body, headers);
+    request.setRawRequestHeaders(headers);
     this._eventDelegate._onRequest(request);
 
     const guid = request.guid;
@@ -393,11 +394,16 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     this._requests.delete(guid);
     const response = new Response(request, status, statusText, headers, timing, body, false, httpVersion);
     response.setRawResponseHeaders(headers);
+    response.setResponseHeadersSize(null); // TODO: fixme. can we compute this?
+    response._securityDetailsFinished(undefined); // TODO: Fixme
+    response._serverAddrFinished(undefined); // TODO: Fixme
     this._eventDelegate._onResponse(request, response);
 
     return {
       finished: (responseEndTiming: number) => {
         response._requestFinished(responseEndTiming);
+        response.setEncodedBodySize(null); // TODO: fixme. can we compute this?
+        response.setTransferSize(null); // TODO: fixme. can we compute this?
         this._eventDelegate._onRequestFinished(request, responseEndTiming, response);
       }
     };
