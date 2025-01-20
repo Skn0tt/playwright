@@ -557,7 +557,7 @@ For more details, see [WebSocketRoute].
 
 ## Mock Application Server
 
-If you want to intercept network traffic originating from the server, you can use [Server] to spin up a HTTP proxy server that can intercept and mock network traffic.
+If you want to intercept network traffic originating from the server, you can use [MockingProxy] to spin up a HTTP proxy server that can intercept and mock network traffic.
 
 ```js
 test('calls the cms to fetch frontpage posts', async ({ page, server }) => {
