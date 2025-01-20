@@ -42,7 +42,7 @@ import type { Playwright } from '../playwright';
 import { SdkObject } from '../../server/instrumentation';
 import { serializeClientSideCallMetadata } from '../../utils';
 import { deviceDescriptors as descriptors }  from '../deviceDescriptors';
-import type { RequestContext, ResourceTiming, SecurityDetails } from '../network';
+import type { RemoteAddr, RequestContext, ResourceTiming, SecurityDetails } from '../network';
 import { Request, Response, Route } from '../network';
 import { APIRequestContextDispatcher, RequestDispatcher, ResponseDispatcher, RouteDispatcher } from './networkDispatchers';
 import url from 'url';
@@ -51,6 +51,7 @@ import { Transform } from 'stream';
 import type { APIRequestContext } from '../fetch';
 import { GlobalAPIRequestContext } from '../fetch';
 import { TLSSocket } from 'tls';
+import type { AddressInfo } from 'net';
 
 export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUtilsChannel, RootDispatcher> implements channels.LocalUtilsChannel {
   _type_LocalUtils: boolean;
@@ -401,15 +402,14 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     this._eventDelegate._onRequestFailed(request);
   }
 
-  response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, timing: ResourceTiming, securityDetails: SecurityDetails | undefined, httpVersion: string) {
+  response(guid: string, status: number, statusText: string, headers: HeadersArray, body: () => Promise<Buffer>, httpVersion: string, timing: ResourceTiming, securityDetails: SecurityDetails | undefined, serverAddr: RemoteAddr | undefined) {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
     const response = new Response(request, status, statusText, headers, timing, body, false, httpVersion);
     response.setRawResponseHeaders(headers);
-    response.setResponseHeadersSize(null); // TODO: fixme. can we compute this?
     response._securityDetailsFinished(securityDetails);
-    response._serverAddrFinished(undefined); // TODO: Fixme
+    response._serverAddrFinished(serverAddr);
     this._eventDelegate._onResponse(request, response);
 
     return {
@@ -417,6 +417,7 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
         response._requestFinished(responseEndTiming);
         response.setTransferSize(transferSize);
         response.setEncodedBodySize(encodedBodySize);
+        response.setResponseHeadersSize(transferSize - encodedBodySize);
         this._eventDelegate._onRequestFinished(request, response);
       }
     };
@@ -543,15 +544,18 @@ class MockingProxy {
                 issuer: peerCertificate.issuer.CN
               };
             }
+
+            const address = req.socket.address() as AddressInfo;
             const responseBodyPromise = new ManualPromise<Buffer>();
             const response = this._registry.response(
                 result.guid,
                 proxyRes.statusCode!,
                 proxyRes.statusMessage!, headersArray(proxyRes),
                 () => responseBodyPromise,
+                proxyRes.httpVersion,
                 timings,
                 securityDetails,
-                proxyRes.httpVersion
+                { ipAddress: address.family === 'IPv6' ? `[${address.family}]` : address.family, port: address.port },
             );
 
             try {
