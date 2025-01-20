@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import type { APIRequestContext, MockingProxy } from 'packages/playwright-test';
+import type { APIRequestContext, MockingProxy, Route } from 'packages/playwright-test';
 import { playwrightTest as baseTest, expect } from '../config/browserTest';
 import { pipeline } from 'stream/promises';
 
@@ -163,4 +163,63 @@ test.describe('transparent', () => {
     });
     expect(await request.response()).toBe(null);
   });
+});
+
+test('stalling', async ({ server, proxiedRequest, mockproxy }) => {
+  const routes: Route[] = [];
+  await mockproxy.route('**/abort', route => routes.push(route));
+  await expect(() => proxiedRequest.get(server.PREFIX + '/abort', { timeout: 100 })).rejects.toThrowError('Request timed out after 100ms');
+  expect(routes.length).toBe(1);
+});
+
+test('route properties', async ({ server, proxiedRequest, mockproxy }) => {
+  const routes: Route[] = [];
+  await mockproxy.route('**/*', (route, request) => {
+    expect(route.request()).toBe(request);
+    routes.push(route);
+    return route.continue();
+  });
+  await expect(await proxiedRequest.get(server.EMPTY_PAGE)).toBeOK();
+  expect(routes.length).toBe(1);
+});
+
+test('aborting', async ({ server, proxiedRequest, mockproxy }) => {
+  await mockproxy.route('**/abort', route => route.abort());
+  await expect(() => proxiedRequest.get(server.PREFIX + '/abort', { timeout: 100 })).rejects.toThrowError('Request timed out after 100ms');
+});
+
+test('fulfill', async ({ server, proxiedRequest, mockproxy }) => {
+  let apiCalls = 0;
+  server.setRoute('/endpoint', (req, res) => {
+    apiCalls++;
+  });
+  await mockproxy.route('**/endpoint', route => route.fulfill({ body: 'Hello', contentType: 'foo/bar', headers: { 'x-test': 'foo' }, status: 202 }));
+  const response = await proxiedRequest.get(server.PREFIX + '/endpoint');
+  expect(response.status()).toBe(202);
+  expect(await response.text()).toBe('Hello');
+  expect(response.headers()['content-type']).toBe('foo/bar');
+  expect(response.headers()['x-test']).toBe('foo');
+  expect(apiCalls).toBe(0);
+});
+
+test('continue', async ({ server, proxiedRequest, mockproxy }) => {
+  server.setRoute('/echo', (req, res) => {
+    res.setHeader('request-method', req.method);
+    res.writeHead(200, req.headers);
+    return pipeline(req, res);
+  });
+  await mockproxy.route('**/endpoint', (route, request) =>
+    route.continue({
+      headers: { 'x-override': 'bar', 'x-add': 'baz' },
+      method: 'PUT',
+      postData: 'world',
+      url: new URL('./echo', request.url()).toString(),
+    })
+  );
+  const response = await proxiedRequest.get(server.PREFIX + '/endpoint', { headers: { 'x-override': 'foo' } });
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toBe('world');
+  expect(response.headers()['request-method']).toBe('PUT');
+  expect(response.headers()['x-override']).toBe('bar');
+  expect(response.headers()['x-add']).toBe('baz');
 });

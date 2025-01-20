@@ -343,7 +343,7 @@ type InterceptorResult =
 class ServerInterceptionRegistry extends SdkObject implements RequestContext {
   private _interceptor?: Interceptor;
   private _eventDelegate: LocalUtilsDispatcher;
-  private readonly _requests = new Map<string, Request>();
+  private readonly _requests = new Map<string, Request>(); // TODO: dont memory leak requests
 
   constructor(parent: SdkObject, eventDelegate: LocalUtilsDispatcher) {
     super(parent, 'serverInterceptionRegistry');
@@ -387,7 +387,6 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
-    this._requests.delete(guid);
     request._setFailureText(error);
     request._responseEndTiming = responseEndTiming;
     this._eventDelegate._onRequestFailed(request);
@@ -397,7 +396,6 @@ class ServerInterceptionRegistry extends SdkObject implements RequestContext {
     const request = this._requests.get(guid);
     if (!request)
       throw new Error('Internal error: missing request for response');
-    this._requests.delete(guid);
     const response = new Response(request, status, statusText, headers, timing, body, false, httpVersion);
     response.setRawResponseHeaders(headers);
     response.setResponseHeadersSize(null); // TODO: fixme. can we compute this?
