@@ -15,6 +15,7 @@
  */
 import type { APIRequestContext, MockingProxy, Request, Response } from 'packages/playwright-test';
 import { playwrightTest as baseTest, expect } from '../config/browserTest';
+import { pipeline } from 'stream/promises';
 
 const test = baseTest.extend<{ proxiedRequest: APIRequestContext }, { mockproxy: MockingProxy }>({
   mockproxy: [async ({ playwright }, use, testInfo) => {
@@ -116,40 +117,31 @@ test('event properties', async ({ server, proxiedRequest, mockproxy }) => {
   expect(await responseEvent.serverAddr()).toBe(null); // TODO: Fixme
 });
 
-test.fixme('request with body', async ({ server, proxiedRequest, mockproxy }) => {
+test('request with body', async ({ server, proxiedRequest, mockproxy }) => {
+  server.setRoute('/echo', (req, res) => pipeline(req, res));
   const [
-    requestFinished,
-    request,
+    requestEvent,
     responseEvent,
-    response
+    response,
   ] = await Promise.all([
-    mockproxy.waitForEvent('requestfinished'),
     mockproxy.waitForRequest('**/*'),
     mockproxy.waitForResponse('**/*'),
-    proxiedRequest.get(server.EMPTY_PAGE),
+    proxiedRequest.post(server.PREFIX + '/echo', { data: 'hello' }),
   ]);
 
-  await expect(response).toBeOK();
-  expect(request).toBe(requestFinished);
-  expect(responseEvent.request()).toBe(request);
-
-  expect(request.url()).toBe(server.EMPTY_PAGE);
-  expect(responseEvent.url()).toBe(server.EMPTY_PAGE);
-
-  expect(responseEvent.status()).toBe(response.status());
-  expect(await responseEvent.headersArray()).toEqual(response.headersArray());
-  expect(await responseEvent.body()).toEqual(await response.body());
-
-  expect(await responseEvent.finished()).toBe(null);
-
-  expect(request.serviceWorker()).toBe(null);
-  expect(() => request.frame()).toThrowError('Assertion error'); // TODO: improve error message
-  expect(() => responseEvent.frame()).toThrowError('Assertion error');
-
-  expect(request.failure()).toBe(null);
+  expect(response.status()).toBe(200);
+  expect(await response.text()).toBe('hello');
+  expect(await responseEvent.body()).toEqual(Buffer.from('hello'));
+  expect(requestEvent.postData()).toBe('hello');
+  expect(await requestEvent.sizes()).toEqual({ // TODO: fixme
+    requestBodySize: 5,
+    requestHeadersSize: 218,
+    responseBodySize: 0,
+    responseHeadersSize: 131,
+  });
 });
 
-test.only('request failed', async ({ server, proxiedRequest, mockproxy }) => {
+test('request failed', async ({ server, proxiedRequest, mockproxy }) => {
   server.setRoute('/failure', (req, res) => {
     res.socket.destroy();
   });
