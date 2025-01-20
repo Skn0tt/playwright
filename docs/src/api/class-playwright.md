@@ -244,7 +244,7 @@ Selectors can be used to install custom selector engines. See
 This object can be used to launch or connect to WebKit, returning instances of [Browser].
 
 ## property: Playwright.mockingProxy
-* since: v1.8
+* since: v1.51
 - type: <[MockingProxyFactory]>
 
 ## method: Playwright.close
