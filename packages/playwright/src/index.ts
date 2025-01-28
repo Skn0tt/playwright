@@ -127,14 +127,8 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
   _mockingProxy: [async ({ mockingProxy: mockingProxyOption, playwright }, use) => {
     if (!mockingProxyOption)
       return await use(undefined);
-
-    const testInfoImpl = test.info() as TestInfoImpl;
-    if (typeof mockingProxyOption.port === 'number' && testInfoImpl.config.workers > 1)
-      throw new Error(`Cannot share mocking proxy between multiple workers. Either disable parallel mode or set mockingProxy.port to 'inject'`);
-
-    const port = mockingProxyOption.port === 'inject' ? undefined : mockingProxyOption.port;
     const localUtils: LocalUtils = (playwright as any)._connection.localUtils();
-    const { mockingProxy } = await localUtils._channel.newMockingProxy({ port });
+    const { mockingProxy } = await localUtils._channel.newMockingProxy({});
     await use((mockingProxy as any)._object);
   }, { scope: 'worker', box: true }],
 
@@ -191,7 +185,6 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     baseURL,
     contextOptions,
     serviceWorkers,
-    _mockingProxy,
   }, use) => {
     const options: BrowserContextOptions = {};
     if (acceptDownloads !== undefined)
@@ -369,6 +362,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
         }
       } : {};
       const context = await browser.newContext({ ...videoOptions, ...options }) as BrowserContextImpl;
+      // TODO: apply this to *all* opened contexts
       if (_mockingProxy)
         await context._subscribeToMockingProxy(_mockingProxy);
       const contextData: { pagesWithVideo: Page[] } = { pagesWithVideo: [] };

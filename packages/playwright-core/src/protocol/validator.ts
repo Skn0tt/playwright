@@ -351,7 +351,7 @@ scheme.MockingProxyRouteEvent = tObject({
 });
 scheme.MockingProxyRequestEvent = tObject({
   request: tChannel(['Request']),
-  correlation: tOptional(tString),
+  correlation: tString,
 });
 scheme.MockingProxyRequestFailedEvent = tObject({
   request: tChannel(['Request']),

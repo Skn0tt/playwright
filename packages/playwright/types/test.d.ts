@@ -5892,12 +5892,6 @@ type ConnectOptions = {
    */
   timeout?: number;
 };
-type MockingProxyOptions = {
-  /**
-   * What port to start the mocking proxy on. If set to `"inject"`, Playwright will use a free port and inject the proxy URL it into all outgoing requests under the `x-playwright-proxy` header.
-   */
-  port: number | "inject";
-}
 
 /**
  * Playwright Test provides many options to configure test environment,
@@ -6154,15 +6148,13 @@ export interface PlaywrightWorkerOptions {
    *
    * export default defineConfig({
    *   use: {
-   *     mockingProxy: {
-   *       port: 9956,
-   *     },
+   *     mockingProxy: true
    *   },
    * });
    * ```
    *
    */
-  mockingProxy: MockingProxyOptions | undefined;
+  mockingProxy: boolean | undefined;
 }
 
 export type ScreenshotMode = 'off' | 'on' | 'only-on-failure' | 'on-first-failure';

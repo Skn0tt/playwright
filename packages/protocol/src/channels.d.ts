@@ -600,7 +600,7 @@ export type MockingProxyRouteEvent = {
 };
 export type MockingProxyRequestEvent = {
   request: RequestChannel,
-  correlation?: string,
+  correlation: string,
 };
 export type MockingProxyRequestFailedEvent = {
   request: RequestChannel,

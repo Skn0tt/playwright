@@ -229,11 +229,8 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   }
 
   private _onRouteListener = (route: network.Route) => {
-    const subject =
-      route.request()._safePage()
-      ?? this.pages()[0] // Fallback to the first page if no page is associated with the request. This should be the `page` fixture.
-      ?? this;
-    subject._onRoute(route);
+    const page = route.request().frame().page();
+    page._onRoute(route);
   };
 
   async _onWebSocketRoute(webSocketRoute: network.WebSocketRoute) {

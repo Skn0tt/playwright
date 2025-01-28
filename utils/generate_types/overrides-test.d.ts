@@ -225,12 +225,6 @@ type ConnectOptions = {
    */
   timeout?: number;
 };
-type MockingProxyOptions = {
-  /**
-   * What port to start the mocking proxy on. If set to `"inject"`, Playwright will use a free port and inject the proxy URL it into all outgoing requests under the `x-playwright-proxy` header.
-   */
-  port: number | "inject";
-}
 
 export interface PlaywrightWorkerOptions {
   browserName: BrowserName;
@@ -242,7 +236,7 @@ export interface PlaywrightWorkerOptions {
   screenshot: ScreenshotMode | { mode: ScreenshotMode } & Pick<PageScreenshotOptions, 'fullPage' | 'omitBackground'>;
   trace: TraceMode | /** deprecated */ 'retry-with-trace' | { mode: TraceMode, snapshots?: boolean, screenshots?: boolean, sources?: boolean, attachments?: boolean };
   video: VideoMode | /** deprecated */ 'retry-with-video' | { mode: VideoMode, size?: ViewportSize };
-  mockingProxy: MockingProxyOptions | undefined;
+  mockingProxy: boolean | undefined;
 }
 
 export type ScreenshotMode = 'off' | 'on' | 'only-on-failure' | 'on-first-failure';

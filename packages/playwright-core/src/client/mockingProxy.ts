@@ -34,13 +34,12 @@ export class MockingProxy extends ChannelOwner<channels.MockingProxyChannel> {
     });
 
     this._channel.on('request', async (params: channels.MockingProxyRequestEvent) => {
+      const browserRequest = this._browserRequests.get(params.correlation);
+      this._browserRequests.delete(params.correlation);
+      assert(browserRequest);
+
       const request = network.Request.from(params.request);
-      if (params.correlation) {
-        const browserRequest = this._browserRequests.get(params.correlation);
-        this._browserRequests.delete(params.correlation);
-        assert(browserRequest);
-        request._frame = browserRequest._frame;
-      }
+      request._frame = browserRequest._frame;
     });
 
     this._channel.on('requestFailed', async (params: channels.MockingProxyRequestFailedEvent) => {

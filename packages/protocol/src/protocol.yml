@@ -704,7 +704,7 @@ MockingProxy:
     request:
       parameters:
         request: Request
-        correlation: string?
+        correlation: string
 
     requestFailed:
       parameters:
