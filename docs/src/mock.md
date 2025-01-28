@@ -559,50 +559,29 @@ For more details, see [WebSocketRoute].
 * langs: js
 
 By default, Playwright only has access to the network traffic made by the browser.
-To mock and intercept traffic made by the application server, use Playwright's mocking proxy.
-How to do this differs for each application. This section explains the moving parts that you can use to embed it in any application. Skip forward to find recipes for Next.js, Remix and Angular.
+To mock and intercept traffic made by the application server, use Playwright's **experimental** mocking proxy. Note this feature is **experimental** and subject to change.
 
-Playwright's mocking proxy is an HTTP proxy server that's connected to the currently running test. If you send it a request, it will apply the network routes configured via `page.route` and `context.route`, allowing you to reuse your existing browser routes.
+The mocking proxy is a HTTP proxy server that's connected to the currently running test.
+If you send it a request, it will apply the network routes configured via `page.route` and `context.route`, reusing your existing browser routes.
 
-For browser network mocking, Playwright always knows what browser context and page a request is coming from. But because there's only a single application server shared by multiple concurrent test runs, it cannot know this for server requests! To resolve this, pick one of these two strategies:
-
-1. [Disable parallelism](./test-parallel.md#disable-parallelism), so that there's only a single test at a time.
-2. On the server, read the `x-playwright-proxy` header of incoming requests. When the mocking proxy is configured, Playwright adds this header to all browser requests.
-
-The second strategy can be hard to integrate for some applications, because it requires access to the current request from where you're making your API requests.
-If this is possible in your application, this is the recommended approach.
-If it isn't, then go with disabling parallelism. It will slow down your test execution, but will make the proxy configuration easier because there will be only a single proxy running, on a port that is hardcoded.
-
-Putting this together, figuring out what proxy to funnel a request should look something like this in your application:
-
-```js
-const proxyUrl = `http://localhost:8123/`; // 1: Disable Parallelism + hardcode port OR
-const proxyUrl = decodeURIComponent(currentHeaders.get('x-playwright-proxy') ?? ''); // 2: Inject proxy port
-```
-
-And this is the Playwright config to go with it:
+To get started, enable the `mockingProxy` option in your Playwright config:
 
 ```ts
-// playwright.config.ts
-// 1: Disable Parallelism + hardcode port
 export default defineConfig({
-  workers: 1,
-  use: { mockingProxy: { port: 8123 } }
-});
-
-// 2: Inject proxy port
-export default defineConfig({
-  use: { mockingProxy: { port: 'inject' } }
+  use: { mockingProxy: true }
 });
 ```
 
-After figuring out what proxy to send traffic to, you need to direct traffic through it. To do so, prepend the proxy URL to all outgoing HTTP requests:
+Playwright will now inject the proxy URL into all browser requests under the `x-playwright-proxy` header.
+On your server, read the URL in this header and prepend it to all outgoing traffic you want to intercept:
 
 ```js
-await fetch(proxyUrl + 'https://api.example.com/users');
+const headers = getCurrentRequestHeaders() // this looks different for each application
+const proxyURL = decodeURIComponent(headers.get('x-playwright-proxy') ?? '')
+await fetch(proxyURL + 'https://api.example.com/users');
 ```
 
-That's it! Your `context.route` and `page.route` methods can now intercept network traffic from your server:
+Prepending the URL will direct the request through the proxy. You can now intercept it with `context.route` and `page.route`, just like browser requests:
 
 ```ts
 // shopping-cart.spec.ts
@@ -626,13 +605,13 @@ test('checkout applies customer loyalty bonus points', async ({ page }) => {
 });
 ```
 
-Prepending the proxy URL manually to all outgoing requests can be cumbersome. If your HTTP client supports it, consider updating your client baseURL ...
+Now, prepending the proxy URL manually can be cumbersome. If your HTTP client supports it, consider updating your client baseURL ...
 
 ```js
 import { axios } from 'axios'; 
 
 const api = axios.create({
-  baseURL: proxyUrl + 'https://jsonplaceholder.typicode.com',
+  baseURL: proxyURL + 'https://jsonplaceholder.typicode.com',
 });
 ```
 
@@ -642,7 +621,7 @@ const api = axios.create({
 import { axios } from 'axios';
 
 axios.interceptors.request.use(async config => {
-  config.proxy = { protocol: 'http', host: 'localhost', port: 8123 };
+  config.baseURL = proxyURL + (config.baseURL ?? '/');
   return config;
 });
 ```
@@ -652,7 +631,7 @@ import { setGlobalDispatcher, getGlobalDispatcher } from 'undici';
 
 const proxyingDispatcher = getGlobalDispatcher().compose(dispatch => (opts, handler) => {
   opts.path = opts.origin + opts.path;
-  opts.origin = `http://localhost:8123`;
+  opts.origin = proxyURL;
   return dispatch(opts, handler);
 })
 setGlobalDispatcher(proxyingDispatcher); // this will also apply to global fetch
@@ -750,30 +729,4 @@ const serverConfig = {
 };
 
 /* ... */
-```
-
-```ts
-// playwright.config.ts
-export default defineConfig({
-  use: { mockingProxy: { port: 'inject' } }
-});
-```
-
-#### `.env` file
-* langs: js
-
-If your application uses `.env` files to configure API endpoints, you can configure the proxy by prepending them with the proxy URL:
-
-```bash
-# .env.test
-CMS_BASE_URL=http://localhost:8123/https://cms.example.com/api/
-USERS_SERVICE_BASE_URL=http://localhost:8123/https://users.internal.api.example.com/
-```
-
-```ts
-// playwright.config.ts
-export default defineConfig({
-  workers: 1,
-  use: { mockingProxy: { port: 8123 } }
-});
 ```
