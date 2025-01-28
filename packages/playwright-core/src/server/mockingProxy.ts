@@ -50,12 +50,13 @@ export class MockingProxy extends SdkObject implements RequestContext {
       return true;
     });
     this._httpServer.server().on('connect', (req, socket, head) => {
+      // TODO: improve error message
       socket.end('HTTP/1.1 405 Method Not Allowed\r\n\r\n');
     });
   }
 
-  async start(port?: number): Promise<void> {
-    await this._httpServer.start({ port });
+  async start(): Promise<void> {
+    await this._httpServer.start();
   }
 
   get port() {

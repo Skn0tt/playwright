@@ -79,13 +79,9 @@ export class MockingProxy extends ChannelOwner<channels.MockingProxyChannel> {
         .catch(() => {})
         .finally(() => this._browserRequests.delete(correlation));
 
-    const proxyUrl = `http://localhost:${this.port()}/pw_meta:${correlation}/`;
+    const proxyUrl = `http://localhost:${this._initializer.port}/pw_meta:${correlation}/`;
 
     await route.fallback({ headers: { 'x-playwright-proxy': encodeURIComponent(proxyUrl) } });
-  }
-
-  port(): number {
-    return this._initializer.port;
   }
 
 }

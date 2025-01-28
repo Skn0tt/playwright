@@ -670,8 +670,6 @@ LocalUtils:
         stacksId: string
 
     newMockingProxy:
-      parameters:
-        port: number?
       returns:
         mockingProxy: MockingProxy
 

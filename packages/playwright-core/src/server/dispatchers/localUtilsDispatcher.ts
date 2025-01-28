@@ -284,7 +284,7 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
 
   async newMockingProxy(params: channels.LocalUtilsNewMockingProxyParams, metadata?: CallMetadata): Promise<channels.LocalUtilsNewMockingProxyResult> {
     const mockingProxy = new MockingProxy(this._object, this._requestContext);
-    await mockingProxy.start(params.port);
+    await mockingProxy.start();
     return { mockingProxy: MockingProxyDispatcher.from(this.parentScope(), mockingProxy) };
   }
 }

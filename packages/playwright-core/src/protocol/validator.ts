@@ -336,9 +336,7 @@ scheme.LocalUtilsTraceDiscardedParams = tObject({
   stacksId: tString,
 });
 scheme.LocalUtilsTraceDiscardedResult = tOptional(tObject({}));
-scheme.LocalUtilsNewMockingProxyParams = tObject({
-  port: tOptional(tNumber),
-});
+scheme.LocalUtilsNewMockingProxyParams = tOptional(tObject({}));
 scheme.LocalUtilsNewMockingProxyResult = tObject({
   mockingProxy: tChannel(['MockingProxy']),
 });
