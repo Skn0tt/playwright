@@ -29,7 +29,8 @@ import { Events } from './events';
 import { TimeoutSettings } from '../common/timeoutSettings';
 import { Waiter } from './waiter';
 import type { Headers, WaitForEventOptions, BrowserContextOptions, StorageState, LaunchOptions } from './types';
-import { type URLMatch, headersObjectToArray, isRegExp, isString, urlMatchesEqual, mkdirIfNeeded } from '../utils';
+import type { RegisteredListener } from '../utils';
+import { type URLMatch, headersObjectToArray, isRegExp, isString, urlMatchesEqual, mkdirIfNeeded, eventsHelper } from '../utils';
 import type * as api from '../../types/types';
 import type * as structs from '../../types/structs';
 import { CDPSession } from './cdpSession';
@@ -69,6 +70,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   _closeWasCalled = false;
   private _closeReason: string | undefined;
   private _harRouters: HarRouter[] = [];
+  private _registeredListeners: RegisteredListener[] = [];
   _mockingProxy?: MockingProxy;
 
   static from(context: channels.BrowserContextChannel): BrowserContext {
@@ -228,11 +230,6 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     await route._innerContinue(true /* isFallback */).catch(() => {});
   }
 
-  private _onRouteListener = (route: network.Route) => {
-    const page = route.request().frame().page();
-    page._onRoute(route);
-  };
-
   async _onWebSocketRoute(webSocketRoute: network.WebSocketRoute) {
     const routeHandler = this._webSocketRoutes.find(route => route.matches(webSocketRoute.url()));
     if (routeHandler)
@@ -252,7 +249,12 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     if (this._mockingProxy)
       throw new Error('Multiple mocking proxies are not supported');
     this._mockingProxy = mockingProxy;
-    this._mockingProxy.on(Events.MockingProxy.Route, this._onRouteListener);
+    this._registeredListeners.push(
+        eventsHelper.addEventListener(this._mockingProxy, Events.MockingProxy.Route, (route: network.Route) => {
+          const page = route.request().frame().page();
+          page._onRoute(route);
+        })
+    );
     await this.route('**', (route: network.Route) => this._mockingProxy!.instrumentBrowserRequest(route));
   }
 
@@ -476,7 +478,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     this._disposeHarRouters();
     this.tracing._resetStackCounter();
     this.emit(Events.BrowserContext.Close, this);
-    this._mockingProxy?.off(Events.MockingProxy.Route, this._onRouteListener);
+    eventsHelper.removeEventListeners(this._registeredListeners);
   }
 
   async [Symbol.asyncDispose]() {
