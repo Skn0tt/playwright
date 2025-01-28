@@ -256,6 +256,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
         }),
         // TODO: should we also emit `request`, `response`, `requestFinished`, `requestFailed` events?
     );
+    // TODO: ensure this route is never removed
     await this.route('**', (route: network.Route) => this._mockingProxy!.instrumentBrowserRequest(route));
   }
 
