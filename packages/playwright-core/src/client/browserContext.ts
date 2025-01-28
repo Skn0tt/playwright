@@ -253,7 +253,8 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
         eventsHelper.addEventListener(this._mockingProxy, Events.MockingProxy.Route, (route: network.Route) => {
           const page = route.request().frame().page();
           page._onRoute(route);
-        })
+        }),
+        // TODO: should we also emit `request`, `response`, `requestFinished`, `requestFailed` events?
     );
     await this.route('**', (route: network.Route) => this._mockingProxy!.instrumentBrowserRequest(route));
   }
