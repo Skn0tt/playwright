@@ -86,7 +86,7 @@ export class Request extends ChannelOwner<channels.RequestChannel> implements ap
   private _actualHeadersPromise: Promise<RawHeaders> | undefined;
   _timing: ResourceTiming;
   private _fallbackOverrides: SerializedFallbackOverrides = {};
-  _frame: Frame | null = null;
+  _page: Page | null = null;
 
   static from(request: channels.RequestChannel): Request {
     return (request as any)._object;
@@ -103,7 +103,6 @@ export class Request extends ChannelOwner<channels.RequestChannel> implements ap
     if (this._redirectedFrom)
       this._redirectedFrom._redirectedTo = this;
     this._provisionalHeaders = new RawHeaders(initializer.headers);
-    this._frame = Frame.fromNullable(initializer.frame);
     this._timing = {
       startTime: 0,
       domainLookupStart: -1,
@@ -202,22 +201,23 @@ export class Request extends ChannelOwner<channels.RequestChannel> implements ap
   }
 
   frame(): Frame {
-    if (!this._frame) {
+    if (!this._initializer.frame) {
       assert(this.serviceWorker());
       throw new Error('Service Worker requests do not have an associated frame.');
     }
-    if (!this._frame._page) {
+    const frame = Frame.from(this._initializer.frame);
+    if (!frame.page) {
       throw new Error([
         'Frame for this navigation request is not available, because the request',
         'was issued before the frame is created. You can check whether the request',
         'is a navigation request by calling isNavigationRequest() method.',
       ].join('\n'));
     }
-    return this._frame;
+    return frame;
   }
 
   _safePage(): Page | null {
-    return this._frame?._page || null;
+    return this._page ?? Frame.fromNullable(this._initializer.frame)?._page ?? null;
   }
 
   serviceWorker(): Worker | null {

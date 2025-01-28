@@ -19,9 +19,10 @@ import { ChannelOwner } from './channelOwner';
 import { APIRequestContext } from './fetch';
 import { Events } from './events';
 import { assert } from '../utils';
+import type { Page } from './page';
 
 export class MockingProxy extends ChannelOwner<channels.MockingProxyChannel> {
-  private _browserRequests = new Map<string, network.Request>();
+  private _pages = new Map<string, Page>();
 
   constructor(parent: ChannelOwner, type: string, guid: string, initializer: channels.MockingProxyInitializer) {
     super(parent, type, guid, initializer);
@@ -34,12 +35,10 @@ export class MockingProxy extends ChannelOwner<channels.MockingProxyChannel> {
     });
 
     this._channel.on('request', async (params: channels.MockingProxyRequestEvent) => {
-      const browserRequest = this._browserRequests.get(params.correlation);
-      this._browserRequests.delete(params.correlation);
-      assert(browserRequest);
-
+      const page = this._pages.get(params.correlation);
+      assert(page);
       const request = network.Request.from(params.request);
-      request._frame = browserRequest._frame;
+      request._page = page;
     });
 
     this._channel.on('requestFailed', async (params: channels.MockingProxyRequestFailedEvent) => {
@@ -65,23 +64,13 @@ export class MockingProxy extends ChannelOwner<channels.MockingProxyChannel> {
     await this._channel.setInterceptionPatterns(params);
   }
 
-  async instrumentBrowserRequest(route: network.Route) {
-    const isSimpleCORS = false; // TODO: implement simple CORS
-    if (isSimpleCORS)
-      return await route.fallback();
-
-    const request = route.request();
-    const correlation = request._guid.split('@')[1];
-    this._browserRequests.set(correlation, request);
-
-    void request.response()
-        .then(response => response?.finished())
-        .catch(() => {})
-        .finally(() => this._browserRequests.delete(correlation));
-
+  async instrumentPage(page: Page) {
+    const correlation = page._guid.split('@')[1];
+    this._pages.set(correlation, page);
     const proxyUrl = `http://localhost:${this._initializer.port}/pw_meta:${correlation}/`;
-
-    await route.fallback({ headers: { 'x-playwright-proxy': encodeURIComponent(proxyUrl) } });
+    await page.setExtraHTTPHeaders({
+      'x-playwright-proxy': encodeURIComponent(proxyUrl)
+    });
   }
 
 }

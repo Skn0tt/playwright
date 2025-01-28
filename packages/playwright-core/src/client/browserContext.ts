@@ -165,9 +165,10 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     this.tracing._tracesDir = browserOptions.tracesDir;
   }
 
-  private _onPage(page: Page): void {
+  private async _onPage(page: Page): Promise<void>{
     this._pages.add(page);
     this.emit(Events.BrowserContext.Page, page);
+    await this._mockingProxy?.instrumentPage(page);
     if (page._opener && !page._opener.isClosed())
       page._opener.emit(Events.Page.Popup, page);
   }
@@ -251,13 +252,11 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     this._mockingProxy = mockingProxy;
     this._registeredListeners.push(
         eventsHelper.addEventListener(this._mockingProxy, Events.MockingProxy.Route, (route: network.Route) => {
-          const page = route.request().frame().page();
+          const page = route.request()._safePage()!;
           page._onRoute(route);
         }),
         // TODO: should we also emit `request`, `response`, `requestFinished`, `requestFailed` events?
     );
-    // TODO: ensure this route is never removed
-    await this.route('**', (route: network.Route) => this._mockingProxy!.instrumentBrowserRequest(route));
   }
 
   setDefaultNavigationTimeout(timeout: number | undefined) {
