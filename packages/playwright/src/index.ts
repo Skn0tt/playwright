@@ -260,7 +260,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
     }
   }, { auto: 'all-hooks-included',  title: 'context configuration', box: true } as any],
 
-  _setupArtifacts: [async ({ playwright, screenshot }, use, testInfo) => {
+  _setupArtifacts: [async ({ playwright, screenshot, _mockingProxy }, use, testInfo) => {
     // This fixture has a separate zero-timeout slot to ensure that artifact collection
     // happens even after some fixtures or hooks time out.
     // Now that default test timeout is known, we can replace zero with an actual value.
@@ -313,7 +313,9 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
         if (!keepTestTimeout)
           currentTestInfo()?._setDebugMode();
       },
-      runAfterCreateBrowserContext: async (context: BrowserContext) => {
+      runAfterCreateBrowserContext: async (context: BrowserContextImpl) => {
+        if (_mockingProxy)
+          await context._subscribeToMockingProxy(_mockingProxy);
         await artifactsRecorder?.didCreateBrowserContext(context);
         const testInfo = currentTestInfo();
         if (testInfo)
@@ -340,7 +342,7 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
 
   }, { auto: 'all-hooks-included',  title: 'trace recording', box: true, timeout: 0 } as any],
 
-  _contextFactory: [async ({ browser, video, _reuseContext, _mockingProxy, _combinedContextOptions /** mitigate dep-via-auto lack of traceability */ }, use, testInfo) => {
+  _contextFactory: [async ({ browser, video, _reuseContext, _combinedContextOptions /** mitigate dep-via-auto lack of traceability */ }, use, testInfo) => {
     const testInfoImpl = testInfo as TestInfoImpl;
     const videoMode = normalizeVideoMode(video);
     const captureVideo = shouldCaptureVideo(videoMode, testInfo) && !_reuseContext;
@@ -362,9 +364,6 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures> = ({
         }
       } : {};
       const context = await browser.newContext({ ...videoOptions, ...options }) as BrowserContextImpl;
-      // TODO: apply this to *all* opened contexts
-      if (_mockingProxy)
-        await context._subscribeToMockingProxy(_mockingProxy);
       const contextData: { pagesWithVideo: Page[] } = { pagesWithVideo: [] };
       contexts.set(context, contextData);
       if (captureVideo)
