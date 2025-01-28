@@ -62,7 +62,10 @@ export class LocalUtilsDispatcher extends Dispatcher<SdkObject, channels.LocalUt
     const deviceDescriptors = Object.entries(descriptors)
         .map(([name, descriptor]) => ({ name, descriptor }));
 
-    const requestContext = new GlobalAPIRequestContext(playwright, {});
+    const requestContext = new GlobalAPIRequestContext(
+        playwright,
+        {} // TODO: this should probably respect _combinedContextOptions from test runner
+    );
     super(scope, localUtils, 'LocalUtils', {
       deviceDescriptors,
     });
