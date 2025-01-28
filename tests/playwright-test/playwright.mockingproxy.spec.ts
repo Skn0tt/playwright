@@ -17,18 +17,23 @@
 import { test, expect } from './playwright-test-fixtures';
 import http from 'http';
 
+const config = {
+  'playwright.config.ts': `
+    module.exports = {
+      use: {
+        mockingProxy: true,
+        ignoreHTTPSErrors: true,
+      }
+    };
+  `,
+};
+
 test('inject mode', async ({ runInlineTest, server }) => {
   server.setRoute('/page', (req, res) => {
     res.end(req.headers['x-playwright-proxy'] ? 'proxy url injected' : 'proxy url missing');
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 'inject' }
-        }
-      };
-    `,
+    ...config,
     'a.test.ts': `
       import { test, expect } from '@playwright/test';
       test('foo', async ({ page }) => {
@@ -42,25 +47,6 @@ test('inject mode', async ({ runInlineTest, server }) => {
   expect(result.passed).toBe(1);
 });
 
-test('throws on fixed mocking proxy port and parallel workers', async ({ runInlineTest }) => {
-  const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 1234 }
-        }
-      };
-    `,
-    'a.test.ts': `
-      import { test, expect } from '@playwright/test';
-      test('foo', async ({}) => {});
-    `
-  }, { workers: 2 });
-
-  expect(result.exitCode).toBe(1);
-  expect(result.output).toContain('Cannot share mocking proxy between multiple workers.');
-});
-
 test('routes are reset between tests', async ({ runInlineTest, server, request }) => {
   server.setRoute('/fallback', async (req, res) => {
     res.end('fallback');
@@ -71,13 +57,7 @@ test('routes are reset between tests', async ({ runInlineTest, server, request }
     res.end(await response.body());
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 'inject' }
-        }
-      };
-    `,
+    ...config,
     'a.test.ts': `
       import { test, expect } from '@playwright/test';
       test('first', async ({ page, request, context }) => {
@@ -109,13 +89,7 @@ test('all properties are populated', async ({ runInlineTest, server, request }) 
     res.end(await response.body());
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 'inject' }
-        }
-      };
-    `,
+    ...config,
     'a.test.js': `
       import { test, expect } from '@playwright/test';
       test('test', async ({ page, context }) => {
@@ -189,14 +163,7 @@ test('securityDetails', async ({ httpsServer, request, runInlineTest }) => {
     res.end(await response.body());
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-        module.exports = {
-          use: {
-            mockingProxy: { port: 'inject' },
-            ignoreHTTPSErrors: true,
-          }
-        };
-      `,
+    ...config,
     'a.test.js': `
         import { test, expect } from '@playwright/test';
         test('test', async ({ page, context }) => {
@@ -230,13 +197,7 @@ test('aborting', async ({ runInlineTest, server }) => {
     request.pipe(res);
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 'inject' }
-        }
-      };
-    `,
+    ...config,
     'a.test.js': `
       import { test, expect } from '@playwright/test';
       test('test', async ({ page, context, request }) => {
@@ -263,13 +224,7 @@ test('fetch', async ({ runInlineTest, server, request }) => {
     res.end(await response.body());
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 'inject' }
-        }
-      };
-    `,
+    ...config,
     'a.test.js': `
       import { test, expect } from '@playwright/test';
       test('test', async ({ page, context }) => {
@@ -297,13 +252,7 @@ test('inject mode knows originating page', async ({ runInlineTest, server, reque
     res.end(await response.body());
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 'inject' }
-        }
-      };
-    `,
+    ...config,
     'a.test.ts': `
       import { test, expect } from '@playwright/test';
       test('first', async ({ page, context }) => {
@@ -328,13 +277,7 @@ test('failure', async ({ runInlineTest, server, request }) => {
     res.end(await response.body());
   });
   const result = await runInlineTest({
-    'playwright.config.ts': `
-      module.exports = {
-        use: {
-          mockingProxy: { port: 'inject' }
-        }
-      };
-    `,
+    ...config,
     'a.test.ts': `
       import { test, expect } from '@playwright/test';
       test('first', async ({ page, context }) => {
