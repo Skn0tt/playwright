@@ -485,6 +485,7 @@ export class WorkerMain extends ProcessRunner {
 
     const tracingSlot = { timeout: this._project.project.timeout, elapsed: 0 };
     await testInfo._runWithTimeout({ type: 'test', slot: tracingSlot }, async () => {
+      testInfo._appendTopLevelAttachments();
       await testInfo._tracing.stopIfNeeded();
     }).catch(() => {});  // Ignore the top-level error, it is already inside TestInfo.errors.
 

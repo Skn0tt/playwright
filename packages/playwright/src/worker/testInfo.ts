@@ -69,6 +69,7 @@ export class TestInfoImpl implements TestInfo {
   readonly _configInternal: FullConfigInternal;
   private readonly _steps: TestStepInternal[] = [];
   private readonly _stepMap = new Map<string, TestStepInternal>();
+  private readonly _topLevelAttachments: TestInfo['attachments'] = [];
   _onDidFinishTestFunction: (() => Promise<void>) | undefined;
   _hasNonRetriableError = false;
   _hasUnhandledError = false;
@@ -414,14 +415,10 @@ export class TestInfoImpl implements TestInfo {
 
   _attach(attachment: TestInfo['attachments'][0], stepId: string | undefined) {
     const index = this._attachmentsPush(attachment) - 1;
-    if (stepId) {
+    if (stepId)
       this._stepMap.get(stepId)!.attachmentIndices.push(index);
-    } else {
-      // trace viewer has no means of representing attachments outside of a step, so we create an artificial action
-      const callId = `attach@${++this._lastStepId}`;
-      this._tracing.appendBeforeActionForStep(callId, this._findLastPredefinedStep(this._steps)?.stepId, 'attach', `attach "${attachment.name}"`, undefined, []);
-      this._tracing.appendAfterActionForStep(callId, undefined, [attachment]);
-    }
+    else
+      this._topLevelAttachments.push(attachment);
 
     this._onAttach({
       testId: this.testId,
@@ -431,6 +428,15 @@ export class TestInfoImpl implements TestInfo {
       body: attachment.body?.toString('base64'),
       stepId,
     });
+  }
+
+  _appendTopLevelAttachments() {
+    if (this._topLevelAttachments.length === 0)
+      return;
+
+    const callId = `attach@${++this._lastStepId}`;
+    this._tracing.appendBeforeActionForStep(callId, undefined, 'attach', 'top-level attachments', undefined, []);
+    this._tracing.appendAfterActionForStep(callId, undefined, this._topLevelAttachments);
   }
 
   outputPath(...pathSegments: string[]){

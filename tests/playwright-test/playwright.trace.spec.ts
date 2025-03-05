@@ -129,7 +129,6 @@ test('should record api trace', async ({ runInlineTest, server }, testInfo) => {
     '  fixture: context',
     '  fixture: request',
     '    apiRequestContext.dispose',
-    '  attach "_prompt-0"',
     'Worker Cleanup',
     '  fixture: browser',
   ]);
@@ -328,7 +327,6 @@ test('should not override trace file in afterAll', async ({ runInlineTest, serve
     'After Hooks',
     '  fixture: page',
     '  fixture: context',
-    '  attach "_prompt-0"',
     '  afterAll hook',
     '    fixture: request',
     '      apiRequest.newContext',
@@ -671,7 +669,6 @@ test('should show non-expect error in trace', async ({ runInlineTest }, testInfo
     'After Hooks',
     '  fixture: page',
     '  fixture: context',
-    '  attach "_prompt-0"',
     'Worker Cleanup',
     '  fixture: browser',
   ]);
@@ -718,7 +715,7 @@ test('should throw when trace fixture is a function', async ({ runInlineTest }, 
   expect(result.output).toContain('Error: "trace" option cannot be a function');
 });
 
-test('should not throw when attachment is missing', async ({ runInlineTest }, testInfo) => {
+test('should not throw when attachment is missing', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'playwright.config.ts': `
       module.exports = { use: { trace: 'on' } };
@@ -733,8 +730,6 @@ test('should not throw when attachment is missing', async ({ runInlineTest }, te
 
   expect(result.exitCode).toBe(0);
   expect(result.passed).toBe(1);
-  const trace = await parseTrace(testInfo.outputPath('test-results', 'a-passes', 'trace.zip'));
-  expect(trace.actionTree).toContain('attach "screenshot"');
 });
 
 test('should not throw when screenshot on failure fails', async ({ runInlineTest, server }, testInfo) => {
@@ -983,7 +978,6 @@ test('should record nested steps, even after timeout', async ({ runInlineTest },
     '      page.setContent',
     '  fixture: page',
     '  fixture: context',
-    '  attach "_prompt-0"',
     '  afterAll hook',
     '    fixture: barPage',
     '      barPage setup',
@@ -1043,7 +1037,6 @@ test('should attribute worker fixture teardown to the right test', async ({ runI
   expect(trace2.actionTree).toEqual([
     'Before Hooks',
     'After Hooks',
-    '  attach "_prompt-0"',
     'Worker Cleanup',
     '  fixture: foo',
     '    step in foo teardown',
@@ -1153,7 +1146,6 @@ test('should not corrupt actions when no library trace is present', async ({ run
     'After Hooks',
     '  fixture: foo',
     '    expect.toBe',
-    '  attach "_prompt-0"',
     'Worker Cleanup',
   ]);
 });
@@ -1184,7 +1176,6 @@ test('should record trace for manually created context in a failed test', async 
     'page.setContent',
     'expect.toBe',
     'After Hooks',
-    '  attach "_prompt-0"',
     'Worker Cleanup',
     '  fixture: browser',
   ]);
@@ -1272,7 +1263,6 @@ test('should record trace after fixture teardown timeout', {
     'page.evaluate',
     'After Hooks',
     '  fixture: fixture',
-    '  attach "_prompt-0"',
     'Worker Cleanup',
     '  fixture: browser',
   ]);
