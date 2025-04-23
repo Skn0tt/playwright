@@ -125,6 +125,15 @@ export async function attachErrorContext(testInfo: TestInfoImpl, format: 'markdo
               `  - Response headers:`,
               stringifyHeaders(response.headers()),
           );
+          const body = await response.text();
+          if (body) {
+            lines.push(
+                `  - Response body:`,
+                `    \`\`\``,
+                body,
+                `    \`\`\``,
+            );
+          }
         } else if (request.failure()) {
           lines.push(
               `  - Failure reason: ${request.failure()!.errorText}`,
