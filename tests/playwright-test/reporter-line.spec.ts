@@ -191,21 +191,28 @@ for (const useIntermediateMergeReport of [false, true] as const) {
       expect(result.exitCode).toBe(1);
     });
 
-    test('should show error context with relative path', async ({ runInlineTest, useIntermediateMergeReport }) => {
+    test('should show error context with relative path', async ({ runInlineTest, useIntermediateMergeReport, server }) => {
+      server.setRoute('/', (req, res) => {
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end(`Server crashed fantabulously!`);
+      });
       const result = await runInlineTest({
         'a.test.js': `
           const { test, expect } = require('@playwright/test');
-          test('one', async ({}) => {
+          test('one', async ({ page }) => {
+            await page.goto('${server.PREFIX}');
             expect(1).toBe(0);
           });
         `,
       }, { reporter: 'line' });
+      expect(result.exitCode).toBe(1);
       const text = result.output;
       if (useIntermediateMergeReport)
         expect(text).toContain(`Error Context: ${path.join('blob-report', 'resources')}`);
       else
         expect(text).toContain(`Error Context: ${path.join('test-results', 'a-one', 'error-context.md')}`);
-      expect(result.exitCode).toBe(1);
+      const content = await fs.promises.readFile(test.info().outputPath(/Error Context: (.*)/.exec(result.output)?.[1]), 'utf8');
+      expect(content).toContain(`# Last failed requests\n\n- GET ${server.PREFIX}`);
     });
 
     test('should show error context if exception contains non-existent file', async ({ runInlineTest, useIntermediateMergeReport }) => {
@@ -219,14 +226,13 @@ for (const useIntermediateMergeReport of [false, true] as const) {
           });
         `,
       }, { reporter: 'line' });
+      expect(result.exitCode).toBe(1);
       if (useIntermediateMergeReport)
         expect(result.output).toContain(`Error Context: ${path.join('blob-report', 'resources')}`);
       else
         expect(result.output).toContain(`Error Context: ${path.join('test-results', 'a-one', 'error-context.md')}`);
-      const file = /Error Context: (.*)/.exec(result.output)?.[1];
-      const content = await fs.promises.readFile(path.join(result.report.config.rootDir, file), 'utf8');
+      const content = await fs.promises.readFile(test.info().outputPath(/Error Context: (.*)/.exec(result.output)?.[1]), 'utf8');
       expect(content).toContain('^ Error: page.evaluate: Error: error');
-      expect(result.exitCode).toBe(1);
     });
   });
 }

@@ -22,11 +22,12 @@ import { parseErrorStack } from 'playwright-core/lib/utils';
 import { stripAnsiEscapes } from './util';
 import { codeFrameColumns } from './transform/babelBundle';
 
+import type { Request, Response } from 'playwright-core';
 import type { MetadataWithCommitInfo } from './isomorphic/types';
 import type { TestInfoImpl } from './worker/testInfo';
 import type { Location } from '../types/test';
 
-export async function attachErrorContext(testInfo: TestInfoImpl, format: 'markdown' | 'json', sourceCache: Map<string, string>, ariaSnapshot: string | undefined) {
+export async function attachErrorContext(testInfo: TestInfoImpl, format: 'markdown' | 'json', sourceCache: Map<string, string>, ariaSnapshot: string | undefined, requests: Map<Request, Response | null>) {
   if (format === 'json') {
     if (!ariaSnapshot)
       return;
@@ -41,6 +42,9 @@ export async function attachErrorContext(testInfo: TestInfoImpl, format: 'markdo
 
     return;
   }
+
+  const failedRequests = [...requests.entries()].filter(([, response]) => !response || response.status() >= 400);
+  const mostRelevantFailedRequests = failedRequests.reverse().slice(0, 5);
 
   const meaningfulSingleLineErrors = new Set(testInfo.errors.filter(e => e.message && !e.message.includes('\n')).map(e => e.message!));
   for (const error of testInfo.errors) {
@@ -88,6 +92,46 @@ export async function attachErrorContext(testInfo: TestInfoImpl, format: 'markdo
           ariaSnapshot,
           '```',
       );
+    }
+
+    if (mostRelevantFailedRequests.length > 0) {
+      lines.push('', '# Last failed requests');
+      for (const [request, response] of mostRelevantFailedRequests) {
+        const stringifyHeaders = (headers: Record<string, string>) => Object.entries(headers).map(([key, value]) => `    - ${key}: ${value}`).join('\n');
+
+        lines.push(
+            '',
+            `- ${request.method()} ${request.url()}`,
+        );
+
+        if (response)
+          lines.push(`  - Status: ${response ? response.status() : 'N/A'}`);
+
+        lines.push(
+            `  - Request headers:`,
+            stringifyHeaders(request.headers()),
+        );
+
+        if (request.postData()) {
+          lines.push(
+              `  - Request body:`,
+              `    \`\`\``,
+              request.postData()!,
+              `    \`\`\``,
+          );
+        }
+        if (response) {
+          lines.push(
+              `  - Response headers:`,
+              stringifyHeaders(response.headers()),
+          );
+        } else if (request.failure()) {
+          lines.push(
+              `  - Failure reason: ${request.failure()!.errorText}`,
+          );
+        }
+      }
+      lines.push('');
     }
 
     const parsedError = error.stack ? parseErrorStack(error.stack, path.sep) : undefined;

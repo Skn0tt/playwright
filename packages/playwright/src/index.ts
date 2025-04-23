@@ -625,6 +625,7 @@ class ArtifactsRecorder {
   private _pageSnapshot: string | undefined;
   private _sourceCache: Map<string, string> = new Map();
   private _errorContext: ErrorContextOption;
+  private _requests = new Map<playwrightLibrary.Request, playwrightLibrary.Response | null>();
 
   constructor(playwright: PlaywrightImpl, artifactsDir: string, screenshot: ScreenshotOption, errorContext: ErrorContextOption) {
     this._playwright = playwright;
@@ -659,6 +660,8 @@ class ArtifactsRecorder {
 
   async didCreateBrowserContext(context: BrowserContext) {
     await this._startTraceChunkOnContextCreation(context.tracing);
+    context.on('request', request => this._requests.set(request, null));
+    context.on('response', response => this._requests.set(response.request(), response));
   }
 
   async willCloseBrowserContext(context: BrowserContext) {
@@ -722,7 +725,7 @@ class ArtifactsRecorder {
       await this._takePageSnapshot(context);
 
     if (this._errorContext)
-      await attachErrorContext(this._testInfo, this._errorContext.format, this._sourceCache, this._pageSnapshot);
+      await attachErrorContext(this._testInfo, this._errorContext.format, this._sourceCache, this._pageSnapshot, this._requests);
   }
 
   private async _startTraceChunkOnContextCreation(tracing: Tracing) {
