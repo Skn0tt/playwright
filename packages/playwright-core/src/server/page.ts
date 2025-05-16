@@ -809,11 +809,14 @@ export class Page extends SdkObject {
     this._isServerSideOnly = true;
   }
 
-  async snapshotForAI(metadata: CallMetadata): Promise<string> {
-    const frameIds: string[] = [];
-    const snapshot = await snapshotFrameForAI(this.mainFrame(), 0, frameIds);
-    this.lastSnapshotFrameIds = frameIds;
-    return snapshot.join('\n');
+  async snapshotForAI(params: TimeoutOptions, metadata: CallMetadata): Promise<string> {
+    const controller = new ProgressController(metadata, this);
+    return await controller.run(async progress => {
+      const frameIds: string[] = [];
+      const snapshot = await snapshotFrameForAI(this.mainFrame(), 0, frameIds);
+      this.lastSnapshotFrameIds = frameIds;
+      return snapshot.join('\n');
+    }, this.timeoutSettings.timeout(params));
   }
 }
 
