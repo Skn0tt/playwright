@@ -22,6 +22,7 @@ import { DEFAULT_PLAYWRIGHT_LAUNCH_TIMEOUT } from '../utils/isomorphic/time';
 import { WSServer } from '../server/utils/wsServer';
 import { wrapInASCIIBox } from '../server/utils/ascii';
 import { getPlaywrightVersion } from '../server/utils/userAgent';
+import { serverSideCallMetadata } from '../server';
 
 import type { ClientType } from './playwrightConnection';
 import type { SocksProxy } from '../server/utils/socksProxy';
@@ -66,6 +67,32 @@ export class PlaywrightServer {
       onHeaders: headers => {
         if (process.env.PWTEST_SERVER_WS_HEADERS)
           headers.push(process.env.PWTEST_SERVER_WS_HEADERS!);
+      },
+
+      onListBrowsers: () => {
+        if (!this._preLaunchedPlaywright)
+          return [];
+        return this._preLaunchedPlaywright.allBrowsers().map(browser => ({
+          browserType: browser.options.name,
+          channel: browser.options.channel,
+          guid: browser.guid,
+        }));
+      },
+
+      onLaunchBrowser: async request => {
+        if (!this._preLaunchedPlaywright)
+          this._preLaunchedPlaywright = createPlaywright({ sdkLanguage: 'javascript', isServer: true });
+        const playwright = this._preLaunchedPlaywright;
+        const existingBrowser = playwright.allBrowsers().find(browser => {
+          return browser.options.name === request.browserType; // TODO: also compare launch options
+        });
+        const browserType = playwright[request.browserType as 'chromium' | 'firefox' | 'webkit'];
+        const browser = existingBrowser ?? await browserType.launch(serverSideCallMetadata(), request.launchOptions);
+        return {
+          browserType: browser.options.name,
+          channel: browser.options.channel,
+          guid: browser.guid,
+        };
       },
 
       onConnection: (request, url, ws, id) => {

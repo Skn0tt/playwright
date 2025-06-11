@@ -18,6 +18,7 @@ import { createHttpServer } from './network';
 import { wsServer } from '../../utilsBundle';
 import { debugLogger } from './debugLogger';
 
+import type { BrowserContextOptions, LaunchOptions } from '../types';
 import type { WebSocket, WebSocketServer } from '../../utilsBundle';
 import type http from 'http';
 import type stream from 'stream';
@@ -41,7 +42,14 @@ export type WSConnection = {
   close: () => Promise<void>;
 };
 
+type LaunchBrowserRequest = {
+  browserType: string;
+  launchOptions: LaunchOptions;
+};
+
 export type WSServerDelegate = {
+  onListBrowsers(): any[];
+  onLaunchBrowser(request: LaunchBrowserRequest): Promise<any>;
   onHeaders?: (headers: string[]) => void;
   onUpgrade?: (request: http.IncomingMessage, socket: stream.Duplex) => { error: string } | undefined;
   onConnection: (request: http.IncomingMessage, url: URL, ws: WebSocket, id: string) => WSConnection;
@@ -60,7 +68,7 @@ export class WSServer {
   async listen(port: number = 0, hostname: string | undefined, path: string): Promise<string> {
     debugLogger.log('server', `Server started at ${new Date()}`);
 
-    const server = createHttpServer((request: http.IncomingMessage, response: http.ServerResponse) => {
+    const server = createHttpServer(async (request: http.IncomingMessage, response: http.ServerResponse) => {
       if (request.method === 'GET' && request.url === '/json') {
         response.setHeader('Content-Type', 'application/json');
         response.end(JSON.stringify({
@@ -68,6 +76,20 @@ export class WSServer {
         }));
         return;
       }
+      if (request.method === 'GET' || request.url === '/json/list') {
+        const browsers = this._delegate.onListBrowsers();
+        response.setHeader('Content-Type', 'application/json');
+        response.end(JSON.stringify(browsers));
+        return;
+      }
+      if (request.method === 'POST' && request.url === '/json/launch') {
+        const launchBrowserRequest = await readBody<LaunchBrowserRequest>(request);
+        const result = await this._delegate.onLaunchBrowser(launchBrowserRequest);
+        response.setHeader('Content-Type', 'application/json');
+        response.end(JSON.stringify(result));
+        return;
+      }
+
       response.end('Running');
     });
     server.on('error', error => debugLogger.log('server', String(error)));
@@ -149,4 +171,12 @@ export class WSServer {
 
     await this._delegate.onClose?.();
   }
+}
+
+function readBody<T>(req: http.IncomingMessage): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => resolve(JSON.parse(Buffer.concat(chunks).toString())));
+  });
 }
