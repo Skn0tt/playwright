@@ -287,7 +287,7 @@ export class PlaywrightConnection {
   }
 }
 
-function launchOptionsHash(options: LaunchOptions) {
+export function launchOptionsHash(options: LaunchOptions) {
   const copy = { ...options };
   for (const k of Object.keys(copy)) {
     const key = k as keyof LaunchOptions;

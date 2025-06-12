@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+import { AddressInfo } from 'net';
+
 import { createHttpServer } from './network';
 import { wsServer } from '../../utilsBundle';
 import { debugLogger } from './debugLogger';
 
-import type { BrowserContextOptions, LaunchOptions } from '../types';
+import type { LaunchOptions } from '../types';
 import type { WebSocket, WebSocketServer } from '../../utilsBundle';
 import type http from 'http';
 import type stream from 'stream';
@@ -170,6 +172,11 @@ export class WSServer {
     debugLogger.log('server', 'closed server');
 
     await this._delegate.onClose?.();
+  }
+
+  baseURL(): URL {
+    const { port } = this.server?.address() as AddressInfo;
+    return new URL(`ws://localhost:${port}`);
   }
 }
 

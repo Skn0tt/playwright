@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { PlaywrightConnection } from './playwrightConnection';
+import { launchOptionsHash, PlaywrightConnection } from './playwrightConnection';
 import { createPlaywright } from '../server/playwright';
 import { debugLogger } from '../server/utils/debugLogger';
 import { Semaphore } from '../utils/isomorphic/semaphore';
@@ -75,7 +75,6 @@ export class PlaywrightServer {
         return this._preLaunchedPlaywright.allBrowsers().map(browser => ({
           browserType: browser.options.name,
           channel: browser.options.channel,
-          guid: browser.guid,
         }));
       },
 
@@ -84,14 +83,16 @@ export class PlaywrightServer {
           this._preLaunchedPlaywright = createPlaywright({ sdkLanguage: 'javascript', isServer: true });
         const playwright = this._preLaunchedPlaywright;
         const existingBrowser = playwright.allBrowsers().find(browser => {
-          return browser.options.name === request.browserType; // TODO: also compare launch options
+          return browser.options.name === request.browserType && launchOptionsHash(request.launchOptions) === launchOptionsHash(browser.options.originalLaunchOptions); // TODO: also compare launch options
         });
         const browserType = playwright[request.browserType as 'chromium' | 'firefox' | 'webkit'];
         const browser = existingBrowser ?? await browserType.launch(serverSideCallMetadata(), request.launchOptions);
+        const wsURL = new URL(this._options.path, this._wsServer.baseURL());
+        wsURL.searchParams.set('guid', browser.guid);
         return {
           browserType: browser.options.name,
           channel: browser.options.channel,
-          guid: browser.guid,
+          wsURL,
         };
       },
 
@@ -108,6 +109,17 @@ export class PlaywrightServer {
         try {
           launchOptions = JSON.parse(launchOptionsParam || launchOptionsHeaderValue);
         } catch (e) {
+        }
+
+        let preLaunchedBrowser = this._options.preLaunchedBrowser;
+        if (url.searchParams.has('guid')) {
+          const guid = url.searchParams.get('guid');
+          const browser = this._preLaunchedPlaywright?.allBrowsers().find(browser => browser.guid === guid);
+
+          if (!browser)
+            throw new Error(`No browser with guid "${guid}" found.`);
+
+          preLaunchedBrowser = browser;
         }
 
         // Instantiate playwright for the extension modes.
@@ -142,7 +154,7 @@ export class PlaywrightServer {
             },
             {
               playwright: this._preLaunchedPlaywright,
-              browser: this._options.preLaunchedBrowser,
+              browser: preLaunchedBrowser,
               androidDevice: this._options.preLaunchedAndroidDevice,
               socksProxy: this._options.preLaunchedSocksProxy,
             },
