@@ -125,6 +125,7 @@ export class PlaywrightServer {
             throw new Error(`No browser with guid "${guid}" found.`);
 
           preLaunchedBrowser = browser;
+          this._options.mode = 'launchServerShared';
         }
 
         // Instantiate playwright for the extension modes.
