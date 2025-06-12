@@ -41,6 +41,8 @@ type ServerOptions = {
   preLaunchedSocksProxy?: SocksProxy;
 };
 
+const kBrowserName = Symbol('browserName');
+
 export class PlaywrightServer {
   private _preLaunchedPlaywright: Playwright | undefined;
   private _options: ServerOptions;
@@ -73,6 +75,7 @@ export class PlaywrightServer {
         if (!this._preLaunchedPlaywright)
           return [];
         return this._preLaunchedPlaywright.allBrowsers().map(browser => ({
+          name: (browser as any)[kBrowserName],
           browserType: browser.options.name,
           channel: browser.options.channel,
         }));
@@ -87,9 +90,11 @@ export class PlaywrightServer {
         });
         const browserType = playwright[request.browserType as 'chromium' | 'firefox' | 'webkit'];
         const browser = existingBrowser ?? await browserType.launch(serverSideCallMetadata(), request.launchOptions);
+        (browser as any)[kBrowserName] = request.name;
         const wsURL = new URL(this._options.path, this._wsServer.baseURL());
         wsURL.searchParams.set('guid', browser.guid);
         return {
+          name: (browser as any)[kBrowserName],
           browserType: browser.options.name,
           channel: browser.options.channel,
           wsURL,

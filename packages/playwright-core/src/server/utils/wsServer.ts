@@ -45,6 +45,7 @@ export type WSConnection = {
 };
 
 type LaunchBrowserRequest = {
+  name: string;
   browserType: string;
   launchOptions: LaunchOptions;
 };

@@ -34,8 +34,9 @@ test('should allow connecting to existing browser', async ({ playwright, server,
   const request = await playwright.request.newContext({ baseURL: browserServer.toString() });
   expect(await request.get('/json/list').then(r => r.json())).toEqual([]);
 
-  const launchResponse = await request.post('/json/launch', { data: { browserType: browserType.name(), launchOptions: {} } }).then(r => r.json());
+  const launchResponse = await request.post('/json/launch', { data: { name: 'first', browserType: browserType.name(), launchOptions: {} } }).then(r => r.json());
   expect(launchResponse).toEqual({
+    name: 'first',
     browserType: browserType.name(),
     wsURL: expect.any(String),
   });
@@ -45,17 +46,17 @@ test('should allow connecting to existing browser', async ({ playwright, server,
   await page.goto(server.EMPTY_PAGE);
 
   expect(await request.get('/json/list').then(r => r.json())).toEqual([
-    { browserType: browserType.name() }
+    { name: 'first', browserType: browserType.name() }
   ]);
 
-  const secondLaunchResponse = await request.post('/json/launch', { data: { browserType: browserType.name(), launchOptions: {} } }).then(r => r.json());
+  const secondLaunchResponse = await request.post('/json/launch', { data: { name: 'first', browserType: browserType.name(), launchOptions: {} } }).then(r => r.json());
   expect(secondLaunchResponse).toEqual(launchResponse);
 
   const secondBrowser = await browserType.connect(secondLaunchResponse.wsURL);
   const pages = secondBrowser.contexts().flatMap(c => c.pages().flatMap(p => p.url()));
   expect(pages).toEqual([server.EMPTY_PAGE]);
 
-  const thirdLaunchResponse = await request.post('/json/launch', { data: { browserType: browserType.name(), launchOptions: { assistantMode: true } } }).then(r => r.json());
+  const thirdLaunchResponse = await request.post('/json/launch', { data: { name: 'second', browserType: browserType.name(), launchOptions: { assistantMode: true } } }).then(r => r.json());
   expect(thirdLaunchResponse).not.toEqual(launchResponse);
 
   const assistantModeBrowser = await browserType.connect(thirdLaunchResponse.wsURL);
