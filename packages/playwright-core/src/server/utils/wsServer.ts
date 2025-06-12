@@ -79,7 +79,7 @@ export class WSServer {
         }));
         return;
       }
-      if (request.method === 'GET' || request.url === '/json/list') {
+      if (request.method === 'GET' && request.url === '/json/list') {
         const browsers = this._delegate.onListBrowsers();
         response.setHeader('Content-Type', 'application/json');
         response.end(JSON.stringify(browsers));

@@ -59,6 +59,17 @@ export class PlaywrightServer {
     const controllerSemaphore = new Semaphore(1);
     const reuseBrowserSemaphore = new Semaphore(1);
 
+    const browserToJSON = (browser: Browser) => {
+      const wsURL = new URL(this._options.path, this._wsServer.baseURL());
+      wsURL.searchParams.set('guid', browser.guid);
+      return {
+        name: '' + (browser as any)[kBrowserName],
+        browserType: browser.options.name,
+        channel: browser.options.channel,
+        wsURL,
+      };
+    };
+
     this._wsServer = new WSServer({
       onUpgrade: (request, socket) => {
         const uaError = userAgentVersionMatchesErrorMessage(request.headers['user-agent'] || '');
@@ -71,34 +82,19 @@ export class PlaywrightServer {
           headers.push(process.env.PWTEST_SERVER_WS_HEADERS!);
       },
 
-      onListBrowsers: () => {
-        if (!this._preLaunchedPlaywright)
-          return [];
-        return this._preLaunchedPlaywright.allBrowsers().map(browser => ({
-          name: (browser as any)[kBrowserName],
-          browserType: browser.options.name,
-          channel: browser.options.channel,
-        }));
-      },
+      onListBrowsers: () => this._preLaunchedPlaywright?.allBrowsers().map(browserToJSON) ?? [],
 
       onLaunchBrowser: async request => {
         if (!this._preLaunchedPlaywright)
           this._preLaunchedPlaywright = createPlaywright({ sdkLanguage: 'javascript', isServer: true });
         const playwright = this._preLaunchedPlaywright;
-        const existingBrowser = playwright.allBrowsers().find(browser => {
-          return browser.options.name === request.browserType && launchOptionsHash(request.launchOptions) === launchOptionsHash(browser.options.originalLaunchOptions); // TODO: also compare launch options
-        });
-        const browserType = playwright[request.browserType as 'chromium' | 'firefox' | 'webkit'];
-        const browser = existingBrowser ?? await browserType.launch(serverSideCallMetadata(), request.launchOptions);
-        (browser as any)[kBrowserName] = request.name;
-        const wsURL = new URL(this._options.path, this._wsServer.baseURL());
-        wsURL.searchParams.set('guid', browser.guid);
-        return {
-          name: (browser as any)[kBrowserName],
-          browserType: browser.options.name,
-          channel: browser.options.channel,
-          wsURL,
-        };
+        let browser = playwright.allBrowsers().find(browser => ((browser as any)[kBrowserName] + '') === request.name);
+        if (!browser) {
+          const browserType = playwright[request.browserType as 'chromium' | 'firefox' | 'webkit'];
+          browser = await browserType.launch(serverSideCallMetadata(), request.launchOptions);
+          (browser as any)[kBrowserName] = request.name;
+        }
+        return browserToJSON(browser);
       },
 
       onConnection: (request, url, ws, id) => {
