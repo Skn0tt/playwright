@@ -16,7 +16,7 @@
 
 import { Page, Worker } from '../page';
 import { Dispatcher } from './dispatcher';
-import { parseError } from '../errors';
+import { parseError, serializeError } from '../errors';
 import { ArtifactDispatcher } from './artifactDispatcher';
 import { ElementHandleDispatcher } from './elementHandlerDispatcher';
 import { FrameDispatcher } from './frameDispatcher';
@@ -52,6 +52,7 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
   private _requestInterceptor: RouteHandler;
   private _interceptionUrlMatchers: (string | RegExp)[] = [];
   private _locatorHandlers = new Set<number>();
+  private _errorHandlers = new Set<number>();
   private _jsCoverageActive = false;
   private _cssCoverageActive = false;
 
@@ -109,6 +110,7 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
     this.addObjectListener(Page.Events.FrameAttached, frame => this._onFrameAttached(frame));
     this.addObjectListener(Page.Events.FrameDetached, frame => this._onFrameDetached(frame));
     this.addObjectListener(Page.Events.LocatorHandlerTriggered, (uid: number) => this._dispatchEvent('locatorHandlerTriggered', { uid }));
+    this.addObjectListener(Page.Events.ErrorHandlerTriggered, ({ uid, error }) => this._dispatchEvent('errorHandlerTriggered', { uid, error: serializeError(error) }));
     this.addObjectListener(Page.Events.WebSocket, webSocket => this._dispatchEvent('webSocket', { webSocket: new WebSocketDispatcher(this, webSocket) }));
     this.addObjectListener(Page.Events.Worker, worker => this._dispatchEvent('worker', { worker: new WorkerDispatcher(this, worker) }));
     this.addObjectListener(Page.Events.Video, (artifact: Artifact) => this._dispatchEvent('video', { artifact: ArtifactDispatcher.from(parentScope, artifact) }));
@@ -155,6 +157,16 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
 
   async requestGC(params: channels.PageRequestGCParams, progress: Progress): Promise<channels.PageRequestGCResult> {
     await progress.race(this._page.requestGC());
+  }
+
+  async registerErrorHandler(params?: channels.PageRegisterErrorHandlerParams, progress?: Progress): Promise<channels.PageRegisterErrorHandlerResult> {
+    const uid = this._page.registerErrorHandler();
+    this._errorHandlers.add(uid);
+    return { uid };
+  }
+
+  async resolveErrorHandlerNoReply(params: channels.PageResolveErrorHandlerNoReplyParams, progress?: Progress): Promise<channels.PageResolveErrorHandlerNoReplyResult> {
+    this._page.resolveErrorHandler(params.uid, params.result);
   }
 
   async registerLocatorHandler(params: channels.PageRegisterLocatorHandlerParams, progress: Progress): Promise<channels.PageRegisterLocatorHandlerResult> {
@@ -370,6 +382,9 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
     for (const uid of this._locatorHandlers)
       this._page.unregisterLocatorHandler(uid);
     this._locatorHandlers.clear();
+    for (const uid of this._errorHandlers)
+      this._page.unregisterErrorHandler(uid);
+    this._errorHandlers.clear();
     this._page.setFileChooserInterceptedBy(false, this).catch(() => {});
     if (this._jsCoverageActive)
       (this._page.coverage as CRCoverage).stopJSCoverage().catch(() => {});

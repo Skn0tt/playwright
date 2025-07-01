@@ -2061,6 +2061,7 @@ export interface PageEventTarget {
   on(event: 'frameAttached', callback: (params: PageFrameAttachedEvent) => void): this;
   on(event: 'frameDetached', callback: (params: PageFrameDetachedEvent) => void): this;
   on(event: 'locatorHandlerTriggered', callback: (params: PageLocatorHandlerTriggeredEvent) => void): this;
+  on(event: 'errorHandlerTriggered', callback: (params: PageErrorHandlerTriggeredEvent) => void): this;
   on(event: 'route', callback: (params: PageRouteEvent) => void): this;
   on(event: 'webSocketRoute', callback: (params: PageWebSocketRouteEvent) => void): this;
   on(event: 'video', callback: (params: PageVideoEvent) => void): this;
@@ -2076,6 +2077,8 @@ export interface PageChannel extends PageEventTarget, EventTargetChannel {
   goBack(params: PageGoBackParams, progress?: Progress): Promise<PageGoBackResult>;
   goForward(params: PageGoForwardParams, progress?: Progress): Promise<PageGoForwardResult>;
   requestGC(params?: PageRequestGCParams, progress?: Progress): Promise<PageRequestGCResult>;
+  registerErrorHandler(params?: PageRegisterErrorHandlerParams, progress?: Progress): Promise<PageRegisterErrorHandlerResult>;
+  resolveErrorHandlerNoReply(params: PageResolveErrorHandlerNoReplyParams, progress?: Progress): Promise<PageResolveErrorHandlerNoReplyResult>;
   registerLocatorHandler(params: PageRegisterLocatorHandlerParams, progress?: Progress): Promise<PageRegisterLocatorHandlerResult>;
   resolveLocatorHandlerNoReply(params: PageResolveLocatorHandlerNoReplyParams, progress?: Progress): Promise<PageResolveLocatorHandlerNoReplyResult>;
   unregisterLocatorHandler(params: PageUnregisterLocatorHandlerParams, progress?: Progress): Promise<PageUnregisterLocatorHandlerResult>;
@@ -2135,6 +2138,10 @@ export type PageFrameDetachedEvent = {
 };
 export type PageLocatorHandlerTriggeredEvent = {
   uid: number,
+};
+export type PageErrorHandlerTriggeredEvent = {
+  uid: number,
+  error: SerializedError,
 };
 export type PageRouteEvent = {
   route: RouteChannel,
@@ -2213,6 +2220,19 @@ export type PageGoForwardResult = {
 export type PageRequestGCParams = {};
 export type PageRequestGCOptions = {};
 export type PageRequestGCResult = void;
+export type PageRegisterErrorHandlerParams = {};
+export type PageRegisterErrorHandlerOptions = {};
+export type PageRegisterErrorHandlerResult = {
+  uid: number,
+};
+export type PageResolveErrorHandlerNoReplyParams = {
+  uid: number,
+  result: 'error' | 'retry' | 'continue',
+};
+export type PageResolveErrorHandlerNoReplyOptions = {
+
+};
+export type PageResolveErrorHandlerNoReplyResult = void;
 export type PageRegisterLocatorHandlerParams = {
   selector: string,
   noWaitAfter?: boolean,
@@ -2601,6 +2621,7 @@ export interface PageEvents {
   'frameAttached': PageFrameAttachedEvent;
   'frameDetached': PageFrameDetachedEvent;
   'locatorHandlerTriggered': PageLocatorHandlerTriggeredEvent;
+  'errorHandlerTriggered': PageErrorHandlerTriggeredEvent;
   'route': PageRouteEvent;
   'webSocketRoute': PageWebSocketRouteEvent;
   'video': PageVideoEvent;

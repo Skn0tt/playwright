@@ -1027,6 +1027,20 @@ export class Frame extends SdkObject {
     return result!;
   }
 
+  async retryWithProgressAndTimeoutsAndErrorHandler<R>(progress: Progress, timeouts: number[], action: (continuePolling: symbol) => Promise<R | symbol>): Promise<R | void> {
+    try {
+      return await this.retryWithProgressAndTimeouts(progress, timeouts, action);
+    } catch (e) {
+      const result = await this._page.performErrorHandler(e, progress);
+      if (result === 'continue')
+        return;
+      if (result === 'retry')
+        return this.retryWithProgressAndTimeouts(progress, timeouts, action);
+
+      throw e;
+    }
+  }
+
   async retryWithProgressAndTimeouts<R>(progress: Progress, timeouts: number[], action: (continuePolling: symbol) => Promise<R | symbol>): Promise<R> {
     const continuePolling = Symbol('continuePolling');
     timeouts = [0, ...timeouts];

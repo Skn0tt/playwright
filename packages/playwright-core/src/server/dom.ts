@@ -293,6 +293,20 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
     };
   }
 
+  async _retryActionWithErrorHandler(progress: Progress, actionName: string, action: (retry: number) => Promise<PerformActionResult>, options: { trial?: boolean, force?: boolean, skipActionPreChecks?: boolean }): Promise<'error:notconnected' | 'done'> {
+    try {
+      return await this._retryAction(progress, actionName, action, options);
+    } catch (e) {
+      progress.legacyEnableTimeout()
+      const result = await this._page.performErrorHandler(e, progress);
+      if (result === 'continue')
+        return 'done';
+      if (result === 'retry')
+        return await this._retryAction(progress, actionName, action, options);
+      throw e;
+    }
+  }
+
   async _retryAction(progress: Progress, actionName: string, action: (retry: number) => Promise<PerformActionResult>, options: { trial?: boolean, force?: boolean, skipActionPreChecks?: boolean }): Promise<'error:notconnected' | 'done'> {
     let retry = 0;
     // We progressively wait longer between retries, up to 500ms.
@@ -351,7 +365,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
     options: { waitAfter: boolean | 'disabled' } & types.PointerActionOptions & types.PointerActionWaitOptions): Promise<'error:notconnected' | 'done'> {
     // Note: do not perform locator handlers checkpoint to avoid moving the mouse in the middle of a drag operation.
     const skipActionPreChecks = actionName === 'move and up';
-    return await this._retryAction(progress, actionName, async retry => {
+    return await this._retryActionWithErrorHandler(progress, actionName, async retry => {
       // By default, we scroll with protocol method to reveal the action point.
       // However, that might not work to scroll from under position:sticky elements
       // that overlay the target element. To fight this, we cycle through different

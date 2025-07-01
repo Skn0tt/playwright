@@ -1646,6 +1646,22 @@ Page:
     requestGC:
       title: Request garbage collection
 
+    registerErrorHandler:
+      title: Register error handler
+      returns:
+        uid: number
+
+    resolveErrorHandlerNoReply:
+      internal: true
+      parameters:
+        uid: number
+        result:
+          type: enum
+          literals:
+          - error
+          - retry
+          - continue
+
     registerLocatorHandler:
       title: Register locator handler
       parameters:
@@ -2038,6 +2054,11 @@ Page:
     locatorHandlerTriggered:
       parameters:
         uid: number
+
+    errorHandlerTriggered:
+      parameters:
+        uid: number
+        error: SerializedError
 
     route:
       parameters:

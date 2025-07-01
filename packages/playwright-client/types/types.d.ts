@@ -3857,6 +3857,34 @@ export interface Page {
   }): Promise<void>;
 
   /**
+   * When testing a web page, errors can occur that make your tests fail. Some of these errors are safely resolveable
+   * using heuristics.
+   *
+   * This method lets you set up an error handler that activates when Playwright would otherwise throw an error. The
+   * handler's job is to examine the error, and if possible, heal the flow by making adjustment actions.
+   *
+   * **Usage**
+   *
+   * An example that uses a heuristic to decide whether to retry an action:
+   *
+   * ```js
+   * // Setup the handler.
+   * await page.registerErrorHandler(async (error) => {
+   *   if (error.message.includes('Timed out waiting for button to appear'))
+   *     return 'retry';
+   * });
+   *
+   * // Write the test as usual.
+   * await page.goto('https://example.com');
+   * await page.getByRole('button', { name: 'Start here' }).click();
+   * ```
+   *
+   * @param handler Function that should be run once an action errors. This function should decide whether to retry the action or
+   * resume.
+   */
+  registerErrorHandler(handler: ((error: Error) => Promise<void|"continue"|"retry">)): Promise<void>;
+
+  /**
    * This method reloads the current page, in the same way as if the user had triggered a browser refresh. Returns the
    * main resource response. In case of multiple redirects, the navigation will resolve with the response of the last
    * redirect.

@@ -1203,6 +1203,10 @@ scheme.PageFrameDetachedEvent = tObject({
 scheme.PageLocatorHandlerTriggeredEvent = tObject({
   uid: tNumber,
 });
+scheme.PageErrorHandlerTriggeredEvent = tObject({
+  uid: tNumber,
+  error: tType('SerializedError'),
+});
 scheme.PageRouteEvent = tObject({
   route: tChannel(['Route']),
 });
@@ -1256,6 +1260,15 @@ scheme.PageGoForwardResult = tObject({
 });
 scheme.PageRequestGCParams = tOptional(tObject({}));
 scheme.PageRequestGCResult = tOptional(tObject({}));
+scheme.PageRegisterErrorHandlerParams = tOptional(tObject({}));
+scheme.PageRegisterErrorHandlerResult = tObject({
+  uid: tNumber,
+});
+scheme.PageResolveErrorHandlerNoReplyParams = tObject({
+  uid: tNumber,
+  result: tEnum(['error', 'retry', 'continue']),
+});
+scheme.PageResolveErrorHandlerNoReplyResult = tOptional(tObject({}));
 scheme.PageRegisterLocatorHandlerParams = tObject({
   selector: tString,
   noWaitAfter: tOptional(tBoolean),

@@ -128,6 +128,7 @@ export class Page extends SdkObject {
     FrameDetached: 'framedetached',
     InternalFrameNavigatedToNewDocument: 'internalframenavigatedtonewdocument',
     LocatorHandlerTriggered: 'locatorhandlertriggered',
+    ErrorHandlerTriggered: 'errorhandlertriggered',
     ScreencastFrame: 'screencastframe',
     Video: 'video',
     WebSocket: 'websocket',
@@ -165,6 +166,8 @@ export class Page extends SdkObject {
   private _locatorHandlers = new Map<number, { selector: string, noWaitAfter?: boolean, resolved?: ManualPromise<void> }>();
   private _lastLocatorHandlerUid = 0;
   private _locatorHandlerRunningCounter = 0;
+  private _lastErrorHandlerUid = 0;
+  private _errorHandlers = new Map<number, { resolved?: ManualPromise<'error' | 'retry' | 'continue'> }>();
 
   // Aiming at 25 fps by default - each frame is 40ms, but we give some slack with 35ms.
   // When throttling for tracing, 200ms between frames, except for 10 frames around the action.
@@ -426,6 +429,40 @@ export class Page extends SdkObject {
 
   requestGC(): Promise<void> {
     return this.delegate.requestGC();
+  }
+
+  registerErrorHandler() {
+    const uid = ++this._lastErrorHandlerUid;
+    this._errorHandlers.set(uid, {});
+    return uid;
+  }
+
+  resolveErrorHandler(uid: number, result: 'error' | 'retry' | 'continue') {
+    const handler = this._errorHandlers.get(uid);
+    if (handler) {
+      handler.resolved?.resolve(result);
+      handler.resolved = undefined;
+    }
+  }
+
+  unregisterErrorHandler(uid: number) {
+    this._errorHandlers.delete(uid);
+  }
+
+  async performErrorHandler(error: Error, progress: Progress) {
+    for (const [uid, handler] of this._errorHandlers) {
+      handler.resolved = new ManualPromise();
+      this.emit(Page.Events.ErrorHandlerTriggered, { uid, error });
+      const result = await progress.race(this.openScope.race(handler.resolved)).catch(() => 'error' as const);
+      progress.log(`  error handler has finished with result "${result}", continuing`);
+
+      if (result === 'error')
+        continue;
+
+      return result;
+    }
+
+    return 'error';
   }
 
   registerLocatorHandler(selector: string, noWaitAfter: boolean | undefined) {

@@ -3121,6 +3121,36 @@ return value resolves to `[]`.
 ### param: Page.querySelectorAll.selector = %%-query-selector-%%
 * since: v1.9
 
+## async method: Page.registerErrorHandler
+* since: v1.55
+
+When testing a web page, errors can occur that make your tests fail. Some of these errors are safely resolveable using heuristics.
+
+This method lets you set up an error handler that activates when Playwright would otherwise throw an error.
+The handler's job is to examine the error, and if possible, heal the flow by making adjustment actions.
+
+**Usage**
+
+An example that uses a heuristic to decide whether to retry an action:
+
+```js
+// Setup the handler.
+await page.registerErrorHandler(async (error) => {
+  if (error.message.includes('Timed out waiting for button to appear'))
+    return 'retry'; 
+});
+
+// Write the test as usual.
+await page.goto('https://example.com');
+await page.getByRole('button', { name: 'Start here' }).click();
+```
+
+
+### param: Page.registerErrorHandler.handler
+* since: v1.55
+- `handler` <[function]\([Error]\): [Promise<void|[ErrorHandlerResult]<"continue"|"retry">>]>
+
+Function that should be run once an action errors. This function should decide whether to retry the action or resume.
 
 ## async method: Page.addLocatorHandler
 * since: v1.42

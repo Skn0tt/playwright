@@ -107,6 +107,8 @@ export const methodMetainfo = new Map<string, { internal?: boolean, title?: stri
   ['Page.goBack', { title: 'Go back', slowMo: true, snapshot: true, }],
   ['Page.goForward', { title: 'Go forward', slowMo: true, snapshot: true, }],
   ['Page.requestGC', { title: 'Request garbage collection', }],
+  ['Page.registerErrorHandler', { title: 'Register error handler', }],
+  ['Page.resolveErrorHandlerNoReply', { internal: true, }],
   ['Page.registerLocatorHandler', { title: 'Register locator handler', }],
   ['Page.resolveLocatorHandlerNoReply', { internal: true, }],
   ['Page.unregisterLocatorHandler', { title: 'Unregister locator handler', }],

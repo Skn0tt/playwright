@@ -22,7 +22,7 @@ import { evaluationScript } from './clientHelper';
 import { Coverage } from './coverage';
 import { Download } from './download';
 import { ElementHandle, determineScreenshotType } from './elementHandle';
-import { TargetClosedError, isTargetClosedError, serializeError } from './errors';
+import { TargetClosedError, isTargetClosedError, parseError, serializeError } from './errors';
 import { Events } from './events';
 import { FileChooser } from './fileChooser';
 import { Frame, verifyLoadState } from './frame';
@@ -105,6 +105,7 @@ export class Page extends ChannelOwner<channels.PageChannel> implements api.Page
   _closeWasCalled: boolean = false;
   private _harRouters: HarRouter[] = [];
 
+  private _errorHandlers = new Map<number, (error: Error) => Promise<void | 'retry' | 'continue'>>();
   private _locatorHandlers = new Map<number, { locator: Locator, handler: (locator: Locator) => any, times: number | undefined }>();
 
   static from(page: channels.PageChannel): Page {
@@ -145,6 +146,7 @@ export class Page extends ChannelOwner<channels.PageChannel> implements api.Page
     this._channel.on('frameAttached', ({ frame }) => this._onFrameAttached(Frame.from(frame)));
     this._channel.on('frameDetached', ({ frame }) => this._onFrameDetached(Frame.from(frame)));
     this._channel.on('locatorHandlerTriggered', ({ uid }) => this._onLocatorHandlerTriggered(uid));
+    this._channel.on('errorHandlerTriggered', ({ uid, error }) => this._onErrorHandlerTriggered(uid, error));
     this._channel.on('route', ({ route }) => this._onRoute(Route.from(route)));
     this._channel.on('webSocketRoute', ({ webSocketRoute }) => this._onWebSocketRoute(WebSocketRoute.from(webSocketRoute)));
     this._channel.on('video', ({ artifact }) => {
@@ -374,6 +376,22 @@ export class Page extends ChannelOwner<channels.PageChannel> implements api.Page
   async reload(options: channels.PageReloadOptions & TimeoutOptions = {}): Promise<Response | null> {
     const waitUntil = verifyLoadState('waitUntil', options.waitUntil === undefined ? 'load' : options.waitUntil);
     return Response.fromNullable((await this._channel.reload({ ...options, waitUntil, timeout: this._timeoutSettings.navigationTimeout(options) })).response);
+  }
+
+  async registerErrorHandler(handler: ((error: Error) => Promise<void | 'retry' | 'continue'>)): Promise<void> {
+    const { uid } = await this._channel.registerErrorHandler({});
+    this._errorHandlers.set(uid, handler);
+  }
+
+  private async _onErrorHandlerTriggered(uid: number, error: channels.SerializedError) {
+    const parsedError = parseError(error);
+    const handler = this._errorHandlers.get(uid)!;
+    let result: 'error' | 'continue' | 'retry' = 'error';
+    try {
+      result = await handler(parsedError) || 'error';
+    } finally {
+      this._channel.resolveErrorHandlerNoReply({ uid, result }).catch(() => {});
+    }
   }
 
   async addLocatorHandler(locator: Locator, handler: (locator: Locator) => any, options: { times?: number, noWaitAfter?: boolean } = {}): Promise<void> {
