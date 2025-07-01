@@ -450,7 +450,7 @@ export class Page extends SdkObject {
   }
 
   async performErrorHandler(error: Error, progress: Progress) {
-    for (const [uid, handler] of this._errorHandlers) {
+    for (const [uid, handler] of [...this._errorHandlers].reverse()) {
       handler.resolved = new ManualPromise();
       this.emit(Page.Events.ErrorHandlerTriggered, { uid, error });
       const result = await progress.race(this.openScope.race(handler.resolved)).catch(() => 'error' as const);

@@ -169,7 +169,7 @@ export class Connection extends EventEmitter {
       this._callbacks.delete(id);
       if (error && !result) {
         const parsedError = parseError(error);
-        rewriteErrorMessage(parsedError, parsedError.message + formatCallLog(this._platform, log));
+        rewriteErrorMessage(parsedError, parsedError.message + this._formatCallLog(log));
         callback.reject(parsedError);
       } else {
         const validator = findValidator(callback.type, callback.method, 'Result');
@@ -333,13 +333,13 @@ export class Connection extends EventEmitter {
     }
     return result;
   }
-}
 
-function formatCallLog(platform: Platform, log: string[] | undefined): string {
-  if (!log || !log.some(l => !!l))
-    return '';
-  return `
+  _formatCallLog(log: string[] | undefined): string {
+    if (!log || !log.some(l => !!l))
+      return '';
+    return `
 Call log:
-${platform.colors.dim(log.join('\n'))}
+${this._platform.colors.dim(log.join('\n'))}
 `;
+  }
 }

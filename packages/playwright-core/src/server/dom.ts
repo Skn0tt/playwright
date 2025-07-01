@@ -294,17 +294,14 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
   }
 
   async _retryActionWithErrorHandler(progress: Progress, actionName: string, action: (retry: number) => Promise<PerformActionResult>, options: { trial?: boolean, force?: boolean, skipActionPreChecks?: boolean }): Promise<'error:notconnected' | 'done'> {
-    try {
-      return await this._retryAction(progress, actionName, action, options);
-    } catch (e) {
-      progress.legacyEnableTimeout()
-      const result = await this._page.performErrorHandler(e, progress);
-      if (result === 'continue')
-        return 'done';
-      if (result === 'retry')
-        return await this._retryAction(progress, actionName, action, options);
-      throw e;
-    }
+    return await this._retryAction(progress, actionName, async retry => {
+      if (retry === 5) {
+        const result = await this._page.performErrorHandler(progress.timeoutError(), progress);
+        if (result === 'continue')
+          return 'done';
+      }
+      return action(retry);
+    }, options);
   }
 
   async _retryAction(progress: Progress, actionName: string, action: (retry: number) => Promise<PerformActionResult>, options: { trial?: boolean, force?: boolean, skipActionPreChecks?: boolean }): Promise<'error:notconnected' | 'done'> {

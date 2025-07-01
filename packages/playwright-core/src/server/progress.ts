@@ -146,6 +146,8 @@ export class ProgressController {
           return;
         customErrorHandler = handler;
       },
+
+      timeoutError: () => timeoutError,
     };
 
     startTimer();

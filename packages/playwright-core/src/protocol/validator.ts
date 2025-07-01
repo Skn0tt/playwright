@@ -1206,6 +1206,7 @@ scheme.PageLocatorHandlerTriggeredEvent = tObject({
 scheme.PageErrorHandlerTriggeredEvent = tObject({
   uid: tNumber,
   error: tType('SerializedError'),
+  log: tOptional(tArray(tString)),
 });
 scheme.PageRouteEvent = tObject({
   route: tChannel(['Route']),

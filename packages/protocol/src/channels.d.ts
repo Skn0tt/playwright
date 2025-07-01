@@ -2142,6 +2142,7 @@ export type PageLocatorHandlerTriggeredEvent = {
 export type PageErrorHandlerTriggeredEvent = {
   uid: number,
   error: SerializedError,
+  log?: string[],
 };
 export type PageRouteEvent = {
   route: RouteChannel,

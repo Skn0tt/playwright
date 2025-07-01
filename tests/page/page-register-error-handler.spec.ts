@@ -28,7 +28,6 @@ test('should work', async ({ page }) => {
   const errors: Error[] = [];
   await page.registerErrorHandler(async error => {
     errors.push(error);
-    console.error('Error handler called:', error);
     await page.locator('#close').click();
     return 'continue';
   });

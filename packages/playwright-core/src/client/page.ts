@@ -41,6 +41,7 @@ import { trimStringWithEllipsis  } from '../utils/isomorphic/stringUtils';
 import { urlMatches, urlMatchesEqual } from '../utils/isomorphic/urlMatch';
 import { LongStandingScope } from '../utils/isomorphic/manualPromise';
 import { isObject, isRegExp, isString } from '../utils/isomorphic/rtti';
+import { rewriteErrorMessage } from '../utils/isomorphic/stackTrace';
 
 import type { BrowserContext } from './browserContext';
 import type { Clock } from './clock';
@@ -146,7 +147,7 @@ export class Page extends ChannelOwner<channels.PageChannel> implements api.Page
     this._channel.on('frameAttached', ({ frame }) => this._onFrameAttached(Frame.from(frame)));
     this._channel.on('frameDetached', ({ frame }) => this._onFrameDetached(Frame.from(frame)));
     this._channel.on('locatorHandlerTriggered', ({ uid }) => this._onLocatorHandlerTriggered(uid));
-    this._channel.on('errorHandlerTriggered', ({ uid, error }) => this._onErrorHandlerTriggered(uid, error));
+    this._channel.on('errorHandlerTriggered', ({ uid, error, log }) => this._onErrorHandlerTriggered(uid, error, log));
     this._channel.on('route', ({ route }) => this._onRoute(Route.from(route)));
     this._channel.on('webSocketRoute', ({ webSocketRoute }) => this._onWebSocketRoute(WebSocketRoute.from(webSocketRoute)));
     this._channel.on('video', ({ artifact }) => {
@@ -383,8 +384,9 @@ export class Page extends ChannelOwner<channels.PageChannel> implements api.Page
     this._errorHandlers.set(uid, handler);
   }
 
-  private async _onErrorHandlerTriggered(uid: number, error: channels.SerializedError) {
+  private async _onErrorHandlerTriggered(uid: number, error: channels.SerializedError, log: string[] | undefined) {
     const parsedError = parseError(error);
+    rewriteErrorMessage(parsedError, parsedError.message + this._connection._formatCallLog(log));
     const handler = this._errorHandlers.get(uid)!;
     let result: 'error' | 'continue' | 'retry' = 'error';
     try {

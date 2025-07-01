@@ -2059,6 +2059,9 @@ Page:
       parameters:
         uid: number
         error: SerializedError
+        log:
+          type: array?
+          items: string
 
     route:
       parameters:
