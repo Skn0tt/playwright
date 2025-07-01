@@ -41,6 +41,8 @@ test('should work', async ({ page }) => {
 
   expect(errors).toHaveLength(1);
   expect(secondErrors).toHaveLength(1);
-  expect(errors[0]).toEqual(secondErrors[0]);
-  expect(errors[0].message).toContain('Annoying interstitial');
+  expect(errors[0].message).toEqual(secondErrors[0].message);
+  expect(errors[0].message).toContain('Error attempting click action.');
+  expect(errors[0].message).toContain(`Call log:`);
+  expect(errors[0].message).toContain(`waiting for locator('#target')`);
 });

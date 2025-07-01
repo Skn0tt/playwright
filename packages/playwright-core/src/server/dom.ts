@@ -296,7 +296,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
   async _retryActionWithErrorHandler(progress: Progress, actionName: string, action: (retry: number) => Promise<PerformActionResult>, options: { trial?: boolean, force?: boolean, skipActionPreChecks?: boolean }): Promise<'error:notconnected' | 'done'> {
     return await this._retryAction(progress, actionName, async retry => {
       if (retry === 5) {
-        const result = await this._page.performErrorHandler(progress.timeoutError(), progress);
+        const result = await this._page.performErrorHandler(new Error(`Error attempting ${actionName} action.`), progress);
         if (result === 'continue')
           return 'done';
       }

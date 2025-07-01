@@ -110,7 +110,7 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
     this.addObjectListener(Page.Events.FrameAttached, frame => this._onFrameAttached(frame));
     this.addObjectListener(Page.Events.FrameDetached, frame => this._onFrameDetached(frame));
     this.addObjectListener(Page.Events.LocatorHandlerTriggered, (uid: number) => this._dispatchEvent('locatorHandlerTriggered', { uid }));
-    this.addObjectListener(Page.Events.ErrorHandlerTriggered, ({ uid, error }) => this._dispatchEvent('errorHandlerTriggered', { uid, error: serializeError(error) }));
+    this.addObjectListener(Page.Events.ErrorHandlerTriggered, ({ uid, error, log }) => this._dispatchEvent('errorHandlerTriggered', { uid, error: serializeError(error), log }));
     this.addObjectListener(Page.Events.WebSocket, webSocket => this._dispatchEvent('webSocket', { webSocket: new WebSocketDispatcher(this, webSocket) }));
     this.addObjectListener(Page.Events.Worker, worker => this._dispatchEvent('worker', { worker: new WorkerDispatcher(this, worker) }));
     this.addObjectListener(Page.Events.Video, (artifact: Artifact) => this._dispatchEvent('video', { artifact: ArtifactDispatcher.from(parentScope, artifact) }));
