@@ -751,7 +751,7 @@ export class Frame extends SdkObject {
       throw new Error(`state: expected one of (attached|detached|visible|hidden)`);
     if (performActionPreChecksAndLog)
       progress.log(`waiting for ${this._asLocator(selector)}${state === 'attached' ? '' : ' to be ' + state}`);
-    const promise = this.retryWithProgressAndTimeouts(progress, [0, 20, 50, 100, 100, 500], async continuePolling => {
+    const promise = this.retryWithProgressAndTimeoutsAndErrorHandler(progress, [0, 20, 50, 100, 100, 500], async continuePolling => {
       if (performActionPreChecksAndLog)
         await this._page.performActionPreChecks(progress);
 
@@ -1027,7 +1027,7 @@ export class Frame extends SdkObject {
     return result!;
   }
 
-  async retryWithProgressAndTimeoutsAndErrorHandler<R>(progress: Progress, timeouts: number[], action: (continuePolling: symbol) => Promise<R | symbol>): Promise<R | void> {
+  async retryWithProgressAndTimeoutsAndErrorHandler<R>(progress: Progress, timeouts: number[], action: (continuePolling: symbol) => Promise<R | symbol>): Promise<R> {
     try {
       return await this.retryWithProgressAndTimeouts(progress, timeouts, action);
     } catch (e) {

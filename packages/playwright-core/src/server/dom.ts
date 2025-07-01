@@ -210,7 +210,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
   }
 
   async _waitAndScrollIntoViewIfNeeded(progress: Progress, waitForVisible: boolean): Promise<void> {
-    const result = await this._retryAction(progress, 'scroll into view', async () => {
+    const result = await this._retryActionWithErrorHandler(progress, 'scroll into view', async () => {
       progress.log(`  waiting for element to be stable`);
       const waitResult = await progress.race(this.evaluateInUtility(async ([injected, node, { waitForVisible }]) => {
         return await injected.checkElementStates(node, waitForVisible ? ['visible', 'stable'] : ['stable']);
@@ -559,7 +559,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
 
   async _selectOption(progress: Progress, elements: ElementHandle[], values: types.SelectOption[], options: types.CommonActionOptions): Promise<string[] | 'error:notconnected'> {
     let resultingOptions: string[] = [];
-    const result = await this._retryAction(progress, 'select option', async () => {
+    const result = await this._retryActionWithErrorHandler(progress, 'select option', async () => {
       await progress.race(this.instrumentation.onBeforeInputAction(this, progress.metadata));
       if (!options.force)
         progress.log(`  waiting for element to be visible and enabled`);
@@ -592,7 +592,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
 
   async _fill(progress: Progress, value: string, options: types.CommonActionOptions): Promise<'error:notconnected' | 'done'> {
     progress.log(`  fill("${value}")`);
-    return await this._retryAction(progress, 'fill', async () => {
+    return await this._retryActionWithErrorHandler(progress, 'fill', async () => {
       await progress.race(this.instrumentation.onBeforeInputAction(this, progress.metadata));
       if (!options.force)
         progress.log('  waiting for element to be visible, enabled and editable');
@@ -617,7 +617,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
   }
 
   async selectText(progress: Progress, options: types.CommonActionOptions): Promise<void> {
-    const result = await this._retryAction(progress, 'selectText', async () => {
+    const result = await this._retryActionWithErrorHandler(progress, 'selectText', async () => {
       if (!options.force)
         progress.log('  waiting for element to be visible');
       return await progress.race(this.evaluateInUtility(async ([injected, node, { force }]) => {
@@ -811,7 +811,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
 
   async waitForElementState(progress: Progress, state: 'visible' | 'hidden' | 'stable' | 'enabled' | 'disabled' | 'editable'): Promise<void> {
     const actionName = `wait for ${state}`;
-    const result = await this._retryAction(progress, actionName, async () => {
+    const result = await this._retryActionWithErrorHandler(progress, actionName, async () => {
       return await progress.race(this.evaluateInUtility(async ([injected, node, state]) => {
         return (await injected.checkElementStates(node, [state])) || 'done';
       }, state));
