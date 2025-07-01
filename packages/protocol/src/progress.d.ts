@@ -39,8 +39,6 @@ export interface Progress {
   wait(timeout: number): Promise<void>;
   metadata: CallMetadata;
 
-  timeoutError(): Error;
-
   // Legacy lenient mode api only. To be removed.
   legacyDisableTimeout(): void;
   legacyEnableTimeout(): void;
