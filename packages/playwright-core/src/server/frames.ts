@@ -1027,16 +1027,15 @@ export class Frame extends SdkObject {
     return result!;
   }
 
-  async retryWithProgressAndTimeoutsAndErrorHandler<R>(progress: Progress, timeouts: number[], action: (continuePolling: symbol) => Promise<R | symbol>): Promise<R> {
+  async retryWithProgressAndTimeoutsAndErrorHandler<R>(progress: Progress, timeouts: number[], action: (continuePolling: symbol) => Promise<R | symbol>): Promise<R | null> {
     try {
       return await this.retryWithProgressAndTimeouts(progress, timeouts, action);
     } catch (e) {
       const result = await this._page.performErrorHandler(e, progress);
       if (result === 'continue')
-        return;
+        return null;
       if (result === 'retry')
         return this.retryWithProgressAndTimeouts(progress, timeouts, action);
-
       throw e;
     }
   }
