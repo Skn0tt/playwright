@@ -48,6 +48,7 @@ export class PlaywrightServer {
   private _wsServer: WSServer;
 
   private _dontReuseBrowsers = new Set<Browser>();
+  private _fallbackBrowser?: Browser;
 
   constructor(options: ServerOptions) {
     this._options = options;
@@ -231,12 +232,14 @@ export class PlaywrightServer {
 
     debugLogger.log('server', `[${id}] engaged connect mode`);
 
-    let browser = this._playwright.allBrowsers().find(b => b.options.name === browserName);
+    let browser = this._playwright.allBrowsers()[0] ?? this._fallbackBrowser;
     if (!browser) {
       const browserType = this._playwright[browserName as 'chromium'];
       const controller = new ProgressController(serverSideCallMetadata(), browserType);
+      // TODO: support persistent browsers
       browser = await controller.run(progress => browserType.launch(progress, launchOptions), launchOptions.timeout);
       this._dontReuse(browser);
+      this._fallbackBrowser = browser;
     }
 
     return {
