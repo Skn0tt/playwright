@@ -232,7 +232,9 @@ export class PlaywrightServer {
 
     debugLogger.log('server', `[${id}] engaged connect mode`);
 
-    let browser = this._playwright.allBrowsers()[0] ?? this._fallbackBrowser;
+    // TODO: check this._fallbackBrowser for launch options match.
+    // TODO: filter for non-empty browsers. we don't care about reused browsers.
+    let browser = this._playwright.allBrowsers().find(b => b !== this._fallbackBrowser) ?? this._fallbackBrowser;
     if (!browser) {
       const browserType = this._playwright[browserName as 'chromium'];
       const controller = new ProgressController(serverSideCallMetadata(), browserType);
@@ -240,12 +242,24 @@ export class PlaywrightServer {
       browser = await controller.run(progress => browserType.launch(progress, launchOptions), launchOptions.timeout);
       this._dontReuse(browser);
       this._fallbackBrowser = browser;
+      browser.on(Browser.Events.Disconnected, () => {
+        this._fallbackBrowser = undefined;
+      });
     }
 
     return {
       preLaunchedBrowser: browser,
       denyLaunch: true,
       sharedBrowser: true,
+      dispose: async () => {
+        for (const context of browser.contexts()) {
+          if (!context.pages().length)
+            await context.close({ reason: 'Connection terminated' });
+        }
+
+        if (!browser.contexts().length)
+          await browser.close({ reason: 'Connection terminated' });
+      }
     };
   }
 
