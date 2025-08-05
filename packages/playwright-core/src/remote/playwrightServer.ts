@@ -240,7 +240,7 @@ export class PlaywrightServer {
     debugLogger.log('server', `[${id}] engaged connect mode`);
 
     // if there's a non-empty non-fallback browser, use it.
-    const foregroundBrowser = this._playwright.allPages().map(p => p.browserContext._browser).find(b => this._fallbackBrowser !== b);
+    const foregroundBrowser = this._playwright.allPages().map(p => p.browserContext._browser).find(b => b.options.headful && this._fallbackBrowser !== b);
     if (foregroundBrowser) {
       return {
         preLaunchedBrowser: foregroundBrowser,
