@@ -63,6 +63,7 @@ export class PlaywrightServer {
     const browserSemaphore = new Semaphore(this._options.maxConnections);
     const controllerSemaphore = new Semaphore(1);
     const reuseBrowserSemaphore = new Semaphore(1);
+    const connectFirstSemaphore = new Semaphore(1);
 
     this._wsServer = new WSServer({
       onRequest: (request, response) => {
@@ -114,7 +115,7 @@ export class PlaywrightServer {
             if (connectFilter !== 'first')
               throw new Error(`Unknown connect filter: ${connectFilter}`);
             return new PlaywrightConnection(
-                browserSemaphore,
+                connectFirstSemaphore,
                 ws,
                 false,
                 this._playwright,
@@ -227,36 +228,61 @@ export class PlaywrightServer {
     };
   }
 
+  /**
+   * This mode is used by MCP in VS Code mode. There's a hierarchy of a foreground and a background browser.
+   * The foreground browser is the one used by the test runner, and the background browser is the one used by MCP for general-purpose tasks.
+   * If there's a non-empty foreground browser, MCP should be connected to it.
+   * If MCP wants to switch to the background browser, it should empty the foreground browser and reconnect.
+   */
   private async _initConnectMode(id: string, filter: 'first', browserName: string | null, launchOptions: LaunchOptionsWithTimeout): Promise<PlaywrightInitializeResult> {
     browserName ??= 'chromium';
 
     debugLogger.log('server', `[${id}] engaged connect mode`);
 
-    // TODO: check this._fallbackBrowser for launch options match.
-    // TODO: filter for non-empty browsers. we don't care about reused browsers.
-    let browser = this._playwright.allBrowsers().find(b => b !== this._fallbackBrowser) ?? this._fallbackBrowser;
-    if (!browser) {
-      const browserType = this._playwright[browserName as 'chromium'];
+    // if there's a non-empty non-fallback browser, use it.
+    const foregroundBrowser = this._playwright.allPages().map(p => p.browserContext._browser).find(b => this._fallbackBrowser !== b);
+    if (foregroundBrowser) {
+      return {
+        preLaunchedBrowser: foregroundBrowser,
+        sharedBrowser: true,
+        denyLaunch: true,
+        dispose: async () => {
+          // keep around browser so it can be reused by next test run.
+        }
+      };
+    }
+
+    if (this._fallbackBrowser) {
+      const matches = this._fallbackBrowser.options.name === browserName && launchOptionsHash({ ...this._fallbackBrowser.options.originalLaunchOptions, timeout: DEFAULT_PLAYWRIGHT_LAUNCH_TIMEOUT }) === launchOptionsHash(launchOptions);
+      if (!matches)
+        await this._fallbackBrowser.close({ reason: 'Replaced by new browser.' });
+    }
+
+    if (!this._fallbackBrowser) {
+      const browserType = this._playwright[(browserName || 'chromium') as 'chromium'];
       const controller = new ProgressController(serverSideCallMetadata(), browserType);
-      // TODO: support persistent browsers
-      browser = await controller.run(progress => browserType.launch(progress, launchOptions), launchOptions.timeout);
-      this._dontReuse(browser);
-      this._fallbackBrowser = browser;
-      browser.on(Browser.Events.Disconnected, () => {
+
+      // TODO: support persistent browsers.
+      this._fallbackBrowser = await controller.run(progress => browserType.launch(progress, launchOptions), launchOptions.timeout);
+      this._fallbackBrowser.on(Browser.Events.Disconnected, () => {
         this._fallbackBrowser = undefined;
       });
+
+      // never use fallback browser for testing, it's only for MCP.
+      this._dontReuse(this._fallbackBrowser);
     }
+
+    const browser = this._fallbackBrowser;
 
     return {
       preLaunchedBrowser: browser,
-      denyLaunch: true,
       sharedBrowser: true,
+      denyLaunch: true,
       dispose: async () => {
         for (const context of browser.contexts()) {
           if (!context.pages().length)
             await context.close({ reason: 'Connection terminated' });
         }
-
         if (!browser.contexts().length)
           await browser.close({ reason: 'Connection terminated' });
       }
