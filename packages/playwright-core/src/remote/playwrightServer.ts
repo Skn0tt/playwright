@@ -31,7 +31,7 @@ import type { AndroidDevice } from '../server/android/android';
 import type { Playwright } from '../server/playwright';
 import type { LaunchOptions as LaunchOptionsWithoutTimeout } from '../server/types';
 
-type LaunchOptionsWithTimeout = LaunchOptionsWithoutTimeout & { timeout: number };
+type LaunchOptionsWithTimeout = LaunchOptionsWithoutTimeout & { timeout: number, userDataDir?: string };
 
 type ServerOptions = {
   path: string;
@@ -262,8 +262,13 @@ export class PlaywrightServer {
       const browserType = this._playwright[(browserName || 'chromium') as 'chromium'];
       const controller = new ProgressController(serverSideCallMetadata(), browserType);
 
-      // TODO: support persistent browsers.
-      this._fallbackBrowser = await controller.run(progress => browserType.launch(progress, launchOptions), launchOptions.timeout);
+      this._fallbackBrowser = await controller.run(async progress => {
+        if (launchOptions.userDataDir) {
+          const context = await browserType.launchPersistentContext(progress, launchOptions.userDataDir, launchOptions);
+          return context._browser;
+        }
+        return await browserType.launch(progress, launchOptions);
+      }, launchOptions.timeout);
       this._fallbackBrowser.on(Browser.Events.Disconnected, () => {
         this._fallbackBrowser = undefined;
       });
@@ -410,6 +415,8 @@ function filterLaunchOptions(options: LaunchOptionsWithTimeout, allowFSPaths: bo
     slowMo: options.slowMo,
     executablePath: (isUnderTest() || allowFSPaths) ? options.executablePath : undefined,
     downloadsPath: allowFSPaths ? options.downloadsPath : undefined,
+    assistantMode: options.assistantMode,
+    userDataDir: options.userDataDir,
   };
 }
 
