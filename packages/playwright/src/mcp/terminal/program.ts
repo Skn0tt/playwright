@@ -237,6 +237,7 @@ to restart the session daemon.`);
       detached: true,
       stdio: ['ignore', out, err],
       cwd: process.cwd(), // Will be used as root.
+      windowsHide: true,
     });
     child.unref();
 
