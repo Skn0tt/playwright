@@ -30,11 +30,10 @@ function rewriteInspectorUrl(inspectorUrl: string, wsUrl: string, pageId: string
   const inspector = new URL(inspectorUrl);
   const proxy = new URL(wsUrl);
   proxy.searchParams.set('cdp', pageId);
-  inspector.searchParams.set('ws', `${proxy.host}${proxy.pathname}${proxy.search}`);
-  inspector.protocol = location.protocol;
-  inspector.host = location.host;
-  inspector.pathname = devtoolsPath + inspector.pathname.split('/devtools/').pop();
-  return inspector.toString();
+  const pathname = devtoolsPath + inspector.pathname.split('/devtools/').pop();
+  const params = new URLSearchParams();
+  params.set('ws', `${location.host}${proxy.pathname}${proxy.search}`);
+  return `${pathname}?${params}`;
 }
 
 function tabFavicon(url: string): string {
