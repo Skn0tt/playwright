@@ -131,8 +131,9 @@ export class SessionModel {
       body: JSON.stringify({ sessionFile }),
     }).then(async resp => {
       if (resp.ok) {
-        const { url } = await resp.json();
-        this.wsUrls.set(config.socketPath, url);
+        const { path } = await resp.json();
+        const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        this.wsUrls.set(config.socketPath, `${wsProtocol}//${location.host}${path}`);
       } else {
         this.wsUrls.set(config.socketPath, null);
       }

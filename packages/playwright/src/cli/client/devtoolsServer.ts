@@ -17,6 +17,7 @@
 import path from 'path';
 
 import { HttpServer } from 'playwright-core/lib/utils';
+import { ws } from 'playwright-core/lib/utilsBundle';
 
 import http from 'http';
 import { createClientInfo, Registry } from './registry';
@@ -24,6 +25,7 @@ import { Session } from './session';
 
 import type { ClientInfo, SessionFile } from './registry';
 import type { SessionStatus } from '@devtools/sessionModel';
+import type { Transport } from 'playwright-core/lib/utils';
 
 function readBody(request: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -54,7 +56,7 @@ function sendJSON(response: http.ServerResponse, data: any, statusCode = 200) {
   response.end(JSON.stringify(data));
 }
 
-async function handleApiRequest(clientInfo: ClientInfo, request: http.IncomingMessage, response: http.ServerResponse) {
+async function handleApiRequest(clientInfo: ClientInfo, httpServer: HttpServer, request: http.IncomingMessage, response: http.ServerResponse) {
   const url = new URL(request.url!, `http://${request.headers.host}`);
   const apiPath = url.pathname;
 
@@ -102,12 +104,74 @@ async function handleApiRequest(clientInfo: ClientInfo, request: http.IncomingMe
     const match = result.text.match(/Server is listening on: (.+)/);
     if (!match)
       throw new Error('Failed to parse screencast URL from: ' + result.text);
-    sendJSON(response, { url: match[1] });
+    const backendWsUrl = match[1];
+    const wsPath = `/${httpServer.wsGuid()}?target=${encodeURIComponent(backendWsUrl)}`;
+    sendJSON(response, { path: wsPath });
     return;
   }
 
   response.statusCode = 404;
   response.end(JSON.stringify({ error: 'Not found' }));
+}
+
+class WebSocketProxyTransport implements Transport {
+  private _backendWs: InstanceType<typeof ws> | null = null;
+  private _backendReady: Promise<void> | undefined;
+  private _lastId = 0;
+  private _pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+
+  sendEvent?: (method: string, params: any) => void;
+  close?: () => void;
+
+  constructor(private readonly _backendUrl: string) {}
+
+  onconnect() {
+    this._backendWs = new ws(this._backendUrl);
+    this._backendReady = new Promise<void>((resolve, reject) => {
+      this._backendWs!.once('open', resolve);
+      this._backendWs!.once('error', reject);
+    });
+    this._backendWs.on('message', (data: Buffer) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(String(data));
+      } catch {
+        return;
+      }
+      if (msg.id !== undefined) {
+        const pending = this._pending.get(msg.id);
+        if (pending) {
+          this._pending.delete(msg.id);
+          if (msg.error)
+            pending.reject(new Error(msg.error));
+          else
+            pending.resolve(msg.result);
+        }
+      } else if (msg.method) {
+        this.sendEvent?.(msg.method, msg.params);
+      }
+    });
+    this._backendWs.on('close', () => this.close?.());
+    this._backendWs.on('error', () => this.close?.());
+  }
+
+  async dispatch(method: string, params: any): Promise<any> {
+    await this._backendReady;
+    if (!this._backendWs || this._backendWs.readyState !== ws.OPEN)
+      throw new Error('Backend connection not open');
+    const id = ++this._lastId;
+    return new Promise((resolve, reject) => {
+      this._pending.set(id, { resolve, reject });
+      this._backendWs!.send(JSON.stringify({ id, method, params }));
+    });
+  }
+
+  onclose() {
+    this._backendWs?.close();
+    for (const { reject } of this._pending.values())
+      reject(new Error('Connection closed'));
+    this._pending.clear();
+  }
 }
 
 export async function startDevToolsServer(port?: number, host?: string): Promise<HttpServer> {
@@ -116,8 +180,20 @@ export async function startDevToolsServer(port?: number, host?: string): Promise
   const devtoolsDir = path.join(path.dirname(libDir), 'lib/vite/devtools');
   const clientInfo = createClientInfo();
 
+  httpServer.createWebSocket((url: URL) => {
+    const target = url.searchParams.get('target');
+    if (!target)
+      throw new Error('Missing target parameter');
+    const backendUrl = new URL(target);
+    for (const [key, value] of url.searchParams) {
+      if (key !== 'target')
+        backendUrl.searchParams.set(key, value);
+    }
+    return new WebSocketProxyTransport(backendUrl.toString());
+  });
+
   httpServer.routePrefix('/api/', (request: http.IncomingMessage, response: http.ServerResponse) => {
-    handleApiRequest(clientInfo, request, response).catch(e => {
+    handleApiRequest(clientInfo, httpServer, request, response).catch(e => {
       response.statusCode = 500;
       response.end(JSON.stringify({ error: e.message }));
     });

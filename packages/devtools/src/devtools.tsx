@@ -26,6 +26,14 @@ import { SettingsButton } from './settingsView';
 import type { DevToolsClientChannel } from './devtoolsClient';
 import type { Tab, DevToolsChannelEvents } from './devtoolsChannel';
 
+function rewriteInspectorUrl(inspectorUrl: string, wsUrl: string, pageId: string): string {
+  const inspector = new URL(inspectorUrl);
+  const proxy = new URL(wsUrl);
+  proxy.searchParams.set('cdp', pageId);
+  inspector.searchParams.set('ws', `${proxy.host}${proxy.pathname}${proxy.search}`);
+  return inspector.toString();
+}
+
 function tabFavicon(url: string): string {
   try {
     const u = new URL(url);
@@ -217,6 +225,7 @@ export const DevTools: React.FC<{ wsUrl?: string }> = ({ wsUrl }) => {
 
   const selectedTab = tabs.find(t => t.selected);
   const hasPages = !!selectedTab;
+  const inspectorSrc = selectedTab?.inspectorUrl && wsUrl ? rewriteInspectorUrl(selectedTab.inspectorUrl, wsUrl, selectedTab.pageId) : undefined;
 
   let overlayText: string | undefined;
   if (!channel)
@@ -335,7 +344,7 @@ export const DevTools: React.FC<{ wsUrl?: string }> = ({ wsUrl }) => {
       >
         <PickLocatorIcon />
       </button>
-      {selectedTab?.inspectorUrl && (
+      {inspectorSrc && (
         <button
           className={'nav-btn' + (showInspector ? ' active-toggle' : '')}
           title='Chrome DevTools'
@@ -358,7 +367,7 @@ export const DevTools: React.FC<{ wsUrl?: string }> = ({ wsUrl }) => {
         sidebarSize={500}
         minSidebarSize={300}
         settingName='devtoolsInspector'
-        sidebarHidden={!showInspector || !selectedTab?.inspectorUrl}
+        sidebarHidden={!showInspector || !inspectorSrc}
         main={<div className='viewport-main'>
           <div
             ref={screenRef}
@@ -391,7 +400,7 @@ export const DevTools: React.FC<{ wsUrl?: string }> = ({ wsUrl }) => {
         </div>}
         sidebar={<iframe
           className='inspector-frame'
-          src={selectedTab?.inspectorUrl || ''}
+          src={inspectorSrc || ''}
           title='Chrome DevTools'
         />}
       />
