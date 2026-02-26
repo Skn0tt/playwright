@@ -25,7 +25,7 @@ type Listener = () => void;
 
 export class SessionModel {
   sessions: SessionStatus[] = [];
-  readonly wsUrls: Map<string, string | null> = new Map();
+  readonly wsUrls: Map<string, { wsUrl: string; devtoolsPath: string } | null> = new Map();
   clientInfo: ClientInfo | undefined;
   error: string | undefined;
   loading = true;
@@ -131,9 +131,9 @@ export class SessionModel {
       body: JSON.stringify({ sessionFile }),
     }).then(async resp => {
       if (resp.ok) {
-        const { path } = await resp.json();
+        const { path, devtoolsPath } = await resp.json();
         const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-        this.wsUrls.set(config.socketPath, `${wsProtocol}//${location.host}${path}`);
+        this.wsUrls.set(config.socketPath, { wsUrl: `${wsProtocol}//${location.host}${path}`, devtoolsPath });
       } else {
         this.wsUrls.set(config.socketPath, null);
       }

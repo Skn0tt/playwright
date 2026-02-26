@@ -20,6 +20,7 @@ import { HttpServer } from 'playwright-core/lib/utils';
 import { ws } from 'playwright-core/lib/utilsBundle';
 
 import http from 'http';
+import https from 'https';
 import { createClientInfo, Registry } from './registry';
 import { Session } from './session';
 
@@ -105,8 +106,10 @@ async function handleApiRequest(clientInfo: ClientInfo, httpServer: HttpServer, 
     if (!match)
       throw new Error('Failed to parse screencast URL from: ' + result.text);
     const backendWsUrl = match[1];
+    const backendUrl = new URL(backendWsUrl);
+    backendUrl.protocol = backendUrl.protocol === 'wss:' ? 'https:' : 'http:';
     const wsPath = `/${httpServer.wsGuid()}?target=${encodeURIComponent(backendWsUrl)}`;
-    sendJSON(response, { path: wsPath });
+    sendJSON(response, { path: wsPath, devtoolsPath: `/devtools/${encodeURIComponent(backendUrl.origin)}/` });
     return;
   }
 
@@ -197,6 +200,32 @@ export async function startDevToolsServer(port?: number, host?: string): Promise
       response.statusCode = 500;
       response.end(JSON.stringify({ error: e.message }));
     });
+    return true;
+  });
+
+  httpServer.routePrefix('/devtools/', (request: http.IncomingMessage, response: http.ServerResponse) => {
+    const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
+    const rest = pathname.slice('/devtools/'.length);
+    const slashIndex = rest.indexOf('/');
+    const encodedOrigin = slashIndex === -1 ? rest : rest.slice(0, slashIndex);
+    if (!encodedOrigin) {
+      response.statusCode = 400;
+      response.end();
+      return true;
+    }
+    const backendOrigin = decodeURIComponent(encodedOrigin); // SSRF, do not ship
+    const relativePath = slashIndex === -1 ? '' : rest.slice(slashIndex + 1);
+    const target = new URL(`/devtools/${relativePath}`, backendOrigin);
+    const mod = target.protocol === 'https:' ? https : http;
+    const proxyReq = mod.request(target, { method: request.method }, proxyRes => {
+      response.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
+      proxyRes.pipe(response);
+    });
+    proxyReq.on('error', () => {
+      response.statusCode = 502;
+      response.end();
+    });
+    request.pipe(proxyReq);
     return true;
   });
 

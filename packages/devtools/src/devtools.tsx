@@ -26,11 +26,14 @@ import { SettingsButton } from './settingsView';
 import type { DevToolsClientChannel } from './devtoolsClient';
 import type { Tab, DevToolsChannelEvents } from './devtoolsChannel';
 
-function rewriteInspectorUrl(inspectorUrl: string, wsUrl: string, pageId: string): string {
+function rewriteInspectorUrl(inspectorUrl: string, wsUrl: string, pageId: string, devtoolsPath: string): string {
   const inspector = new URL(inspectorUrl);
   const proxy = new URL(wsUrl);
   proxy.searchParams.set('cdp', pageId);
   inspector.searchParams.set('ws', `${proxy.host}${proxy.pathname}${proxy.search}`);
+  inspector.protocol = location.protocol;
+  inspector.host = location.host;
+  inspector.pathname = devtoolsPath + inspector.pathname.split('/devtools/').pop();
   return inspector.toString();
 }
 
@@ -46,7 +49,7 @@ function tabFavicon(url: string): string {
 
 const BUTTONS = ['left', 'middle', 'right'] as const;
 
-export const DevTools: React.FC<{ wsUrl?: string }> = ({ wsUrl }) => {
+export const DevTools: React.FC<{ wsUrl?: string; devtoolsPath?: string }> = ({ wsUrl, devtoolsPath }) => {
   const [interactive, setInteractive] = React.useState(false);
   const [tabs, setTabs] = React.useState<Tab[]>([]);
   const [url, setUrl] = React.useState('');
@@ -225,7 +228,7 @@ export const DevTools: React.FC<{ wsUrl?: string }> = ({ wsUrl }) => {
 
   const selectedTab = tabs.find(t => t.selected);
   const hasPages = !!selectedTab;
-  const inspectorSrc = selectedTab?.inspectorUrl && wsUrl ? rewriteInspectorUrl(selectedTab.inspectorUrl, wsUrl, selectedTab.pageId) : undefined;
+  const inspectorSrc = selectedTab?.inspectorUrl && wsUrl && devtoolsPath ? rewriteInspectorUrl(selectedTab.inspectorUrl, wsUrl, selectedTab.pageId, devtoolsPath) : undefined;
 
   let overlayText: string | undefined;
   if (!channel)

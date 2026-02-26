@@ -105,7 +105,8 @@ export const Grid: React.FC<{ model: SessionModel }> = ({ model }) => {
 const SessionChip: React.FC<{ sessionFile: SessionFile; canConnect: boolean; visible: boolean; model: SessionModel }> = ({ sessionFile, canConnect, visible, model }) => {
   const { config } = sessionFile;
   const href = '#session=' + encodeURIComponent(config.socketPath);
-  const wsUrl = model.wsUrls.get(config.socketPath);
+  const wsEntry = model.wsUrls.get(config.socketPath);
+  const wsUrl = wsEntry?.wsUrl;
 
   const channel = React.useMemo(() => {
     if (!canConnect || !visible || !wsUrl)
@@ -130,10 +131,10 @@ const SessionChip: React.FC<{ sessionFile: SessionFile; canConnect: boolean; vis
   }, [channel]);
 
   const chipTitle = selectedTab ? `[${config.name}] ${selectedTab.url} \u2014 ${selectedTab.title}` : config.name;
-  const clickable = canConnect && !!wsUrl;
+  const clickable = canConnect && !!wsEntry;
 
   return (
-    <a className={'session-chip' + (canConnect ? '' : ' disconnected') + (wsUrl === null ? ' not-supported' : '')} href={clickable ? href : undefined} aria-disabled={!clickable} title={chipTitle} onClick={e => {
+    <a className={'session-chip' + (canConnect ? '' : ' disconnected') + (wsEntry === null ? ' not-supported' : '')} href={clickable ? href : undefined} aria-disabled={!clickable} title={chipTitle} onClick={e => {
       e.preventDefault();
       if (clickable)
         navigate(href);
@@ -180,8 +181,8 @@ const SessionChip: React.FC<{ sessionFile: SessionFile; canConnect: boolean; vis
       <div className='screencast-container'>
         {channel && <Screencast channel={channel} />}
         {!canConnect && <div className='screencast-placeholder'>Session closed</div>}
-        {canConnect && !channel && wsUrl === null && <div className='screencast-placeholder'>Not supported &mdash; v{sessionFile.config.version}</div>}
-        {canConnect && !channel && wsUrl === undefined && <div className='screencast-placeholder'>Connecting</div>}
+        {canConnect && !channel && wsEntry === null && <div className='screencast-placeholder'>Not supported &mdash; v{sessionFile.config.version}</div>}
+        {canConnect && !channel && wsEntry === undefined && <div className='screencast-placeholder'>Connecting</div>}
       </div>
     </a>
   );
