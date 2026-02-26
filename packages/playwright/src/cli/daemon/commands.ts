@@ -777,6 +777,10 @@ const devtoolsShow = declareCommand({
   description: 'Show browser DevTools',
   category: 'devtools',
   args: z.object({}),
+  options: z.object({
+    port: z.number().optional().describe('If specified, DevTools will be served via HTTP instead of opening in a local window.'),
+    host: z.string().optional().describe('Host to bind to when using --port'),
+  }),
   toolName: '',
   toolParams: () => ({}),
 });

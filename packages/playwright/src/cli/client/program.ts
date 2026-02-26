@@ -190,31 +190,37 @@ export async function program(options?: { embedderVersion?: string}) {
       await installBrowser();
       return;
     case 'show': {
+      if (args.port) {
+        const { startDevToolsServer } = await import('./devtoolsServer.js');
+        const server = await startDevToolsServer(args.port, args.host);
+        console.log(`Listening on ${server.urlPrefix('human-readable')}`);
+        return;
+      }
+
       const daemonScript = path.join(__dirname, 'devtoolsApp.js');
       const child = spawn(process.execPath, [daemonScript], {
         detached: true,
         stdio: ['ignore', 'pipe', 'ignore'],
       });
 
-      const status = await new Promise<string>((resolve, reject) => {
-        let outLog = '';
+      await new Promise<void>((resolve, reject) => {
         child.stdout!.on('data', (data: Buffer) => {
-          outLog += data.toString();
-          if (outLog.includes('<EOF>'))
-            resolve(outLog.split('<EOF>')[0]);
+          const text = data.toString();
+          if (text.includes('<EOF>')) {
+            process.stdout.write(text.split('<EOF>')[0]);
+            resolve();
+          } else {
+            process.stdout.write(text);
+          }
         });
         child.on('close', code => {
           process.exitCode = code || 1;
-          reject(new Error(outLog));
+          reject(new Error('DevTools process exited unexpectedly with code ' + code));
         });
       });
 
       child.stdout!.destroy();
       child.unref();
-
-      // TODO: update check-deps to allow importing isUnderTest()
-      if (process.env.PWTEST_UNDER_TEST)
-        console.log(status);
 
       return;
     }
