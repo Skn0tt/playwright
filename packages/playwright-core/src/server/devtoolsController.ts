@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import http from 'http';
+import https from 'https';
+
 import { createGuid, eventsHelper } from '../utils';
 import { HttpServer } from './utils/httpServer';
 import { BrowserContext } from './browserContext';
@@ -43,6 +46,22 @@ export class DevToolsController {
     if (!this._url) {
       const guid = createGuid();
       this._httpServer = new HttpServer();
+      this._httpServer.routePrefix('/devtools/', (request, response) => {
+        const upstreamBase = this._devtoolsBaseURL();
+        const relativePath = new URL('http://localhost' + request.url!).pathname.slice('/devtools/'.length);
+        const target = new URL(relativePath, upstreamBase);
+        const mod = target.protocol === 'https:' ? https : http;
+        const proxyReq = mod.request(target, { method: 'GET' }, proxyRes => {
+          response.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
+          proxyRes.pipe(response);
+        });
+        proxyReq.on('error', () => {
+          response.statusCode = 502;
+          response.end();
+        });
+        proxyReq.end();
+        return true;
+      });
       this._httpServer.createWebSocket(url => {
         if (url.searchParams.has('cdp'))
           return new CDPConnection(this._context, url.searchParams.get('cdp')!);
@@ -56,6 +75,18 @@ export class DevToolsController {
 
   async dispose() {
     await this._httpServer?.stop();
+  }
+
+  private _devtoolsBaseURL(): URL {
+    if (this._context._browser.options.wsEndpoint) {
+      const url = new URL('/devtools/', this._context._browser.options.wsEndpoint);
+      if (url.protocol === 'ws:')
+        url.protocol = 'http:';
+      if (url.protocol === 'wss:')
+        url.protocol = 'https:';
+      return url;
+    }
+    return new URL(`https://chrome-devtools-frontend.appspot.com/serve_rev/@${(this._context._browser as CRBrowser)._revision}/`);
   }
 }
 
@@ -316,16 +347,13 @@ class DevToolsConnection implements Transport, DevToolsChannel {
   }
 
   private _devtoolsURL() {
-    if (this._context._browser.options.wsEndpoint) {
-      const url = new URL('/devtools/', this._context._browser.options.wsEndpoint);
-      if (url.protocol === 'ws:')
-        url.protocol = 'http:';
-      if (url.protocol === 'wss:')
-        url.protocol = 'https:';
-      return url;
-    }
-
-    return new URL(`https://chrome-devtools-frontend.appspot.com/serve_rev/@${(this._context._browser as CRBrowser)._revision}/`);
+    const url = new URL(this._controllerUrl);
+    if (url.protocol === 'ws:')
+      url.protocol = 'http:';
+    if (url.protocol === 'wss:')
+      url.protocol = 'https:';
+    url.pathname = '/devtools/';
+    return url;
   }
 
   private _inspectorUrl(page: Page): string | undefined {
