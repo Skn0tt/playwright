@@ -423,6 +423,7 @@ class AttachedBrowser {
       size: { width: 1280, height: 800 },
       ...(this._recordingPath ? { path: this._recordingPath } : {}),
     });
+    void page.screenshot().catch(() => {}); // trigger composite to force first frame
   }
 
   private async _restartScreencast(page: api.Page) {
