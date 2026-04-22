@@ -236,7 +236,7 @@ export const Dashboard: React.FC = () => {
       client.off('annotate', onAnnotate);
       client.off('cancelAnnotate', onCancelAnnotate);
     };
-  }, [client]);
+  }, [client, updateCliAnnotate]);
 
   const selectedTab = tabs?.find(t => t.selected);
   const ready = !!client && !!selectedTab;
