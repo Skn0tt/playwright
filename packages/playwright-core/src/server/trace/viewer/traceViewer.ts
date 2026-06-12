@@ -332,6 +332,15 @@ function traceDescriptor(traceDir: string, tracePrefix: string | undefined) {
     for (const name of fs.readdirSync(resourcesDir))
       result.entries.push({ name: 'resources/' + name, path: toFilePathUrl(path.join(resourcesDir, name)) });
   }
+
+  // OTEL archives keep their manifest and streams under otel/, which the loader
+  // discovers by entry name - enumerate it like resources/ so directory-backed
+  // traces expose the same entries a zip would.
+  const otelDir = path.join(traceDir, 'otel');
+  if (fs.existsSync(otelDir)) {
+    for (const name of fs.readdirSync(otelDir))
+      result.entries.push({ name: 'otel/' + name, path: toFilePathUrl(path.join(otelDir, name)) });
+  }
   return result;
 }
 

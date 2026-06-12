@@ -19,6 +19,9 @@ import { parseClientSideCallMetadata } from './traceUtils';
 import { SnapshotStorage } from './snapshotStorage';
 import { TraceModernizer } from './traceModernizer';
 
+import { OtelTraceReader } from '@trace/otelTraceConverter';
+import * as otel from '@trace/otelTrace';
+
 import type { ContextEntry } from './entries';
 
 export interface TraceLoaderBackend {
@@ -41,20 +44,32 @@ export class TraceLoader {
   async load(backend: TraceLoaderBackend, traceFile?: string, unzipProgress?: (done: number, total: number) => void) {
     this._backend = backend;
 
-    const prefix = traceFile?.match(/(.+)\.trace$/)?.[1];
-    const prefixes: string[] = [];
+    const entryNames = await this._backend.entryNames();
     let hasSource = false;
-    for (const entryName of await this._backend.entryNames()) {
-      const match = entryName.match(/(.+)\.trace$/);
-      if (match && (!prefix || prefix  === match[1]))
-        prefixes.push(match[1] || '');
+    for (const entryName of entryNames) {
       if (entryName.includes('src@'))
         hasSource = true;
     }
-    if (!prefixes.length)
-      throw new Error('Cannot find .trace file');
 
     this._snapshotStorage = new SnapshotStorage();
+
+    // OTEL archives carry a manifest the loader keys on; their records are read
+    // straight into ContextEntry by OtelTraceReader (no v8 modernizer).
+    if (entryNames.includes(otel.kOtelManifestEntry)) {
+      await this._loadOtel(entryNames, hasSource, unzipProgress);
+      this._snapshotStorage.finalize();
+      return;
+    }
+
+    const prefix = traceFile?.match(/(.+)\.trace$/)?.[1];
+    const prefixes: string[] = [];
+    for (const entryName of entryNames) {
+      const match = entryName.match(/(.+)\.trace$/);
+      if (match && (!prefix || prefix  === match[1]))
+        prefixes.push(match[1] || '');
+    }
+    if (!prefixes.length)
+      throw new Error('Cannot find .trace file');
 
     // 3 * ordinals progress increments below.
     const total = prefixes.length * 3;
@@ -109,6 +124,82 @@ export class TraceLoader {
     this._snapshotStorage.finalize();
   }
 
+  private async _loadOtel(entryNames: string[], hasSource: boolean, unzipProgress?: (done: number, total: number) => void) {
+    // Filename is a physical shard, never parsed for identity. Logical identity
+    // (which ContextEntry a record belongs to) is the resource context id inside
+    // the payload, so a context spanning several files still groups into one.
+    const streamNames = entryNames.filter(name => name.startsWith('otel/') && name.endsWith(otel.kOtelStreamSuffix));
+    const byContext = new Map<string, { contextEntry: ContextEntry, reader: OtelTraceReader }>();
+
+    const total = Math.max(streamNames.length, 1);
+    let done = 0;
+    for (const name of streamNames) {
+      const text = await this._backend.readText(name) || '';
+      for (const line of text.split('\n')) {
+        if (!line)
+          continue;
+        const parsed = JSON.parse(line) as otel.OtlpExportLine;
+        const contextId = otelContextId(parsed);
+        let group = byContext.get(contextId);
+        if (!group) {
+          const contextEntry = createEmptyContext();
+          contextEntry.hasSource = hasSource;
+          group = { contextEntry, reader: new OtelTraceReader(contextEntry, this._snapshotStorage!) };
+          byContext.set(contextId, group);
+        }
+        group.reader.appendExport(parsed);
+      }
+      unzipProgress?.(++done, total);
+    }
+
+    // Client-side call stacks ride in their own blob(s), one entry per zip
+    // covering every call id. Parse them once and attach by call id; call ids
+    // do not collide across contexts.
+    const callMetadatas: Array<ReturnType<typeof parseClientSideCallMetadata>> = [];
+    for (const name of entryNames.filter(name => name.endsWith('.stacks'))) {
+      const stacks = await this._backend.readText(name);
+      if (stacks)
+        callMetadatas.push(parseClientSideCallMetadata(JSON.parse(stacks)));
+    }
+
+    for (const { contextEntry, reader } of byContext.values()) {
+      contextEntry.actions = reader.actions().sort((a1, a2) => a1.startTime - a2.startTime);
+
+      if (!this._backend.isLive()) {
+        // Terminate actions w/o after event gracefully (see v8 path above).
+        for (const action of contextEntry.actions.slice().reverse()) {
+          if (!action.endTime && !action.error) {
+            for (const a of contextEntry.actions) {
+              if (a.parentId === action.callId && action.endTime < a.endTime)
+                action.endTime = a.endTime;
+            }
+          }
+        }
+      }
+
+      for (const action of contextEntry.actions) {
+        if (action.stack)
+          continue;
+        for (const callMetadata of callMetadatas) {
+          const stack = callMetadata.get(action.callId);
+          if (stack) {
+            action.stack = stack;
+            break;
+          }
+        }
+      }
+
+      for (const resource of contextEntry.resources) {
+        if (resource.request.postData?._sha1)
+          this._resourceToContentType.set(resource.request.postData._sha1, stripEncodingFromContentType(resource.request.postData.mimeType));
+        if (resource.response.content?._sha1)
+          this._resourceToContentType.set(resource.response.content._sha1, stripEncodingFromContentType(resource.response.content.mimeType));
+      }
+
+      this.contextEntries.push(contextEntry);
+    }
+  }
+
   async hasEntry(filename: string): Promise<boolean> {
     return this._backend.hasEntry(filename);
   }
@@ -132,6 +223,11 @@ function stripEncodingFromContentType(contentType: string) {
   if (charset)
     return charset[1];
   return contentType;
+}
+
+function otelContextId(line: otel.OtlpExportLine): string {
+  const resource = line.resourceSpans?.[0]?.resource ?? line.resourceLogs?.[0]?.resource;
+  return otel.readString(otel.attributeMap(resource?.attributes), otel.PWResourceAttr.contextId) ?? '';
 }
 
 function createEmptyContext(): ContextEntry {

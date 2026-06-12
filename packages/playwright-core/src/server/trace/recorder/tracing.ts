@@ -55,6 +55,8 @@ import type * as trace from '@trace/trace';
 import type { Progress } from '@protocol/progress';
 import type * as types from '../../types';
 import type { Screencast, ScreencastClient } from '../../screencast';
+import { OtelTraceConverter, traceEventToOtlpLine } from '@trace/otelTraceConverter';
+import * as otel from '@trace/otelTrace';
 
 const version: trace.VERSION = 8;
 
@@ -68,8 +70,10 @@ export type TracerOptions = {
 type RecordingState = {
   options: TracerOptions,
   traceName: string,
-  networkFile: string,
   traceFile: string,
+  otelFile: string,
+  otelManifestFile: string,
+  otelConverter: OtelTraceConverter,
   tracesDir: string,
   resourcesDir: string,
   chunkOrdinal: number,
@@ -166,7 +170,9 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
       traceName,
       tracesDir,
       traceFile: path.join(tracesDir, traceName + '.trace'),
-      networkFile: path.join(tracesDir, traceName + '.network'),
+      otelFile: path.join(tracesDir, traceName + otel.kOtelStreamSuffix),
+      otelManifestFile: path.join(tracesDir, 'otel-manifest.json'),
+      otelConverter: new OtelTraceConverter(this._contextCreatedEvent.contextId!),
       resourcesDir: path.join(tracesDir, 'resources'),
       chunkOrdinal: 0,
       traceSha1s: new Set(),
@@ -176,7 +182,12 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
       groupStack: [],
     };
     this._fs.mkdir(this._state.resourcesDir);
-    this._fs.writeFile(this._state.networkFile, '');
+    const manifest: otel.OtelTraceManifest = {
+      format: otel.kOtelFormat,
+      formatVersion: otel.kOtelFormatVersion,
+      playwrightVersion: getPlaywrightVersion(),
+    };
+    this._fs.writeFile(this._state.otelManifestFile, JSON.stringify(manifest));
     // Tracing is 10x bigger if we include scripts in every trace.
     if (options.snapshots)
       this._harTracer.start({ omitScripts: !options.live });
@@ -195,16 +206,13 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
     this._state.recording = true;
     this._state.callIds.clear();
 
-    // - Browser context network trace is shared across chunks as it contains resources
-    // used to serve page snapshots, so make a copy with the new name.
-    // - APIRequestContext network traces are chunk-specific, always start from scratch.
-    const preserveNetworkResources = this._context instanceof BrowserContext;
+    // Network HAR entries are now CLIENT spans in the OTEL stream, grouped by
+    // trace id at load, so there is no separate network file to copy forward
+    // across chunks (see plan upfront decision 1).
     if (options.name && options.name !== this._state.traceName)
-      this._changeTraceName(this._state, options.name, preserveNetworkResources);
+      this._changeTraceName(this._state, options.name);
     else
       this._allocateNewTraceFile(this._state);
-    if (!preserveNetworkResources)
-      this._fs.writeFile(this._state.networkFile, '');
 
     this._fs.mkdir(path.dirname(this._state.traceFile));
     const event: trace.TraceEvent = {
@@ -300,17 +308,13 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
     const suffix = state.chunkOrdinal ? `-chunk${state.chunkOrdinal}` : ``;
     state.chunkOrdinal++;
     state.traceFile = path.join(state.tracesDir, `${state.traceName}${suffix}.trace`);
+    state.otelFile = path.join(state.tracesDir, `${state.traceName}${suffix}${otel.kOtelStreamSuffix}`);
   }
 
-  private _changeTraceName(state: RecordingState, name: string, preserveNetworkResources: boolean) {
+  private _changeTraceName(state: RecordingState, name: string) {
     state.traceName = name;
     state.chunkOrdinal = 0;  // Reset ordinal for the new name.
     this._allocateNewTraceFile(state);
-
-    const newNetworkFile = path.join(state.tracesDir, name + '.network');
-    if (preserveNetworkResources)
-      this._fs.copyFile(state.networkFile, newNetworkFile);
-    state.networkFile = newNetworkFile;
   }
 
   async stop(progress: Progress) {
@@ -399,17 +403,9 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
 
     this.flushHarEntries();
 
-    // Network file survives across chunks, make a snapshot before returning the resulting entries.
-    // We should pick a name starting with "traceName" and ending with .network.
-    // Something like <traceName>someSuffixHere.network.
-    // However, this name must not clash with any other "traceName".network in the same tracesDir.
-    // We can use <traceName>-<guid>.network, but "-pwnetcopy-0" suffix is more readable
-    // and makes it easier to debug future issues.
-    const newNetworkFile = path.join(this._state.tracesDir, this._state.traceName + `-pwnetcopy-${this._state.chunkOrdinal}.network`);
-
     const entries: NameValue[] = [];
-    entries.push({ name: 'trace.trace', value: this._state.traceFile });
-    entries.push({ name: 'trace.network', value: newNetworkFile });
+    entries.push({ name: otel.kOtelManifestEntry, value: this._state.otelManifestFile });
+    entries.push({ name: 'otel/' + path.basename(this._state.otelFile), value: this._state.otelFile });
     for (const sha1 of new Set([...this._state.traceSha1s, ...this._state.networkSha1s]))
       entries.push({ name: path.join('resources', sha1), value: path.join(this._state.resourcesDir, sha1) });
 
@@ -421,8 +417,6 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
       this._state.recording = false;
       return {};
     }
-
-    this._fs.copyFile(this._state.networkFile, newNetworkFile);
 
     const zipFileName = this._state.traceFile + '.zip';
     if (params.mode === 'archive')
@@ -541,19 +535,20 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
     this._pendingHarEntries.delete(entry);
     const event: trace.ResourceSnapshotTraceEvent = { type: 'resource-snapshot', snapshot: entry };
     const visited = visitTraceEvent(event, this._state!.networkSha1s);
-    this._fs.appendFile(this._state!.networkFile, JSON.stringify(visited) + '\n', true /* flush */);
+    const line = traceEventToOtlpLine(this._state!.otelConverter, visited);
+    this._fs.appendFile(this._state!.otelFile, line + '\n', true /* flush */);
   }
 
   flushHarEntries() {
-    const harLines: string[] = [];
+    const lines: string[] = [];
     for (const entry of this._pendingHarEntries) {
       const event: trace.ResourceSnapshotTraceEvent = { type: 'resource-snapshot', snapshot: entry };
       const visited = visitTraceEvent(event, this._state!.networkSha1s);
-      harLines.push(JSON.stringify(visited));
+      lines.push(traceEventToOtlpLine(this._state!.otelConverter, visited));
     }
     this._pendingHarEntries.clear();
-    if (harLines.length)
-      this._fs.appendFile(this._state!.networkFile, harLines.join('\n') + '\n', true /* flush */);
+    if (lines.length)
+      this._fs.appendFile(this._state!.otelFile, lines.join('\n') + '\n', true /* flush */);
   }
 
   onContentBlob(sha1: string, buffer: Buffer) {
@@ -689,7 +684,8 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
     const visited = visitTraceEvent(event, this._state!.traceSha1s);
     // Do not flush (console) events, they are too noisy, unless we are in ui mode (live).
     const flush = this._state!.options.live || (event.type !== 'event' && event.type !== 'console' && event.type !== 'log');
-    this._fs.appendFile(this._state!.traceFile, JSON.stringify(visited) + '\n', flush);
+    const line = traceEventToOtlpLine(this._state!.otelConverter, visited);
+    this._fs.appendFile(this._state!.otelFile, line + '\n', flush);
   }
 
   private _appendResource(sha1: string, buffer: Buffer) {

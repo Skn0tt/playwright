@@ -31,6 +31,7 @@ packages.set('injected', packagesDir + '/injected/src/');
 packages.set('isomorphic', packagesDir + '/isomorphic/');
 packages.set('utils', packagesDir + '/utils/');
 packages.set('testIsomorphic', packagesDir + '/playwright/src/isomorphic/');
+packages.set('trace', packagesDir + '/trace/src/');
 
 const peerDependencies = ['electron', 'react', 'react-dom', 'react-dom/client', '@zip.js/zip.js', 'zod', 'zod/v3'];
 
