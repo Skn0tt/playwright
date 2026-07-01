@@ -230,6 +230,8 @@ BrowserContext:
 
     pause:
       title: Pause
+      returns:
+        output: string?
 
     enableRecorder:
       internal: true
