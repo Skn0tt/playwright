@@ -30,6 +30,28 @@ test('browser_navigate', async ({ client, server }) => {
   });
 });
 
+test('browser_navigate surfaces non-2xx HTTP status', async ({ client, server }) => {
+  server.setRoute('/locked', (req, res) => {
+    res.writeHead(402, { 'Content-Type': 'text/html' });
+    res.end('<title>Payment Required</title><body>Pay up</body>');
+  });
+
+  expect(await client.callTool({
+    name: 'browser_navigate',
+    arguments: { url: server.PREFIX + '/locked' },
+  })).toHaveResponse({
+    page: expect.stringContaining(`- Page status: 402 Payment Required`),
+  });
+
+  // A subsequent 2xx navigation must not carry a status line.
+  expect(await client.callTool({
+    name: 'browser_navigate',
+    arguments: { url: server.HELLO_WORLD },
+  })).not.toHaveResponse({
+    page: expect.stringContaining('Page status'),
+  });
+});
+
 test('browser_navigate blocks file:// URLs by default', async ({ client }) => {
   expect(await client.callTool({
     name: 'browser_navigate',
