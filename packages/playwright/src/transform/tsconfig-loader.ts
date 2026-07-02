@@ -67,7 +67,6 @@ function resolveConfigFile(baseConfigFile: string, referencedConfigFile: string,
     referencedConfigFile += '.json';
   const currentDir = path.dirname(baseConfigFile);
   let resolvedConfigFile = path.resolve(currentDir, referencedConfigFile);
-  // TODO: I don't see how this makes sense, delete in the next minor release.
   if (referencedConfigFile.includes('/') && referencedConfigFile.includes('.') && !fs.existsSync(resolvedConfigFile))
     resolvedConfigFile = path.join(currentDir, 'node_modules', referencedConfigFile);
   if (!fs.existsSync(resolvedConfigFile))

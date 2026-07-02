@@ -587,6 +587,41 @@ test('should resolve paths relative to the originating config when extending and
   expect(result.exitCode).toBe(0);
 });
 
+test('should resolve extends from an explicit node_modules subpath', async ({ runInlineTest }) => {
+  // The @tsconfig/* base packages are commonly referenced by an explicit subpath,
+  // e.g. "extends": "@tsconfig/node18/tsconfig.json". Playwright resolves such a
+  // value through the config's node_modules when it is not found relative to the
+  // config directory. Removing that fallback would break these configs.
+  const result = await runInlineTest({
+    'node_modules/@my/tsconfig-base/tsconfig.json': `{
+      "compilerOptions": {
+        "paths": {
+          "util/*": ["./mapped/*"],
+        },
+      },
+    }`,
+    'tsconfig.json': `{
+      "extends": "@my/tsconfig-base/tsconfig.json",
+      "compilerOptions": {
+        "baseUrl": ".",
+      },
+    }`,
+    'a.test.ts': `
+      import { foo } from 'util/file';
+      import { test, expect } from '@playwright/test';
+      test('test', () => {
+        expect(foo).toBe('foo');
+      });
+    `,
+    'mapped/file.ts': `
+      export const foo = 'foo';
+    `,
+  });
+
+  expect(result.passed).toBe(1);
+  expect(result.exitCode).toBe(0);
+});
+
 test('should fail loudly when extends path cannot be resolved', async ({ runInlineTest }) => {
   test.info().annotations.push({ type: 'issue', description: 'https://github.com/microsoft/playwright/issues/41543' });
 
