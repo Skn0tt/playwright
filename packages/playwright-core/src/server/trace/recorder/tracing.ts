@@ -458,6 +458,10 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
     return { artifact };
   }
 
+  snapshotStarted(): boolean {
+    return !!this._snapshotter?.started();
+  }
+
   private async _captureSnapshot(snapshotName: string | undefined, sdkObject: SdkObject, metadata: CallMetadata): Promise<void> {
     if (!snapshotName || !sdkObject.attribution.page)
       return;

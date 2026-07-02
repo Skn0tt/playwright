@@ -519,7 +519,7 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
   }
 
   private async _markAsTargetElement(progress: Progress) {
-    if (!progress.metadata.id)
+    if (!this._frame.shouldMarkTargetElements(progress))
       return;
     await progress.race(this.evaluateInUtility(([injected, node, callId]) => {
       if (node.nodeType === 1 /* Node.ELEMENT_NODE */)

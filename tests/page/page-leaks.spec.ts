@@ -107,6 +107,24 @@ test('click should not leak', async ({ page, toImpl }) => {
   await checkWeakRefs(toImpl(page), 2, 25);
 });
 
+test('should not retain the last target element after an action', async ({ page, toImpl }) => {
+  test.info().annotations.push({ type: 'issue', description: 'https://github.com/microsoft/playwright/issues/41462' });
+
+  // Without tracing/snapshots, actions must not keep the last targeted element
+  // alive via the target-highlight bookkeeping, otherwise a detached element
+  // stays in memory and pollutes leak detection.
+  await page.setContent(`<div id="container"><button>target</button></div>`);
+  await page.locator('#container > button').textContent();
+
+  await weakRefObjects(toImpl(page), '#container > button');
+  await page.evaluate(() => {
+    document.getElementById('container').textContent = '';
+  });
+
+  expect(leakedJSHandles()).toBeFalsy();
+  await checkWeakRefs(toImpl(page), 0, 1);
+});
+
 test('fill should not leak', async ({ page, mode, toImpl }) => {
   test.skip(mode !== 'default');
 

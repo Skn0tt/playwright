@@ -1172,9 +1172,9 @@ export class Frame extends SdkObject<FrameEventMap> {
           throw new dom.NonRecoverableDOMError('Element(s) not found');
         return continuePolling;
       }
-      const result = await progress.race(resolved.injected.evaluateHandle((injected, { info, callId }) => {
+      const result = await progress.race(resolved.injected.evaluateHandle((injected, { info, callId, markTargetElements }) => {
         const elements = injected.querySelectorAll(info.parsed, document);
-        if (callId)
+        if (markTargetElements)
           injected.markTargetElements(new Set(elements), callId);
         const element = elements[0] as Element | undefined;
         let log = '';
@@ -1187,7 +1187,7 @@ export class Frame extends SdkObject<FrameEventMap> {
         }
         injected.checkDeprecatedSelectorUsage(info.parsed, elements);
         return { log, success: !!element, element };
-      }, { info: resolved.info, callId: progress.metadata.id }));
+      }, { info: resolved.info, callId: progress.metadata.id, markTargetElements: this.shouldMarkTargetElements(progress) }));
       const { log, success } = await progress.race(result.evaluate(r => ({ log: r.log, success: r.success })));
       if (log)
         progress.log(log);
@@ -1517,6 +1517,7 @@ export class Frame extends SdkObject<FrameEventMap> {
   private async _expectInternal(progress: Progress, selector: string | undefined, options: FrameExpectParams, lastIntermediateResult: { received?: ExpectReceived, isSet: boolean, errorMessage?: string }, noAbort: boolean) {
     const progressLog = (text: string) => progress.log(text);
     const callId = progress.metadata.id;
+    const markTargetElements = this.shouldMarkTargetElements(progress);
     // The first expect check, a.k.a. one-shot, always finishes - even when progress is aborted.
     if (noAbort)
       progress = nullProgress;
@@ -1527,9 +1528,9 @@ export class Frame extends SdkObject<FrameEventMap> {
     const context = await progress.race(frame.context(world));
     const injected = await progress.race(context.injectedScript());
 
-    const { log, matches, received, missingReceived } = await progress.race(injected.evaluate(async (injected, { info, options, callId }) => {
+    const { log, matches, received, missingReceived } = await progress.race(injected.evaluate(async (injected, { info, options, callId, markTargetElements }) => {
       const elements = info ? injected.querySelectorAll(info.parsed, document) : [];
-      if (callId)
+      if (markTargetElements)
         injected.markTargetElements(new Set(elements), callId);
       const isArray = options.expression === 'to.have.count' || options.expression.endsWith('.array');
       let log = '';
@@ -1542,7 +1543,7 @@ export class Frame extends SdkObject<FrameEventMap> {
       if (info)
         injected.checkDeprecatedSelectorUsage(info.parsed, elements);
       return { log, ...await injected.expect(elements[0], options, elements) };
-    }, { info, options, callId }));
+    }, { info, options, callId, markTargetElements }));
 
     if (log)
       progressLog(log);
@@ -1692,16 +1693,16 @@ export class Frame extends SdkObject<FrameEventMap> {
       const resolved = await progress.race(this.selectors.resolveInjectedForSelector(selector, options, scope));
       if (!resolved)
         return continuePolling;
-      const { log, success, value } = await progress.race(resolved.injected.evaluate((injected, { info, callbackText, taskData, callId, root }) => {
+      const { log, success, value } = await progress.race(resolved.injected.evaluate((injected, { info, callbackText, taskData, callId, markTargetElements, root }) => {
         const callback = injected.eval(callbackText) as ElementCallback<T, R>;
         const element = injected.querySelector(info.parsed, root || document, info.strict);
         if (!element)
           return { success: false };
         const log = `  locator resolved to ${injected.previewNode(element)}`;
-        if (callId)
+        if (markTargetElements)
           injected.markTargetElements(new Set([element]), callId);
         return { log, success: true, value: callback(injected, element, taskData as T) };
-      }, { info: resolved.info, callbackText, taskData, callId: progress.metadata.id, root: resolved.frame === this ? scope : undefined }));
+      }, { info: resolved.info, callbackText, taskData, callId: progress.metadata.id, markTargetElements: this.shouldMarkTargetElements(progress), root: resolved.frame === this ? scope : undefined }));
       if (log)
         progress.log(log);
       if (!success)
@@ -1803,6 +1804,10 @@ export class Frame extends SdkObject<FrameEventMap> {
 
   private _asLocator(selector: string) {
     return asLocator(this._page.browserContext._browser.sdkLanguage(), selector);
+  }
+
+  shouldMarkTargetElements(progress: Progress): boolean {
+    return !!progress.metadata.id && this._page.browserContext.tracing.snapshotStarted();
   }
 }
 
