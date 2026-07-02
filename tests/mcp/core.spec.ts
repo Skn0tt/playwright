@@ -40,15 +40,20 @@ test('browser_navigate surfaces non-2xx HTTP status', async ({ client, server })
     name: 'browser_navigate',
     arguments: { url: server.PREFIX + '/locked' },
   })).toHaveResponse({
-    page: expect.stringContaining(`- Page status: 402 Payment Required`),
+    page: expect.stringContaining(`- HTTP status: 402 Payment Required`),
   });
 
-  // A subsequent 2xx navigation must not carry a status line.
+  // A redirect to a 2xx page must not carry a status line: the intermediate
+  // 302 hop must not leak, and the final 2xx landing renders nothing.
+  server.setRoute('/redirect', (req, res) => {
+    res.writeHead(302, { location: server.HELLO_WORLD });
+    res.end();
+  });
   expect(await client.callTool({
     name: 'browser_navigate',
-    arguments: { url: server.HELLO_WORLD },
+    arguments: { url: server.PREFIX + '/redirect' },
   })).not.toHaveResponse({
-    page: expect.stringContaining('Page status'),
+    page: expect.stringContaining('HTTP status'),
   });
 });
 

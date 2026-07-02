@@ -242,7 +242,7 @@ export class Tab extends EventEmitter<TabEventsInterface> {
 
   private _handleResponse(response: playwright.Response) {
     const request = response.request();
-    if (request.isNavigationRequest() && response.frame() === this.page.mainFrame())
+    if (request.isNavigationRequest() && response.frame() === this.page.mainFrame() && !request.redirectedTo())
       this._mainDocumentStatus = { status: response.status(), statusText: response.statusText() };
     const timing = request.timing();
     const wallTime = timing.responseStart + timing.startTime;

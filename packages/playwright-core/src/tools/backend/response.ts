@@ -304,7 +304,7 @@ export function renderTabMarkdown(tab: TabHeader): string[] {
     lines.push(`- Page status: crashed`);
   const status = tab.mainDocumentStatus;
   if (status && (status.status < 200 || status.status >= 300))
-    lines.push(`- Page status: ${status.status}${status.statusText ? ' ' + status.statusText : ''}`);
+    lines.push(`- HTTP status: ${status.status}${status.statusText ? ' ' + status.statusText : ''}`);
   if (tab.console.errors || tab.console.warnings)
     lines.push(`- Console: ${tab.console.errors} errors, ${tab.console.warnings} warnings`);
   return lines;
