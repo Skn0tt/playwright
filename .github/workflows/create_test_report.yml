@@ -45,16 +45,16 @@ jobs:
         retention-days: 30
 
     # The triggering workflow ran on a pull_request event, but workflow_run.pull_requests is
-    # empty for PRs from forks, so resolve the number from the head repo + branch instead.
+    # empty for PRs from forks, so resolve the number from the head ref instead. gh's head
+    # filter wants "owner:branch" for forks but a bare branch for same-repo PRs.
     - name: Resolve PR number
       if: ${{ github.event.workflow_run.event == 'pull_request' }}
       id: pr
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HEAD_REF: ${{ github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch || format('{0}:{1}', github.event.workflow_run.head_repository.owner.login, github.event.workflow_run.head_branch) }}
       run: |
-        NUMBER=$(gh pr view --repo "${{ github.repository }}" \
-          "${{ github.event.workflow_run.head_repository.owner.login }}:${{ github.event.workflow_run.head_branch }}" \
-          --json number --jq '.number' 2>/dev/null || true)
+        NUMBER=$(gh pr view --repo "${{ github.repository }}" "$HEAD_REF" --json number --jq '.number' 2>/dev/null || true)
         echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
 
     - name: Post report comment to PR
