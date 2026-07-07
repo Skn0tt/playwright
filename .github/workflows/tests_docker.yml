@@ -135,3 +135,14 @@ jobs:
       with:
         report_dir: blob-report
         job_name: docker-${{ matrix.docker_tag }}-${{ matrix.docker_arch }}
+
+    - name: Copy parquet report from container
+      if: ${{ !cancelled() }}
+      run: docker cp "docker-tests:/home/pwuser/playwright/test-results/test-results.parquet" "./test-results-test-results.parquet" || true
+
+    - name: Upload parquet report
+      if: ${{ !cancelled() }}
+      uses: ./.github/actions/upload-parquet-report
+      with:
+        report_file: test-results-test-results.parquet
+        job_name: docker-${{ matrix.docker_tag }}-${{ matrix.docker_arch }}

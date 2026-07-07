@@ -46,6 +46,7 @@ const reporters = () => {
     hasDebugOutput ? ['list'] : ['dot'],
     ['json', { outputFile: path.join(outputDir, 'report.json') }],
     ['blob'],
+    ['../config/parquetReporter.mts'],
     ['./csvReporter', { outputFile: path.join(outputDir, 'report.csv') }],
   ] : [
     ['html', { open: 'on-failure' }],

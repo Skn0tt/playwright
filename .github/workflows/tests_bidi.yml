@@ -76,6 +76,13 @@ jobs:
         path: test-results/report.json
         retention-days: 7
 
+    - name: Upload parquet report
+      if: ${{ !cancelled() }}
+      uses: ./.github/actions/upload-parquet-report
+      with:
+        report_file: test-results/test-results.parquet
+        job_name: ${{ matrix.channel }}
+
     - name: Azure Login
       if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
       uses: azure/login@v3
