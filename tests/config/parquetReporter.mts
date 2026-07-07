@@ -50,6 +50,7 @@ await connection.run(`CREATE TABLE IF NOT EXISTS test_results (
   project_name VARCHAR,
   test_title VARCHAR,
   file VARCHAR,
+  -- test_id is intentionally omitted since it's a deterministic hash of (project_name, file, test_title)
   line INTEGER,
   column_number INTEGER,
   expected_status VARCHAR,
