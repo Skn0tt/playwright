@@ -27,8 +27,6 @@ import {
   timestampValue,
 } from '@duckdb/node-api';
 
-import { stripAnsi } from './utils';
-
 import type { FullConfig, Reporter, TestCase, TestResult } from '@playwright/test/reporter';
 import type { DuckDBAppender } from '@duckdb/node-api';
 
@@ -187,6 +185,11 @@ function prNumberFromRef(ref: string | undefined): number | null {
   // On pull_request events GITHUB_REF is `refs/pull/<number>/merge`.
   const match = ref?.match(/^refs\/pull\/(\d+)\//);
   return match ? Number.parseInt(match[1], 10) : null;
+}
+
+const ansiRegex = new RegExp('[\\u001B\\u009B][[\\]()#?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{0,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))', 'g');
+function stripAnsi(str: string): string {
+  return str.replace(ansiRegex, '');
 }
 
 export default ParquetReporter;
