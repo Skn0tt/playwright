@@ -100,7 +100,17 @@ jobs:
       run: docker exec --workdir /home/pwuser/playwright docker-tests npm run build
 
     - name: "Run @smoke tests inside docker"
-      run: docker exec --workdir /home/pwuser/playwright docker-tests xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm run test -- --grep "@smoke"
+      run: |
+        docker exec \
+          --env GITHUB_RUN_ID \
+          --env GITHUB_RUN_ATTEMPT \
+          --env GITHUB_WORKFLOW \
+          --env GITHUB_EVENT_NAME \
+          --env GITHUB_REF \
+          --env GITHUB_REF_NAME \
+          --env GITHUB_HEAD_REF \
+          --env GITHUB_SHA \
+          --workdir /home/pwuser/playwright docker-tests xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" npm run test -- --grep "@smoke"
 
     - name: Azure Login
       if: ${{ !cancelled() && github.event_name == 'push' && github.repository == 'microsoft/playwright' }}
