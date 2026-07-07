@@ -27,15 +27,46 @@ import {
   timestampValue,
 } from '@duckdb/node-api';
 
+import { stripAnsi } from './utils';
+
 import type { FullConfig, Reporter, TestCase, TestResult } from '@playwright/test/reporter';
 import type { DuckDBAppender } from '@duckdb/node-api';
 
 const ANNOTATIONS_TYPE = LIST(STRUCT({ type: VARCHAR, description: VARCHAR }));
 const TAGS_TYPE = LIST(VARCHAR);
 
-const instance = await DuckDBInstance.create(':memory:');
-const connection = await instance.connect();
-await connection.run(`CREATE TABLE IF NOT EXISTS test_results (
+class ParquetReporter implements Reporter {
+  private _config!: FullConfig;
+  private _runStartedAt = new Date();
+  private _results: { test: TestCase, result: TestResult }[] = [];
+
+  printsToStdio() {
+    return false;
+  }
+
+  onBegin(config: FullConfig) {
+    this._config = config;
+    this._runStartedAt = new Date();
+  }
+
+  onTestEnd(test: TestCase, result: TestResult) {
+    this._results.push({ test, result });
+  }
+
+  async onEnd() {
+    const runId = parseBigInt(process.env.GITHUB_RUN_ID);
+    const runAttempt = parseInteger(process.env.GITHUB_RUN_ATTEMPT);
+    const workflowName = process.env.GITHUB_WORKFLOW || null;
+    const event = process.env.GITHUB_EVENT_NAME || null;
+    const prNumber = prNumberFromRef(process.env.GITHUB_REF);
+    const botName = process.env.PWTEST_BOT_NAME || (process.env.PW_TAG ? process.env.PW_TAG.replace(/^@/, '') : '');
+    const headSha = process.env.GITHUB_SHA || null;
+    const headBranch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || null;
+
+    const instance = await DuckDBInstance.create(':memory:');
+    const connection = await instance.connect();
+    try {
+      await connection.run(`CREATE TABLE IF NOT EXISTS test_results (
   run_id BIGINT,
   run_attempt INTEGER,
   run_started_at TIMESTAMP,
@@ -60,62 +91,36 @@ await connection.run(`CREATE TABLE IF NOT EXISTS test_results (
   tags VARCHAR[],
   annotations STRUCT(type VARCHAR, description VARCHAR)[],
 )`);
-const appender = await connection.createAppender('test_results');
-
-const runId = parseBigInt(process.env.GITHUB_RUN_ID);
-const runAttempt = parseInteger(process.env.GITHUB_RUN_ATTEMPT);
-const workflowName = process.env.GITHUB_WORKFLOW || null;
-const event = process.env.GITHUB_EVENT_NAME || null;
-const prNumber = prNumberFromRef(process.env.GITHUB_REF);
-const botName = process.env.PWTEST_BOT_NAME || (process.env.PW_TAG ? process.env.PW_TAG.replace(/^@/, '') : '');
-const headSha = process.env.GITHUB_SHA || null;
-const headBranch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || null;
-
-class ParquetReporter implements Reporter {
-  private _config!: FullConfig;
-  private _runStartedAt!: Date;
-
-  printsToStdio() {
-    return false;
-  }
-
-  onBegin(config: FullConfig) {
-    this._config = config;
-    this._runStartedAt = new Date();
-  }
-
-  onTestEnd(test: TestCase, result: TestResult) {
-    const [, projectName, , ...titles] = test.titlePath();
-    appendNullableBigInt(appender, runId);
-    appendNullableInteger(appender, runAttempt);
-    appendTimestamp(appender, this._runStartedAt);
-    appendNullableVarchar(appender, workflowName);
-    appendNullableVarchar(appender, event);
-    appendNullableVarchar(appender, headSha);
-    appendNullableVarchar(appender, headBranch);
-    appendNullableInteger(appender, prNumber);
-    appender.appendVarchar(botName);
-    appender.appendVarchar(projectName);
-    appender.appendVarchar(titles.join(' › '));
-    appender.appendVarchar(path.relative(this._config.rootDir, test.location.file));
-    appender.appendInteger(test.location.line);
-    appender.appendInteger(test.location.column);
-    appender.appendVarchar(test.expectedStatus);
-    appender.appendVarchar(result.status);
-    appender.appendInteger(result.retry);
-    appendTimestamp(appender, result.startTime);
-    appender.appendBigInt(BigInt(Math.round(result.duration)));
-    appendNullableVarchar(appender, errorMessage(result));
-    appender.appendValue(listValue(test.tags), TAGS_TYPE);
-    appender.appendValue(listValue(result.annotations.map(annotation => structValue({
-      type: annotation.type,
-      description: annotation.description ?? '',
-    }))), ANNOTATIONS_TYPE);
-    appender.endRow();
-  }
-
-  async onEnd() {
-    try {
+      const appender = await connection.createAppender('test_results');
+      for (const { test, result } of this._results) {
+        const [, projectName, , ...titles] = test.titlePath();
+        appendNullableBigInt(appender, runId);
+        appendNullableInteger(appender, runAttempt);
+        appendTimestamp(appender, this._runStartedAt);
+        appendNullableVarchar(appender, workflowName);
+        appendNullableVarchar(appender, event);
+        appendNullableVarchar(appender, headSha);
+        appendNullableVarchar(appender, headBranch);
+        appendNullableInteger(appender, prNumber);
+        appender.appendVarchar(botName);
+        appender.appendVarchar(projectName);
+        appender.appendVarchar(titles.join(' › '));
+        appender.appendVarchar(path.relative(this._config.rootDir, test.location.file));
+        appender.appendInteger(test.location.line);
+        appender.appendInteger(test.location.column);
+        appender.appendVarchar(test.expectedStatus);
+        appender.appendVarchar(result.status);
+        appender.appendInteger(result.retry);
+        appendTimestamp(appender, result.startTime);
+        appender.appendBigInt(BigInt(Math.round(result.duration)));
+        appendNullableVarchar(appender, errorMessage(result));
+        appender.appendValue(listValue(test.tags), TAGS_TYPE);
+        appender.appendValue(listValue(result.annotations.map(annotation => structValue({
+          type: annotation.type,
+          description: annotation.description ?? '',
+        }))), ANNOTATIONS_TYPE);
+        appender.endRow();
+      }
       appender.flushSync();
       appender.closeSync();
       const outputFile = path.resolve(process.cwd(), process.env.PWTEST_PARQUET_OUTPUT_FILE || 'test-results/test-results.parquet');
@@ -185,11 +190,6 @@ function prNumberFromRef(ref: string | undefined): number | null {
   // On pull_request events GITHUB_REF is `refs/pull/<number>/merge`.
   const match = ref?.match(/^refs\/pull\/(\d+)\//);
   return match ? Number.parseInt(match[1], 10) : null;
-}
-
-const ansiRegex = new RegExp('[\\u001B\\u009B][[\\]()#?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{0,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))', 'g');
-function stripAnsi(str: string): string {
-  return str.replace(ansiRegex, '');
 }
 
 export default ParquetReporter;

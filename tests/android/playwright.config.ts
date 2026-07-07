@@ -41,7 +41,7 @@ const config: Config<ServerWorkerOptions & PlaywrightWorkerOptions & PlaywrightT
     ['dot'],
     ['json', { outputFile: path.join(outputDir, 'report.json') }],
     ['blob'],
-    ['../config/parquetReporter.mts'],
+    ['../config/parquetReporter.ts'],
   ] : 'line',
   projects: [],
 };

@@ -40,7 +40,7 @@ const config: Config<ServerWorkerOptions & PlaywrightWorkerOptions & PlaywrightT
   reporter: process.env.CI ? [
     ['list', { printFailuresInline: true }],
     ['json', { outputFile: path.join(outputDir, 'report.json') }],
-    ['../config/parquetReporter.mts'],
+    ['../config/parquetReporter.ts'],
   ] : 'line',
   projects: [],
 };

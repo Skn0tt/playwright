@@ -103,5 +103,4 @@ runs:
       if: ${{ !cancelled() && env.PLAYWRIGHT_SETUP_COMPLETE == 'true' }}
       uses: ./.github/actions/upload-parquet-report
       with:
-        report_file: test-results/test-results.parquet
         job_name: ${{ inputs.bot-name }}-${{ inputs.shard-index }}

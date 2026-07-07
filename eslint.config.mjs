@@ -321,7 +321,7 @@ export default [
     ignores,
   },
   {
-    files: ["**/*.ts", "**/*.tsx", "**/*.mts"],
+    files: ["**/*.ts", "**/*.tsx"],
     plugins,
     languageOptions,
     rules: baseRules,
@@ -486,7 +486,7 @@ export default [
     },
   },
   {
-    files: ["tests/**/*.spec.js", "tests/**/*.ts", "tests/**/*.mts"],
+    files: ["tests/**/*.spec.js", "tests/**/*.ts"],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 9,

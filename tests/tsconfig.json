@@ -35,6 +35,6 @@
     "skipLibCheck": true,
     "ignoreDeprecations": "6.0",
   },
-  "include": ["**/*.spec.js", "**/*.ts", "**/*.mts"],
+  "include": ["**/*.spec.js", "**/*.ts"],
   "exclude": ["components/", "installation/fixture-scripts/", "packages/playwright-core/lib/"]
 }

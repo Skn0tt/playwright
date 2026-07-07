@@ -3,17 +3,16 @@ description: 'Upload the parquet test-results report to GitHub artifacts'
 inputs:
   report_file:
     description: 'Path to the parquet report file'
-    required: true
+    required: false
     default: 'test-results/test-results.parquet'
   job_name:
     description: 'Unique job name'
     required: true
-    default: ''
 runs:
   using: "composite"
   steps:
     - name: Upload parquet report to GitHub
-      if: ${{ !cancelled() && hashFiles(inputs.report_file) != '' }}
+      if: ${{ hashFiles(inputs.report_file) != '' }}
       uses: actions/upload-artifact@v7
       with:
         name: parquet-report-${{ inputs.job_name }}

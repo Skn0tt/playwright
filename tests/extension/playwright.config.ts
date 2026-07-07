@@ -27,7 +27,7 @@ export default defineConfig<TestOptions & ExtensionTestOptions>({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [
     ['list'],
-    ['../config/parquetReporter.mts'],
+    ['../config/parquetReporter.ts'],
   ] : 'list',
   projects: [
     { name: 'chromium', use: { mcpBrowser: 'chromium', protocolVersion: 2 } },

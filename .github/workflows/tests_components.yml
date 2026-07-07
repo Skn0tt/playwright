@@ -44,10 +44,4 @@ jobs:
     - run: npm ci
     - run: npm run build
     - run: npx playwright install --with-deps
-    - run: npm run ct -- --reporter=list,./tests/config/parquetReporter.mts
-    - name: Upload parquet report
-      if: ${{ !cancelled() }}
-      uses: ./.github/actions/upload-parquet-report
-      with:
-        report_file: test-results/test-results.parquet
-        job_name: components-${{ matrix.os }}-node${{ matrix.node-version }}
+    - run: npm run ct

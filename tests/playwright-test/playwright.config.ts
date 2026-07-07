@@ -27,7 +27,7 @@ const reporters = () => {
     ['dot'],
     ['json', { outputFile: path.join(outputDir, 'report.json') }],
     ['blob', { outputDir: path.join(__dirname, '..', '..', 'blob-report') }],
-    ['../config/parquetReporter.mts'],
+    ['../config/parquetReporter.ts'],
   ] : [
     ['list']
   ];
