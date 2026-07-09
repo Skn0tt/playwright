@@ -4616,6 +4616,24 @@ Will throw an error if the page is closed before the [`event: Page.console`] eve
 * langs: python
 - returns: <[EventContextManager]<[ConsoleMessage]>>
 
+**Usage**
+
+```python async
+async with page.expect_console_message() as message_info:
+    await page.get_by_role("button").click()
+
+message = await message_info.value
+print(message.text)
+```
+
+```python sync
+with page.expect_console_message() as message_info:
+    page.get_by_role("button").click()
+
+message = message_info.value
+print(message.text)
+```
+
 ### param: Page.waitForConsoleMessage.action = %%-csharp-wait-for-event-action-%%
 * since: v1.12
 
@@ -4751,6 +4769,24 @@ Will throw an error if the page is closed before the file chooser is opened.
 * since: v1.9
 * langs: python
 - returns: <[EventContextManager]<[FileChooser]>>
+
+**Usage**
+
+```python async
+async with page.expect_file_chooser() as fc_info:
+    await page.get_by_text("Upload").click()
+
+file_chooser = await fc_info.value
+await file_chooser.set_files("myfile.pdf")
+```
+
+```python sync
+with page.expect_file_chooser() as fc_info:
+    page.get_by_text("Upload").click()
+
+file_chooser = fc_info.value
+file_chooser.set_files("myfile.pdf")
+```
 
 ### param: Page.waitForFileChooser.action = %%-csharp-wait-for-event-action-%%
 * since: v1.12
@@ -5111,6 +5147,24 @@ Will throw an error if the page is closed before the popup event is fired.
 * langs: python
 - returns: <[EventContextManager]<[Page]>>
 
+**Usage**
+
+```python async
+async with page.expect_popup() as popup_info:
+    await page.get_by_text("Open popup").click()
+
+popup = await popup_info.value
+print(await popup.title())
+```
+
+```python sync
+with page.expect_popup() as popup_info:
+    page.get_by_text("Open popup").click()
+
+popup = popup_info.value
+print(popup.title())
+```
+
 ### param: Page.waitForPopup.action = %%-csharp-wait-for-event-action-%%
 * since: v1.12
 
@@ -5252,6 +5306,24 @@ Will throw an error if the page is closed before the [`event: Page.requestFinish
 * since: v1.12
 * langs: python
 - returns: <[EventContextManager]<[Request]>>
+
+**Usage**
+
+```python async
+async with page.expect_request_finished() as request_info:
+    await page.get_by_text("Trigger request").click()
+
+request = await request_info.value
+print(request.url)
+```
+
+```python sync
+with page.expect_request_finished() as request_info:
+    page.get_by_text("Trigger request").click()
+
+request = request_info.value
+print(request.url)
+```
 
 ### param: Page.waitForRequestFinished.action = %%-csharp-wait-for-event-action-%%
 * since: v1.12
@@ -5657,6 +5729,24 @@ Will throw an error if the page is closed before the WebSocket event is fired.
 * langs: python
 - returns: <[EventContextManager]<[WebSocket]>>
 
+**Usage**
+
+```python async
+async with page.expect_websocket() as ws_info:
+    await page.get_by_text("Connect").click()
+
+ws = await ws_info.value
+print(ws.url)
+```
+
+```python sync
+with page.expect_websocket() as ws_info:
+    page.get_by_text("Connect").click()
+
+ws = ws_info.value
+print(ws.url)
+```
+
 ### param: Page.waitForWebSocket.action = %%-csharp-wait-for-event-action-%%
 * since: v1.12
 
@@ -5688,6 +5778,24 @@ Will throw an error if the page is closed before the worker event is fired.
 * since: v1.9
 * langs: python
 - returns: <[EventContextManager]<[Worker]>>
+
+**Usage**
+
+```python async
+async with page.expect_worker() as worker_info:
+    await page.get_by_text("Start worker").click()
+
+worker = await worker_info.value
+print(worker.url)
+```
+
+```python sync
+with page.expect_worker() as worker_info:
+    page.get_by_text("Start worker").click()
+
+worker = worker_info.value
+print(worker.url)
+```
 
 ### param: Page.waitForWorker.action = %%-csharp-wait-for-event-action-%%
 * since: v1.12

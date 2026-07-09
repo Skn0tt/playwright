@@ -1719,6 +1719,24 @@ Will throw an error if the page is closed before the [`event: BrowserContext.con
 * langs: python
 - returns: <[EventContextManager]<[ConsoleMessage]>>
 
+**Usage**
+
+```python async
+async with context.expect_console_message() as message_info:
+    await page.get_by_role("button").click()
+
+message = await message_info.value
+print(message.text)
+```
+
+```python sync
+with context.expect_console_message() as message_info:
+    page.get_by_role("button").click()
+
+message = message_info.value
+print(message.text)
+```
+
 ### param: BrowserContext.waitForConsoleMessage.action = %%-csharp-wait-for-event-action-%%
 * since: v1.34
 
@@ -1817,6 +1835,24 @@ Will throw an error if the context closes before new [Page] is created.
 * since: v1.9
 * langs: python
 - returns: <[EventContextManager]<[Page]>>
+
+**Usage**
+
+```python async
+async with context.expect_page() as page_info:
+    await page.get_by_text("Open new tab").click()
+
+new_page = await page_info.value
+print(await new_page.title())
+```
+
+```python sync
+with context.expect_page() as page_info:
+    page.get_by_text("Open new tab").click()
+
+new_page = page_info.value
+print(new_page.title())
+```
 
 ### param: BrowserContext.waitForPage.action = %%-csharp-wait-for-event-action-%%
 * since: v1.12

@@ -77,6 +77,24 @@ value. Will throw an error if the webSocket is closed before the event is fired.
 * langs: python
 - returns: <[EventContextManager]>
 
+**Usage**
+
+```python async
+async with ws.expect_event("framereceived") as event_info:
+    await page.get_by_text("Send message").click()
+
+payload = await event_info.value
+print(payload)
+```
+
+```python sync
+with ws.expect_event("framereceived") as event_info:
+    page.get_by_text("Send message").click()
+
+payload = event_info.value
+print(payload)
+```
+
 ### param: WebSocket.waitForEvent.event
 * since: v1.8
 - `event` <[string]>
