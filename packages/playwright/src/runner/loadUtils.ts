@@ -166,7 +166,7 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
   }
 
   // Prepend dependency projects without filtration.
-  for (const [project, type] of [...projectClosure].reverse()) {
+  for (const [project, type] of projectClosure) {
     if (type !== 'dependency')
       continue;
     const dependencySuite = buildProjectSuite(project, projectSuites.get(project)!);

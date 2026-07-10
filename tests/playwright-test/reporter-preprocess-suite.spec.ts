@@ -448,8 +448,8 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
 
   expect(result.exitCode).toBe(0);
   expect(result.outputLines).toEqual([
-    'plan projects: setup,teardown,main',
-    'plan tests: setup-test,teardown-test,main-test',
+    'plan projects: teardown,setup,main',
+    'plan tests: teardown-test,setup-test,main-test',
     'dep-skip: TestCase.skip() cannot be called on a setup or teardown project test; these always run in full.',
     'dep-fixme: TestCase.fixme() cannot be called on a setup or teardown project test; these always run in full.',
     'dep-fail: TestCase.fail() cannot be called on a setup or teardown project test; these always run in full.',
