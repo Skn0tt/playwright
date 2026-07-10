@@ -59,6 +59,7 @@ export class Suite extends Base {
   _fullProject: FullProjectInternal | undefined;
   _fileId: string | undefined;
   _preprocessing = false;
+  _isDependency = false;
   readonly _type: 'root' | 'project' | 'file' | 'describe';
 
   skip: (reason?: string) => void;
@@ -272,6 +273,8 @@ export class Suite extends Base {
   private _modifier(type: 'skip' | 'fixme' | 'fail', location: Location, reason: string | undefined): void {
     if (!this._rootSuite()._preprocessing)
       throw new Error(`Suite.${type}() can only be called from Reporter.preprocessSuite().`);
+    if (this._isInDependencyProject())
+      throw new Error(`Suite.${type}() cannot be called on a setup or teardown project; these always run in full.`);
     for (const test of this.allTests())
       test._applyPlanAnnotation({ type, description: reason, location });
   }
@@ -281,7 +284,13 @@ export class Suite extends Base {
       throw new Error(`Suite.exclude() can only be called from Reporter.preprocessSuite().`);
     if (!this.parent)
       throw new Error(`Suite.exclude() cannot be called on the root suite.`);
+    if (this._isInDependencyProject())
+      throw new Error(`Suite.exclude() cannot be called on a setup or teardown project; these always run in full.`);
     this.parent._detach(this);
+  }
+
+  _isInDependencyProject(): boolean {
+    return this._isDependency || (this.parent?._isInDependencyProject() ?? false);
   }
 
   _rootSuite(): Suite {
@@ -355,6 +364,8 @@ export class TestCase extends Base implements reporterTypes.TestCase {
   private _modifier(type: 'skip' | 'fixme' | 'fail', location: Location, reason: string | undefined): void {
     if (!this._rootSuite()._preprocessing)
       throw new Error(`TestCase.${type}() can only be called from Reporter.preprocessSuite().`);
+    if (this.parent._isInDependencyProject())
+      throw new Error(`TestCase.${type}() cannot be called on a setup or teardown project test; these always run in full.`);
     this._applyPlanAnnotation({ type, description: reason, location });
   }
 
@@ -370,6 +381,8 @@ export class TestCase extends Base implements reporterTypes.TestCase {
   exclude(): void {
     if (!this._rootSuite()._preprocessing)
       throw new Error(`TestCase.exclude() can only be called from Reporter.preprocessSuite().`);
+    if (this.parent._isInDependencyProject())
+      throw new Error(`TestCase.exclude() cannot be called on a setup or teardown project test; these always run in full.`);
     this.parent._detach(this);
   }
 

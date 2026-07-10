@@ -153,8 +153,7 @@ export interface Reporter {
    * @param suite The root suite that contains the projects, files and test cases that will run.
    *
    * The suite reflects `--project`, `--grep`/`--grep-invert` and `.only` filtering, so it only contains tests that
-   * match the current invocation. It contains only the top-level projects being run — setup and dependency projects are
-   * not included and cannot be excluded from here.
+   * match the current invocation. Setup and dependency projects are readonly and cannot be excluded from here.
    *
    * The suite ignores the `--shard` argument: it always contains the full, un-sharded corpus. Playwright applies its
    * built-in sharding after

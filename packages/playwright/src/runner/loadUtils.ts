@@ -165,12 +165,23 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     }
   }
 
+  // Prepend dependency projects without filtration.
+  for (const [project, type] of [...projectClosure].reverse()) {
+    if (type !== 'dependency')
+      continue;
+    const dependencySuite = buildProjectSuite(project, projectSuites.get(project)!);
+    dependencySuite._isDependency = true;
+    rootSuite._prependSuite(dependencySuite);
+  }
+
   const preprocessResult = await testRun.reporter.preprocessSuite(config.config, rootSuite);
   // Shard only the top-level projects.
   if (config.config.shard && !preprocessResult?.implementsSharding) {
     // Create test groups for top-level projects.
     const testGroups: TestGroup[] = [];
     for (const projectSuite of rootSuite.suites) {
+      if (projectSuite._isDependency)
+        continue;
       // Split beforeAll-grouped tests into "config.shard.total" groups when needed.
       // Later on, we'll re-split them between workers by using "config.workers" instead.
       for (const group of createTestGroups(projectSuite, config.config.shard.total))
@@ -186,26 +197,19 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     }
 
     // Update project suites, removing empty ones.
-    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => testsInThisShard.has(test));
+    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => test.parent._isInDependencyProject() || testsInThisShard.has(test));
   }
 
   if (testRun.postShardTestFilters.length)
-    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => testRun.postShardTestFilters.every(filter => filter(test)));
+    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => test.parent._isInDependencyProject() || testRun.postShardTestFilters.every(filter => filter(test)));
 
-  const topLevelProjects = [];
-  // Now prepend dependency projects without filtration.
-  {
-    // Filtering 'only' and sharding might have reduced the number of top-level projects.
-    // Build the project closure to only include dependencies that are still needed.
-    const projectClosure = new Map(buildProjectsClosure(rootSuite.suites.map(suite => suite._fullProject!)));
-
-    // Clone file suites for dependency projects.
-    for (const [project, level] of projectClosure.entries()) {
-      if (level === 'dependency')
-        rootSuite._prependSuite(buildProjectSuite(project, projectSuites.get(project)!));
-      else
-        topLevelProjects.push(project);
-    }
+  // Filtering 'only' and sharding might have reduced the number of top-level projects.
+  // Prune the project closure to only include dependencies that are still needed.
+  const topLevelProjects = rootSuite.suites.filter(suite => !suite._isDependency).map(suite => suite._fullProject!);
+  const neededClosure = buildProjectsClosure(topLevelProjects);
+  for (const projectSuite of [...rootSuite.suites]) {
+    if (projectSuite._isDependency && !neededClosure.has(projectSuite._fullProject!))
+      rootSuite._detach(projectSuite);
   }
 
   testRun.rootSuite = rootSuite;
