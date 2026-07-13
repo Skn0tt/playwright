@@ -62,10 +62,8 @@ export class ProgressController {
     });
   }
 
-
   async abort(error: Error) {
-    const causeMessage = error.cause instanceof Error ? error.cause.message : error.cause === undefined ? error.message : String(error.cause);
-    const logMessage = `operation was aborted: ${causeMessage}`;
+    const logMessage = `operation was aborted: ${error.message}`;
     if (this._state === 'running') {
       this.metadata.log.push(logMessage);
       (error as any)[kAbortErrorSymbol] = true;
