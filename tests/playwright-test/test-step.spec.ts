@@ -479,8 +479,8 @@ test('step timeout includes interrupted action errors', async ({ runInlineTest }
   // Should include 2 errors, one for the step timeout and one for the aborted action.
   expect.soft(result.output).toContain('TimeoutError: Step timeout of 1000ms exceeded.');
   expect.soft(result.output).toContain(`> 4 |         await test.step('my step', async () => {`);
-  expect.soft(result.output).toContain('AbortError: page.waitForTimeout: The operation was aborted');
-  expect.soft(result.output.split('AbortError: page.waitForTimeout: The operation was aborted').length).toBe(2);
+  expect.soft(result.output).toContain('AbortError: page.waitForTimeout: Test ended.');
+  expect.soft(result.output.split('AbortError: page.waitForTimeout: Test ended.').length).toBe(2);
   expect.soft(result.output).toMatch(/Call log:[\s\S]*- Test ended\./);
   expect.soft(result.output).toContain('> 5 |           await page.waitForTimeout(100_000);');
 });

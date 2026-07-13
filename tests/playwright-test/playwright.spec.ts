@@ -334,7 +334,7 @@ test('should report error and pending operations on timeout', async ({ runInline
   expect(result.exitCode).toBe(1);
   expect(result.passed).toBe(0);
   expect(result.failed).toBe(1);
-  expect(result.output).toContain('AbortError: locator.click: The operation was aborted');
+  expect(result.output).toContain('AbortError: locator.click: Test timeout of 2000ms exceeded.');
   expect(result.output).toContain('- Test timeout of 2000ms exceeded.');
   expect(result.output).toContain('a.test.ts:5:41');
 });
