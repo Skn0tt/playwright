@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { setMaxListeners } from 'events';
 import fs from 'fs';
 import path from 'path';
 
@@ -414,13 +415,15 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures, UtilityTestFixt
         }
       } : {};
       const context = await browser.newContext({ ...videoOptions, ...options }) as BrowserContextImpl;
-      context._defaultSignal = testInfoImpl._testEndAbortController.signal;
+      const abortController = createTestEndAbortController();
+      context._defaultSignal = abortController.signal;
 
       let closed = false;
       const close = async () => {
         if (closed)
           return;
         closed = true;
+        abortTestEndOperations(abortController, testInfo);
         context._defaultSignal = undefined;
         await context.close();
         const preserveVideo = captureVideo && shouldPreserveVideo(videoMode, testInfo);
@@ -475,11 +478,13 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures, UtilityTestFixt
     }
 
     const context = await browserImpl._wrapApiCall(() => browserImpl._newContextForReuse(), { internal: true });
-    context._defaultSignal = testInfo._testEndAbortController.signal;
+    const abortController = createTestEndAbortController();
+    context._defaultSignal = abortController.signal;
     await installScreencastTitleUpdater(testInfo, context, show?.test);
     await use(context);
+    abortTestEndOperations(abortController, testInfo);
     context._defaultSignal = undefined;
-    const closeReason = testInfo.status === 'timedOut' ? 'Test timeout of ' + testInfo.timeout + 'ms exceeded.' : 'Test ended.';
+    const closeReason = testEndReason(testInfo);
     await browserImpl._wrapApiCall(() => browserImpl._disconnectFromReusedContext(closeReason), { internal: true });
   },
 
@@ -506,6 +511,20 @@ function normalizeVideoMode(video: VideoMode | 'retry-with-video' | { mode: Vide
   if (videoMode === 'retry-with-video')
     videoMode = 'on-first-retry';
   return videoMode;
+}
+
+function createTestEndAbortController(): AbortController {
+  const abortController = new AbortController();
+  setMaxListeners(0, abortController.signal);
+  return abortController;
+}
+
+function abortTestEndOperations(abortController: AbortController, testInfo: TestInfo) {
+  abortController.abort(new Error(testEndReason(testInfo)));
+}
+
+function testEndReason(testInfo: TestInfo): string {
+  return testInfo.status === 'timedOut' ? 'Test timeout of ' + testInfo.timeout + 'ms exceeded.' : 'Test ended.';
 }
 
 function shouldCaptureVideo(videoMode: VideoMode, testInfo: TestInfo) {

@@ -323,9 +323,19 @@ test('should call logger from launchOptions config', async ({ runInlineTest }) =
 test('should report error and pending operations on timeout', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'a.test.ts': `
-      import { test, expect } from '@playwright/test';
-      test('timedout', async ({ page }) => {
+      import { test as base } from '@playwright/test';
+      const test = base.extend<{ track: (promise: Promise<void>) => void }>({
+        track: async ({ page }, use) => {
+          let operation!: Promise<void>;
+          await use(promise => operation = promise);
+          await page.evaluate(() => (globalThis as any).done = true);
+          await operation;
+          console.log('fixture teardown finished');
+        },
+      });
+      test('timedout', async ({ page, track }) => {
         await page.setContent('<div>Click me</div>');
+        track(page.waitForFunction(() => (globalThis as any).done).then(handle => handle.dispose()));
         await page.getByText('Missing').click();
       });
     `,
@@ -336,7 +346,8 @@ test('should report error and pending operations on timeout', async ({ runInline
   expect(result.failed).toBe(1);
   expect(result.output).toContain('AbortError: locator.click: Test timeout of 2000ms exceeded.');
   expect(result.output).toContain('- Test timeout of 2000ms exceeded.');
-  expect(result.output).toContain('a.test.ts:5:41');
+  expect(result.output).toContain('fixture teardown finished');
+  expect(result.output).toContain('a.test.ts:15:41');
 });
 
 test('should report error on timeout with shared page', async ({ runInlineTest }) => {

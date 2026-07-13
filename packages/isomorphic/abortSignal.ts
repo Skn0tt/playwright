@@ -45,5 +45,3 @@ export function combineSignals(a?: AbortSignal, b?: AbortSignal): { signal: Abor
   b.addEventListener('abort', onB, { once: true });
   return { signal: controller.signal, cleanup };
 }
-
-export class TestEndedError extends Error {}
