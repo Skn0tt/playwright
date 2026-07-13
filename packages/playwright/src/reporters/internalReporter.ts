@@ -55,11 +55,11 @@ export class InternalReporter implements ReporterV2 {
   }
 
   async preprocessSuite(config: FullConfig, suite: testNs.Suite) {
-    suite._preprocessing = true;
+    suite._preprocessMode = 'editable';
     try {
       return await this._reporter.preprocessSuite?.(config, suite);
     } finally {
-      suite._preprocessing = false;
+      suite._preprocessMode = undefined;
     }
   }
 

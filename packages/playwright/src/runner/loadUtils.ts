@@ -166,11 +166,13 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
   }
 
   // Prepend dependency projects without filtration.
+  const dependencyProjectIds = new Set<string>();
   for (const [project, type] of projectClosure) {
     if (type !== 'dependency')
       continue;
     const dependencySuite = buildProjectSuite(project, projectSuites.get(project)!);
-    dependencySuite._isDependency = true;
+    dependencySuite._preprocessMode = 'readonly';
+    dependencyProjectIds.add(project.id);
     rootSuite._prependSuite(dependencySuite);
   }
 
@@ -180,7 +182,7 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     // Create test groups for top-level projects.
     const testGroups: TestGroup[] = [];
     for (const projectSuite of rootSuite.suites) {
-      if (projectSuite._isDependency)
+      if (projectClosure.get(projectSuite._fullProject!) === 'dependency')
         continue;
       // Split beforeAll-grouped tests into "config.shard.total" groups when needed.
       // Later on, we'll re-split them between workers by using "config.workers" instead.
@@ -197,18 +199,18 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     }
 
     // Update project suites, removing empty ones.
-    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => test.parent._isInDependencyProject() || testsInThisShard.has(test));
+    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => dependencyProjectIds.has(test._projectId) || testsInThisShard.has(test));
   }
 
   if (testRun.postShardTestFilters.length)
-    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => test.parent._isInDependencyProject() || testRun.postShardTestFilters.every(filter => filter(test)));
+    suiteUtils.filterTestsRemoveEmptySuites(rootSuite, test => dependencyProjectIds.has(test._projectId) || testRun.postShardTestFilters.every(filter => filter(test)));
 
   // Filtering 'only' and sharding might have reduced the number of top-level projects.
   // Prune the project closure to only include dependencies that are still needed.
-  const topLevelProjects = rootSuite.suites.filter(suite => !suite._isDependency).map(suite => suite._fullProject!);
+  const topLevelProjects = rootSuite.suites.filter(suite => !dependencyProjectIds.has(suite._fullProject!.id)).map(suite => suite._fullProject!);
   const neededClosure = buildProjectsClosure(topLevelProjects);
   for (const projectSuite of [...rootSuite.suites]) {
-    if (projectSuite._isDependency && !neededClosure.has(projectSuite._fullProject!))
+    if (dependencyProjectIds.has(projectSuite._fullProject!.id) && !neededClosure.has(projectSuite._fullProject!))
       rootSuite._detach(projectSuite);
   }
 
