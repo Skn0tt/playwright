@@ -427,16 +427,20 @@ test('step timeout option', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'a.test.ts': `
       import { test, expect } from '@playwright/test';
-      test('step with timeout', async () => {
+      test('step with timeout', async ({ page }) => {
+        await page.setContent('<div>actual</div>');
         await test.step('my step', async () => {
-          await new Promise(() => {});
-        }, { timeout: 100 });
+          await expect(page.locator('div')).toHaveText('expected', { timeout: 100_000 });
+        }, { timeout: 1000 });
       });
     `
   }, { reporter: '', workers: 1 });
   expect(result.exitCode).toBe(1);
   expect(result.failed).toBe(1);
-  expect(result.output).toContain('Error: Step timeout of 100ms exceeded.');
+  expect.soft(result.output).toContain('TimeoutError: Step timeout of 1000ms exceeded.');
+  expect.soft(result.output).toContain('Expected: "expected"');
+  expect.soft(result.output).toContain('Received: "actual"');
+  expect.soft(result.output).toMatch(/Call log:[\s\S]*- Test ended\./);
 });
 
 test('step timeout longer than test timeout', async ({ runInlineTest }) => {
@@ -475,8 +479,9 @@ test('step timeout includes interrupted action errors', async ({ runInlineTest }
   // Should include 2 errors, one for the step timeout and one for the aborted action.
   expect.soft(result.output).toContain('TimeoutError: Step timeout of 1000ms exceeded.');
   expect.soft(result.output).toContain(`> 4 |         await test.step('my step', async () => {`);
-  expect.soft(result.output).toContain('Error: page.waitForTimeout: Test ended.');
-  expect.soft(result.output.split('Error: page.waitForTimeout: Test ended.').length).toBe(2);
+  expect.soft(result.output).toContain('AbortError: page.waitForTimeout: The operation was aborted');
+  expect.soft(result.output.split('AbortError: page.waitForTimeout: The operation was aborted').length).toBe(2);
+  expect.soft(result.output).toMatch(/Call log:[\s\S]*- Test ended\./);
   expect.soft(result.output).toContain('> 5 |           await page.waitForTimeout(100_000);');
 });
 

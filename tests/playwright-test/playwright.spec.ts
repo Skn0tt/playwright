@@ -334,22 +334,31 @@ test('should report error and pending operations on timeout', async ({ runInline
   expect(result.exitCode).toBe(1);
   expect(result.passed).toBe(0);
   expect(result.failed).toBe(1);
-  expect(result.output).toContain('Error: locator.click: Test timeout of 2000ms exceeded.');
+  expect(result.output).toContain('AbortError: locator.click: The operation was aborted');
+  expect(result.output).toContain('- Test timeout of 2000ms exceeded.');
   expect(result.output).toContain('a.test.ts:5:41');
 });
 
 test('should report error on timeout with shared page', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'a.test.ts': `
-      import { test, expect } from '@playwright/test';
-      let page;
+      import { test, expect, Page } from '@playwright/test';
+      let page: Page;
+      let operation: Promise<void>;
+
       test.beforeAll(async ({ browser }) => {
         page = await browser.newPage();
       });
-      test('passed', async () => {
+
+      test('starts operation', async () => {
         await page.setContent('<div>Click me</div>');
+        operation = page.waitForFunction(() => (globalThis as any).done).then(handle => handle.dispose());
       });
-      test('timedout', async () => {
+
+      test('finishes operation and times out', async () => {
+        await page.evaluate(() => (globalThis as any).done = true);
+        await operation;
+        expect(await page.evaluate(() => (globalThis as any).done)).toBe(true);
         await page.getByText('Missing').click();
       });
     `,
@@ -359,7 +368,7 @@ test('should report error on timeout with shared page', async ({ runInlineTest }
   expect(result.passed).toBe(1);
   expect(result.failed).toBe(1);
   expect(result.output).toContain('waiting for getByText(\'Missing\')');
-  expect(result.output).toContain(`11 |         await page.getByText('Missing').click();`);
+  expect(result.output).toContain(`19 |         await page.getByText('Missing').click();`);
 });
 
 test('should report error from beforeAll timeout', async ({ runInlineTest }) => {

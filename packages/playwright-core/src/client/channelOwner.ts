@@ -15,6 +15,7 @@
  */
 
 import { getMetainfo } from '@isomorphic/protocolMetainfo';
+import { combineSignals } from '@isomorphic/abortSignal';
 import { showInternalStackFrames, stringifyStackFrames } from '@utils/stackTrace';
 import { isUnderTest } from '@utils/debug';
 import { debugLogger } from '@utils/debugLogger';
@@ -35,6 +36,7 @@ export abstract class ChannelOwner<T extends channels.Channel = channels.Channel
   readonly _connection: Connection;
   private _parent: ChannelOwner | undefined;
   private _objects = new Map<string, ChannelOwner>();
+  _defaultSignal: AbortSignal | undefined;
 
   readonly _type: string;
   readonly _guid: string;
@@ -154,16 +156,21 @@ export abstract class ChannelOwner<T extends channels.Channel = channels.Channel
             return async (params: any, signal: AbortSignal | undefined) => {
               return await this._wrapApiCall(async apiZone => {
                 const validatedParams = validator(params, '', this._validatorToWireContext());
-                if (!apiZone.internal && !apiZone.reported) {
-                  // Reporting/tracing/logging this api call for the first time.
-                  apiZone.reported = true;
-                  this._instrumentation.onApiCallBegin(apiZone, { type: this._type, method: prop, params });
-                  logApiCall(this._logger, `=> ${apiZone.apiName} started`);
-                  return await this._connection.sendMessageToServer(this, prop, validatedParams, { ...apiZone, signal });
+                const { signal: effectiveSignal, cleanup } = combineSignals(signal, this._defaultSignalForOperation());
+                try {
+                  if (!apiZone.internal && !apiZone.reported) {
+                    // Reporting/tracing/logging this api call for the first time.
+                    apiZone.reported = true;
+                    this._instrumentation.onApiCallBegin(apiZone, { type: this._type, method: prop, params });
+                    logApiCall(this._logger, `=> ${apiZone.apiName} started`);
+                    return await this._connection.sendMessageToServer(this, prop, validatedParams, { ...apiZone, signal: effectiveSignal });
+                  }
+                  // Since this api call is either internal, or has already been reported/traced once,
+                  // passing as internal.
+                  return await this._connection.sendMessageToServer(this, prop, validatedParams, { internal: true, signal: effectiveSignal });
+                } finally {
+                  cleanup();
                 }
-                // Since this api call is either internal, or has already been reported/traced once,
-                // passing as internal.
-                return await this._connection.sendMessageToServer(this, prop, validatedParams, { internal: true, signal });
               }, { internal });
             };
           }
@@ -173,6 +180,13 @@ export abstract class ChannelOwner<T extends channels.Channel = channels.Channel
     });
     (channel as any)._object = this;
     return channel;
+  }
+
+  private _defaultSignalForOperation(): AbortSignal | undefined {
+    for (let owner: ChannelOwner | undefined = this; owner; owner = owner._parent) {
+      if (owner._defaultSignal !== undefined)
+        return owner._defaultSignal.aborted ? undefined : owner._defaultSignal;
+    }
   }
 
   async _wrapApiCall<R>(func: (apiZone: ApiZone) => Promise<R>, options?: { internal?: boolean, title?: string }): Promise<R> {

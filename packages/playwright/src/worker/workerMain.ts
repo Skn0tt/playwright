@@ -15,6 +15,7 @@
  */
 
 import colors from 'colors/safe';
+import { TestEndedError } from '@isomorphic/abortSignal';
 import { ManualPromise } from '@isomorphic/manualPromise';
 import { removeFolders } from '@utils/fileUtils';
 import { gracefullyCloseAll } from '@utils/processLauncher';
@@ -164,6 +165,9 @@ export class WorkerMain extends ProcessRunner {
   }
 
   unhandledError(error: Error | any) {
+    if (error?.cause instanceof TestEndedError)
+      return;
+
     // No current test - fatal error.
     if (!this._currentTest) {
       if (!this._fatalErrors.length)
@@ -451,6 +455,9 @@ export class WorkerMain extends ProcessRunner {
       }
 
       testInfo._tracing.didFinishTestFunctionAndAfterEachHooks();
+
+      const abortReason = testInfo.status === 'timedOut' ? 'Test timeout of ' + testInfo.timeout + 'ms exceeded.' : 'Test ended.';
+      testInfo._testEndAbortController.abort(new TestEndedError(abortReason));
 
       try {
         // Teardown test-scoped fixtures. Attribute to 'test' so that users understand

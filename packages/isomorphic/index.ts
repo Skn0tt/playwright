@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+export * from './abortSignal';
 export * from './ariaSnapshot';
 export * from './assert';
 export * from './base64';

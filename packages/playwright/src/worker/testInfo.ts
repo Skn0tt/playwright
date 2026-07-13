@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { setMaxListeners } from 'events';
 import fs from 'fs';
 import path from 'path';
 
@@ -94,6 +95,7 @@ export class TestInfoImpl implements TestInfo {
   readonly _uniqueSymbol;
 
   private _interruptedPromise = new ManualPromise<void>();
+  readonly _testEndAbortController = new AbortController();
   _lastStepId = 0;
   private readonly _requireFile: string;
   readonly _projectInternal: commonConfig.FullProjectInternal;
@@ -196,6 +198,8 @@ export class TestInfoImpl implements TestInfo {
     this.tags = test?.tags ?? [];
     this.fn = test?.fn ?? (() => {});
     this.expectedStatus = test?.expectedStatus ?? 'skipped';
+
+    setMaxListeners(0, this._testEndAbortController.signal);
 
     this._timeoutManager = new TimeoutManager(this.project.timeout);
     if (configInternal.configCLIOverrides.debug === 'inspector')

@@ -18,3 +18,32 @@ export function assertionAbortedMessage(reason: unknown): string {
   const detail = reason instanceof Error ? reason.message : reason === undefined || reason === null ? '' : String(reason);
   return 'The assertion was aborted' + (detail ? `: ${detail}` : '');
 }
+
+export function combineSignals(a?: AbortSignal, b?: AbortSignal): { signal: AbortSignal | undefined, cleanup: () => void } {
+  const noop = () => {};
+  if (!a)
+    return { signal: b, cleanup: noop };
+  if (!b)
+    return { signal: a, cleanup: noop };
+  if (a.aborted)
+    return { signal: a, cleanup: noop };
+  if (b.aborted)
+    return { signal: b, cleanup: noop };
+
+  const controller = new AbortController();
+  const onA = () => onAbort(a);
+  const onB = () => onAbort(b);
+  const cleanup = () => {
+    a.removeEventListener('abort', onA);
+    b.removeEventListener('abort', onB);
+  };
+  const onAbort = (source: AbortSignal) => {
+    controller.abort(source.reason);
+    cleanup();
+  };
+  a.addEventListener('abort', onA, { once: true });
+  b.addEventListener('abort', onB, { once: true });
+  return { signal: controller.signal, cleanup };
+}
+
+export class TestEndedError extends Error {}

@@ -64,12 +64,15 @@ export class ProgressController {
 
 
   async abort(error: Error) {
+    const causeMessage = error.cause instanceof Error ? error.cause.message : error.cause === undefined ? error.message : String(error.cause);
     if (this._state === 'running') {
+      this.metadata.log.push(causeMessage);
       (error as any)[kAbortErrorSymbol] = true;
       this._state = { error };
       this._forceAbortPromise.reject(error);
       this._controller.abort(error);
     } else if (this._state === 'before') {
+      this.metadata.log.push(causeMessage);
       (error as any)[kAbortErrorSymbol] = true;
       this._pendingAbortError = error;
     }

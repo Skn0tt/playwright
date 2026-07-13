@@ -414,14 +414,15 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures, UtilityTestFixt
         }
       } : {};
       const context = await browser.newContext({ ...videoOptions, ...options }) as BrowserContextImpl;
+      context._defaultSignal = testInfoImpl._testEndAbortController.signal;
 
       let closed = false;
       const close = async () => {
         if (closed)
           return;
         closed = true;
-        const closeReason = testInfo.status === 'timedOut' ? 'Test timeout of ' + testInfo.timeout + 'ms exceeded.' : 'Test ended.';
-        await context.close({ reason: closeReason });
+        context._defaultSignal = undefined;
+        await context.close();
         const preserveVideo = captureVideo && shouldPreserveVideo(videoMode, testInfo);
         if (preserveVideo) {
           const { pagesWithVideo: pagesForVideo } = contexts.get(context)!;
@@ -474,8 +475,10 @@ const playwrightFixtures: Fixtures<TestFixtures, WorkerFixtures, UtilityTestFixt
     }
 
     const context = await browserImpl._wrapApiCall(() => browserImpl._newContextForReuse(), { internal: true });
+    context._defaultSignal = testInfo._testEndAbortController.signal;
     await installScreencastTitleUpdater(testInfo, context, show?.test);
     await use(context);
+    context._defaultSignal = undefined;
     const closeReason = testInfo.status === 'timedOut' ? 'Test timeout of ' + testInfo.timeout + 'ms exceeded.' : 'Test ended.';
     await browserImpl._wrapApiCall(() => browserImpl._disconnectFromReusedContext(closeReason), { internal: true });
   },
