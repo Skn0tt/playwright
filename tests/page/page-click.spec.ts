@@ -1372,7 +1372,7 @@ it('should abort via signal', async ({ page }) => {
   controller.abort(reason);
   const error = await promise;
   expect(error.message).toContain('locator.click: foo bar');
-  expect(error.message).toMatch(/Call log:[\s\S]*foo bar/);
+  expect(error.message).toMatch(/Call log:[\s\S]*operation was aborted: foo bar/);
   expect(error.name).toBe('AbortError');
   expect(error.cause).toBe(reason);
 });

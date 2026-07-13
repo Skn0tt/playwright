@@ -138,7 +138,7 @@ Error: element(s) not found
 Call log:
   - Expect "toBeVisible" with timeout 5000ms
   - waiting for locator('span')
-  - stop it`);
+  - operation was aborted: stop it`);
 });
 
 test('should fail like a timeout when toHaveText is aborted mid-assertion', async ({ page }) => {
