@@ -16,7 +16,6 @@
  */
 
 import yaml from 'yaml';
-import { assertionAbortedMessage } from '@isomorphic/abortSignal';
 import { parseAriaSnapshotUnsafe } from '@isomorphic/ariaSnapshot';
 import { isInvalidSelectorError } from '@isomorphic/selectorParser';
 import { ManualPromise } from '@isomorphic/manualPromise';
@@ -29,7 +28,7 @@ import { makeWaitForNextTask } from '@utils/task';
 import { createGuid } from '@utils/crypto';
 import { BrowserContext } from './browserContext';
 import * as dom from './dom';
-import { TimeoutError, AbortError, isTargetClosedError } from './errors';
+import { TimeoutError, isTargetClosedError } from './errors';
 import { prepareFilesForUpload } from './fileUploadUtils';
 import { FrameSelectors } from './frameSelectors';
 import { helper } from './helper';
@@ -1545,8 +1544,6 @@ export class Frame extends SdkObject<FrameEventMap> {
         progress.log(e.message);
       if (e instanceof TimeoutError)
         details.timedOut = true;
-      if (e instanceof AbortError)
-        details.customErrorMessage = assertionAbortedMessage(e.cause);
       throw new ExpectError(details);
     }
   }

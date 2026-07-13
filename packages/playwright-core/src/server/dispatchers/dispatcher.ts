@@ -312,7 +312,7 @@ export class DispatcherConnection {
       return;
     }
     if (method === '__abort__') {
-      await this._activeProgressControllers.get(`call@${params.id}`)?.abort(new AbortError(undefined, { cause: params.reason }));
+      await this._activeProgressControllers.get(`call@${params.id}`)?.abort(new AbortError(params.reason));
       return;
     }
     if (!dispatcher) {

@@ -1368,11 +1368,11 @@ it('should abort via signal', async ({ page }) => {
   // Give the action time to start and emit call log entries before aborting.
   await page.waitForTimeout(500);
 
-  const reason = new Error('Aborted by user');
+  const reason = new Error('foo bar');
   controller.abort(reason);
   const error = await promise;
-  expect(error.message).toContain('The operation was aborted');
-  expect(error.message).toContain(`Call log:`);
+  expect(error.message).toContain('locator.click: foo bar');
+  expect(error.message).toMatch(/Call log:[\s\S]*foo bar/);
   expect(error.name).toBe('AbortError');
   expect(error.cause).toBe(reason);
 });
@@ -1384,6 +1384,7 @@ it('should throw an Error when aborted in-flight with a string reason', async ({
   controller.abort('aborted by user');
   const error = await promise.catch(e => e);
   expect(error).toBeInstanceOf(Error);
+  expect(error.message).toContain('locator.click: aborted by user');
   expect(error.name).toBe('AbortError');
   expect(error.cause).toBe('aborted by user');
 });

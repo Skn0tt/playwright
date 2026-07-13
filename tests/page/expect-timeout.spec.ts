@@ -133,11 +133,12 @@ test('should fail like a timeout when the signal is aborted mid-assertion', asyn
 
 Locator: locator('span')
 Expected: visible
-Error: The assertion was aborted: stop it
+Error: element(s) not found
 
 Call log:
   - Expect "toBeVisible" with timeout 5000ms
-  - waiting for locator('span')`);
+  - waiting for locator('span')
+  - stop it`);
 });
 
 test('should fail like a timeout when toHaveText is aborted mid-assertion', async ({ page }) => {
