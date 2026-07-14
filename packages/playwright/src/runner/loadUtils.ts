@@ -171,24 +171,23 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     if (type !== 'dependency')
       continue;
     const dependencySuite = buildProjectSuite(project, projectSuites.get(project)!);
+    dependencySuite._preprocessMode = 'readonly';
     dependencySuites.set(project, dependencySuite);
     rootSuite._prependSuite(dependencySuite);
   }
 
-  const preprocessSuites = [rootSuite, ...rootSuite.suites];
-  for (const suite of preprocessSuites)
-    suite._preprocessMode = suite === rootSuite || projectClosure.get(suite._fullProject!) === 'top-level' ? 'editable' : 'readonly';
+  rootSuite._preprocessMode = 'editable';
   let preprocessResult: Awaited<ReturnType<typeof testRun.reporter.preprocessSuite>>;
   try {
     preprocessResult = await testRun.reporter.preprocessSuite(config.config, rootSuite);
   } finally {
-    for (const suite of preprocessSuites)
-      suite._preprocessMode = undefined;
+    // Continue the existing sharding and filtering pipeline with top-level projects only.
+    rootSuite._preprocessMode = undefined;
+    for (const dependencySuite of dependencySuites.values()) {
+      dependencySuite._preprocessMode = undefined;
+      rootSuite._detach(dependencySuite);
+    }
   }
-
-  // Continue the existing sharding and filtering pipeline with top-level projects only.
-  for (const dependencySuite of dependencySuites.values())
-    rootSuite._detach(dependencySuite);
 
   // Shard only the top-level projects.
   if (config.config.shard && !preprocessResult?.implementsSharding) {
