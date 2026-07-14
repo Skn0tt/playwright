@@ -399,6 +399,7 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
         async preprocessSuite(config, suite) {
           console.log('%% plan projects: ' + suite.suites.map(s => s.title).join(','));
           console.log('%% plan tests: ' + suite.allTests().map(t => t.title).join(','));
+          this.preprocessedTests = new Set(suite.allTests());
           const setupTest = suite.allTests().find(t => t.title === 'setup-test');
           for (const method of ['skip', 'fixme', 'fail', 'exclude']) {
             try {
@@ -417,6 +418,7 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
           }
         }
         onBegin(config, suite) {
+          console.log('%% same test objects: ' + suite.allTests().every(test => this.preprocessedTests.has(test)));
           const setupTest = suite.allTests().find(t => t.title === 'setup-test');
           try {
             setupTest.skip();
@@ -464,6 +466,7 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
     'dep-fail: TestCase.fail() cannot be called on a setup or teardown project test; these always run in full.',
     'dep-exclude: TestCase.exclude() cannot be called on a setup or teardown project test; these always run in full.',
     'dep-suite-exclude: Suite.exclude() cannot be called on a setup or teardown project; these always run in full.',
+    'same test objects: true',
     'dep-after-preprocess: TestCase.skip() can only be called from Reporter.preprocessSuite().',
     'ran setup/setup-test',
     'ran main/main-test',
@@ -471,68 +474,13 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
   ]);
 });
 
-const explicitDependencyVariants: {
-  name: string,
-  only: string,
-  projects?: string[],
-  additionalArgs?: string[],
-}[] = [
-  { name: 'file arguments', only: '', additionalArgs: ['setup.spec.ts', 'main.spec.ts'] },
-  { name: 'project filters', only: '', projects: ['setup', 'main'] },
-  { name: 'test.only', only: '.only' },
-];
-
-for (const variant of explicitDependencyVariants) {
-  test(`plan.suite preserves dependency projects selected through ${variant.name}`, async ({ runInlineTest }) => {
-    const result = await runInlineTest({
-      'reporter.ts': `
-        class Reporter {
-          async preprocessSuite(config, suite) {
-            suite.suites.find(suite => suite.title === 'main').exclude();
-          }
-          onTestEnd(test, result) {
-            console.log('%% ran ' + test.parent.project().name + '/' + test.title);
-          }
-        }
-        module.exports = Reporter;
-      `,
-      'playwright.config.ts': `
-        module.exports = {
-          reporter: './reporter.ts',
-          projects: [
-            { name: 'setup', testMatch: /setup\\.spec\\.ts/ },
-            { name: 'main', testMatch: /main\\.spec\\.ts/, dependencies: ['setup'] },
-          ],
-        };
-      `,
-      'setup.spec.ts': `
-        import { test } from '@playwright/test';
-        test${variant.only}('setup-test', async () => {});
-      `,
-      'main.spec.ts': `
-        import { test } from '@playwright/test';
-        test${variant.only}('main-test', async () => {});
-      `,
-    }, {
-      reporter: '',
-      workers: 1,
-      ...(variant.projects ? { project: variant.projects } : {}),
-    }, undefined, variant.additionalArgs ? { additionalArgs: variant.additionalArgs } : {});
-
-    expect(result.exitCode).toBe(0);
-    expect(result.outputLines).toEqual([
-      'ran setup/setup-test',
-    ]);
-  });
-}
-
-test('plan.suite preserves dependency projects selected through --last-failed', async ({ runInlineTest }) => {
-  const files = {
+test('plan.suite temporarily exposes dependencies without changing final project selection', async ({ runInlineTest }) => {
+  const result = await runInlineTest({
     'reporter.ts': `
       class Reporter {
         async preprocessSuite(config, suite) {
-          if (process.env.EXCLUDE_MAIN)
-            suite.suites.find(suite => suite.title === 'main').exclude();
+          console.log('%% plan projects: ' + suite.suites.map(suite => suite.title).join(','));
+          suite.suites.find(suite => suite.title === 'main').exclude();
         }
         onTestEnd(test, result) {
           console.log('%% ran ' + test.parent.project().name + '/' + test.title);
@@ -546,6 +494,7 @@ test('plan.suite preserves dependency projects selected through --last-failed', 
         projects: [
           { name: 'setup', testMatch: /setup\\.spec\\.ts/ },
           { name: 'main', testMatch: /main\\.spec\\.ts/, dependencies: ['setup'] },
+          { name: 'keep', testMatch: /keep\\.spec\\.ts/ },
         ],
       };
     `,
@@ -559,17 +508,15 @@ test('plan.suite preserves dependency projects selected through --last-failed', 
       import { test } from '@playwright/test';
       test('main-test', async () => {});
     `,
-  };
+    'keep.spec.ts': `
+      import { test } from '@playwright/test';
+      test('keep-test', async () => {});
+    `,
+  }, { reporter: '', workers: 1 }, undefined, { additionalArgs: ['setup.spec.ts', 'main.spec.ts', 'keep.spec.ts'] });
 
-  const firstRun = await runInlineTest(files, { reporter: '', workers: 1 });
-  expect(firstRun.exitCode).toBe(1);
-  expect(firstRun.outputLines).toEqual([
-    'ran setup/setup-test',
-  ]);
-
-  const lastFailedRun = await runInlineTest(files, { reporter: '', workers: 1 }, { EXCLUDE_MAIN: '1' }, { additionalArgs: ['--last-failed'] });
-  expect(lastFailedRun.exitCode).toBe(1);
-  expect(lastFailedRun.outputLines).toEqual([
-    'ran setup/setup-test',
+  expect(result.exitCode).toBe(0);
+  expect(result.outputLines).toEqual([
+    'plan projects: setup,main,keep',
+    'ran keep/keep-test',
   ]);
 });
