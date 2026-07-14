@@ -16,6 +16,8 @@ Rank by **impact**: fail %, run count (floor `runs >= 10` so it isn't a one-off)
 bots/PRs it disrupts — **not** by "has a tidy error message".
 Pick a candidate whose failing `bot_name` OS matches yours so you can reproduce it.
 Keep the ranked list — you fall back down it in step 2. Say why you picked the top one.
+Once you have the target, use the "Generate a linked emoji run history" recipe in
+`.claude/skills/playwright-test-results/SKILL.md`. Keep the Markdown output for the PR body.
 
 ## 2. Check nobody's on it — and that it isn't already fixed
 
@@ -105,8 +107,9 @@ You **never push or open a PR** in CI or locally. The harness does that for you,
 - **The commit message _is_ the PR** — the harness runs `gh pr create --fill`, mapping
   subject→title and body→description. Write both in the Playwright bot voice
   (`.github/workflows/bot-voice.md`) — verdict first, short, no slop. The
-  body must carry: the **DB evidence** (fail %, runs, bots) + any related issue; **what you
-  verified locally** and on which OS.
+  body must carry: the **DB evidence** (fail %, runs, bots) + any related issue; the
+  **linked emoji run history** for the selected test and bot; **what you verified locally**
+  and on which OS.
 - **Nothing actionable?** Make no commit — the harness then skips the PR.
 
 Report what you committed, the reviewer, and why.
