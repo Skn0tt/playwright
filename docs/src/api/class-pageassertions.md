@@ -258,6 +258,9 @@ Snapshot name. Must have a `.png` or `.webp` extension, the screenshot is captur
 ### option: PageAssertions.toHaveScreenshot#1.timeout = %%-js-assertions-timeout-%%
 * since: v1.23
 
+### option: PageAssertions.toHaveScreenshot#1.signal = %%-js-assertions-signal-%%
+* since: v1.62
+
 ### option: PageAssertions.toHaveScreenshot#1.animations = %%-screenshot-option-animations-default-disabled-%%
 * since: v1.23
 
@@ -313,6 +316,9 @@ Note that screenshot assertions only work with Playwright test runner.
 
 ### option: PageAssertions.toHaveScreenshot#2.timeout = %%-js-assertions-timeout-%%
 * since: v1.23
+
+### option: PageAssertions.toHaveScreenshot#2.signal = %%-js-assertions-signal-%%
+* since: v1.62
 
 ### option: PageAssertions.toHaveScreenshot#2.animations = %%-screenshot-option-animations-default-disabled-%%
 * since: v1.23

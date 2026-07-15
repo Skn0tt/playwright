@@ -9619,6 +9619,13 @@ interface LocatorAssertions {
     scale?: "css"|"device";
 
     /**
+     * An optional [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) that can cancel the
+     * assertion. Aborting the signal fails the assertion like a timeout: if the signal is aborted while the assertion is
+     * retrying, or is already aborted before the assertion starts, the assertion fails without retrying further.
+     */
+    signal?: AbortSignal;
+
+    /**
      * File name containing the stylesheet to apply while making the screenshot. This is where you can hide dynamic
      * elements, make elements invisible or change their properties to help you creating repeatable screenshots. This
      * stylesheet pierces the Shadow DOM and applies to the inner frames.
@@ -9713,6 +9720,13 @@ interface LocatorAssertions {
      * Defaults to `"css"`.
      */
     scale?: "css"|"device";
+
+    /**
+     * An optional [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) that can cancel the
+     * assertion. Aborting the signal fails the assertion like a timeout: if the signal is aborted while the assertion is
+     * retrying, or is already aborted before the assertion starts, the assertion fails without retrying further.
+     */
+    signal?: AbortSignal;
 
     /**
      * File name containing the stylesheet to apply while making the screenshot. This is where you can hide dynamic
@@ -10604,6 +10618,13 @@ export interface PageAssertionsToHaveScreenshotOptions {
    * Defaults to `"css"`.
    */
   scale?: "css"|"device";
+
+  /**
+   * An optional [`AbortSignal`](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal) that can cancel the
+   * assertion. Aborting the signal fails the assertion like a timeout: if the signal is aborted while the assertion is
+   * retrying, or is already aborted before the assertion starts, the assertion fails without retrying further.
+   */
+  signal?: AbortSignal;
 
   /**
    * File name containing the stylesheet to apply while making the screenshot. This is where you can hide dynamic

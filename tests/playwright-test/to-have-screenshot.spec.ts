@@ -60,6 +60,43 @@ test('should fail to screenshot a page with infinite animation', async ({ runInl
   expect(fs.existsSync(testInfo.outputPath('a.spec.js-snapshots', 'is-a-test-1.png'))).toBe(false);
 });
 
+test('should fail like a timeout when aborted', async ({ runInlineTest }) => {
+  const infiniteAnimationURL = pathToFileURL(path.join(__dirname, '../assets/rotate-z.html'));
+  const result = await runInlineTest({
+    ...playwrightConfig({}),
+    'a.spec.js': `
+      const { test, expect } = require('@playwright/test');
+      test('is a test', async ({ page }) => {
+        await page.goto('${infiniteAnimationURL}');
+        const controller = new AbortController();
+        const promise = expect(page).toHaveScreenshot({ animations: 'allow', timeout: 5000, signal: controller.signal });
+        await page.waitForTimeout(500);
+        controller.abort(new Error('stop it'));
+        await promise;
+      });
+    `
+  });
+  expect(result.exitCode).toBe(1);
+  expect(result.output).toContain(`operation was aborted: stop it`);
+  expect(result.output).not.toContain(`Timeout 5000ms exceeded`);
+});
+
+test('should fail when already aborted', async ({ runInlineTest }) => {
+  const result = await runInlineTest({
+    ...playwrightConfig({}),
+    'a.spec.js': `
+      const { test, expect } = require('@playwright/test');
+      test('is a test', async ({ page }) => {
+        const controller = new AbortController();
+        controller.abort(new Error('already aborted'));
+        await expect(page).toHaveScreenshot({ signal: controller.signal });
+      });
+    `
+  });
+  expect(result.exitCode).toBe(1);
+  expect(result.output).toContain(`Error: The assertion was aborted: already aborted`);
+});
+
 test('should disable animations by default', async ({ runInlineTest }, testInfo) => {
   const cssTransitionURL = pathToFileURL(path.join(__dirname, '../assets/css-transition.html'));
   const result = await runInlineTest({

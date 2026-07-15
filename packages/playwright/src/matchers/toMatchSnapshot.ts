@@ -55,6 +55,7 @@ type ToHaveScreenshotOptions = ToHaveScreenshotConfigOptions & {
   mask?: Array<Locator>;
   maskColor?: string;
   omitBackground?: boolean;
+  signal?: AbortSignal;
 };
 
 // Keep in sync with above (begin).
@@ -64,6 +65,7 @@ const NonConfigProperties: (keyof ToHaveScreenshotOptions)[] = [
   'mask',
   'maskColor',
   'omitBackground',
+  'signal',
 ];
 // Keep in sync with above (end).
 
@@ -362,6 +364,7 @@ export async function toHaveScreenshot(
     style,
     isNot: !!this.isNot,
     timeout,
+    signal: helper.options.signal,
     type: screenshotType,
     comparator: helper.options.comparator,
     maxDiffPixels: helper.options.maxDiffPixels,

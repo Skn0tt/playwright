@@ -19,6 +19,7 @@ import fs from 'fs';
 import * as inspector from 'inspector';
 import path from 'path';
 
+import { assertionAbortedMessage } from '@isomorphic/abortSignal';
 import { assert } from '@isomorphic/assert';
 import { headersObjectToArray } from '@isomorphic/headers';
 import { trimStringWithEllipsis  } from '@isomorphic/stringUtils';
@@ -32,7 +33,7 @@ import { Coverage } from './coverage';
 import { DisposableObject, DisposableStub } from './disposable';
 import { Download } from './download';
 import { ElementHandle, determineScreenshotType } from './elementHandle';
-import { PlaywrightError, TargetClosedError, isTargetClosedError, parseError, serializeError } from './errors';
+import { AbortError, PlaywrightError, TargetClosedError, isTargetClosedError, parseError, serializeError } from './errors';
 import { Events } from './events';
 import { FileChooser } from './fileChooser';
 import { Frame, verifyLoadState } from './frame';
@@ -77,6 +78,7 @@ export type ExpectScreenshotOptions = Omit<channels.PageExpectScreenshotOptions,
   expected?: Buffer,
   locator?: api.Locator,
   timeout: number,
+  signal?: AbortSignal,
   isNot: boolean,
   mask?: api.Locator[],
 };
@@ -622,7 +624,7 @@ export class Page extends ChannelOwner<channels.PageChannel> implements api.Page
   }
 
   async _expectScreenshot(options: ExpectScreenshotOptions): Promise<{ actual?: Buffer, previous?: Buffer, diff?: Buffer, errorMessage?: string, log?: string[], timedOut?: boolean}> {
-    const { timeout, ...optionsWithoutTimeout } = options;
+    const { timeout, signal, ...optionsWithoutTimeout } = options;
     const mask = options?.mask ? options?.mask.map(locator => ({
       frame: (locator as Locator)._frame._channel,
       selector: (locator as Locator)._selector,
@@ -637,9 +639,11 @@ export class Page extends ChannelOwner<channels.PageChannel> implements api.Page
         isNot: !!options.isNot,
         locator,
         mask,
-      }, { signal: undefined, timeout });
+      }, { timeout, signal });
       return { actual: result.actual };
     } catch (e) {
+      if (e instanceof AbortError)
+        return { errorMessage: 'Error: ' + assertionAbortedMessage(e.cause) };
       if (!(e instanceof PlaywrightError))
         throw e;
       const details = e.details as channels.PageExpectScreenshotErrorDetails;
