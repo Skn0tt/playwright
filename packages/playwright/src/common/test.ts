@@ -57,7 +57,6 @@ export class Suite extends Base {
   _parallelMode: 'none' | 'default' | 'serial' | 'parallel' = 'none';
   _fullProject: FullProjectInternal | undefined;
   _fileId: string | undefined;
-  _preprocessReadonly = false;
   readonly _type: 'root' | 'project' | 'file' | 'describe';
 
   constructor(title: string, type: 'root' | 'project' | 'file' | 'describe') {
@@ -261,26 +260,6 @@ export class Suite extends Base {
     return this._fullProject?.project || this.parent?.project();
   }
 
-  _modifier(type: 'skip' | 'fixme' | 'fail', location: Location, reason: string | undefined) {
-    if (!this.parent)
-      throw new Error(`TestRun.${type}() cannot be called on the root suite.`);
-    if (this._resolvePreprocessReadonly())
-      throw new Error(`TestRun.${type}() cannot be called on a setup or teardown project; these always run in full.`);
-    for (const test of this.allTests())
-      test._applyPlanAnnotation({ type, description: reason, location });
-  }
-
-  _exclude() {
-    if (this._resolvePreprocessReadonly())
-      throw new Error(`TestRun.exclude() cannot be called on a setup or teardown project; these always run in full.`);
-    if (!this.parent)
-      throw new Error(`TestRun.exclude() cannot be called on the root suite.`);
-    this.parent._detach(this);
-  }
-
-  _resolvePreprocessReadonly(): boolean {
-    return this._preprocessReadonly || !!this.parent?._resolvePreprocessReadonly();
-  }
 }
 
 export class TestCase extends Base implements reporterTypes.TestCase {
@@ -339,12 +318,6 @@ export class TestCase extends Base implements reporterTypes.TestCase {
     ];
   }
 
-  _modifier(type: 'skip' | 'fixme' | 'fail', location: Location, reason: string | undefined) {
-    if (this.parent._resolvePreprocessReadonly())
-      throw new Error(`TestRun.${type}() cannot be called on a setup or teardown project test; these always run in full.`);
-    this._applyPlanAnnotation({ type, description: reason, location });
-  }
-
   _applyPlanAnnotation(annotation: TestAnnotation): void {
     this.annotations.push(annotation);
     this._planAnnotations.push(annotation);
@@ -352,12 +325,6 @@ export class TestCase extends Base implements reporterTypes.TestCase {
       this.expectedStatus = 'skipped';
     else if (annotation.type === 'fail' && this.expectedStatus !== 'skipped')
       this.expectedStatus = 'failed';
-  }
-
-  _exclude() {
-    if (this.parent._resolvePreprocessReadonly())
-      throw new Error(`TestRun.exclude() cannot be called on a setup or teardown project test; these always run in full.`);
-    this.parent._detach(this);
   }
 
   _serialize(): any {

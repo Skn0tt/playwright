@@ -334,18 +334,18 @@ test('multiple reporters: a later reporter observes an earlier reporter Suite.sk
   expect(result.outputLines).toContain('second sees skipped: one,two');
 });
 
-test('implementsSharding disables the built-in shard filter; preprocess sees the full corpus', async ({ runInlineTest }) => {
+test('skipSharding disables the built-in shard filter; preprocess sees the full corpus', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'reporter.ts': `
       class R {
         async preprocess({ config, suite, testRun }) {
           // preprocess observes the full, un-sharded corpus regardless of --shard.
           console.log('%% plan: ' + suite.allTests().map(t => t.title).join(','));
+          testRun.skipSharding();
           let i = 0;
           for (const t of suite.allTests()) {
             if (i++ % 2 === 1) testRun.exclude(t);
           }
-          return { implementsSharding: true };
         }
         onBegin(config, suite) {
           console.log('%% begin: ' + suite.allTests().map(t => t.title).join(','));
@@ -369,17 +369,17 @@ test('implementsSharding disables the built-in shard filter; preprocess sees the
   expect(result.outputLines).toContain('begin: t0,t2');
 });
 
-test('multiple reporters declaring implementsSharding throws', async ({ runInlineTest }) => {
+test('multiple reporters declaring custom sharding throws', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'reporter-a.ts': `
       class A {
-        preprocess() { return { implementsSharding: true }; }
+        preprocess({ testRun }) { testRun.skipSharding(); }
         onError(err) { console.log('%% error: ' + err.message); }
       }
       module.exports = A;
     `,
     'reporter-b.ts': `
-      class B { preprocess() { return { implementsSharding: true }; } }
+      class B { preprocess({ testRun }) { testRun.skipSharding(); } }
       module.exports = B;
     `,
     'playwright.config.ts': `module.exports = { reporter: [['./reporter-a.ts'], ['./reporter-b.ts']] };`,
@@ -390,7 +390,7 @@ test('multiple reporters declaring implementsSharding throws', async ({ runInlin
   }, { reporter: '', workers: 1 });
 
   expect(result.exitCode).not.toBe(0);
-  expect(result.outputLines.join('\n')).toContain(`Multiple reporters declare 'implementsSharding'`);
+  expect(result.outputLines.join('\n')).toContain(`Multiple reporters called 'skipSharding'`);
 });
 
 test('plan.suite exposes setup/teardown dependency projects but they are read-only', async ({ runInlineTest }) => {

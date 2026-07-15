@@ -300,8 +300,6 @@ Whether this reporter uses stdio for reporting. When it does not, Playwright Tes
 
 ## optional async method: Reporter.preprocess
 * since: v1.62
-- `result` ?<[Object]>
-  - `implementsSharding` ?<[boolean]> When `true`, Playwright skips its built-in shard filter for this run, leaving sharding to the reporter (typically implemented by calling [`method: TestRun.exclude`] on out-of-shard tests).
 
 Called after the configuration has been resolved and before [`method: Reporter.onBegin`]. Allows a reporter to mark individual tests as skipped, excluded, fixed or failing.
 
@@ -315,4 +313,4 @@ Called after the configuration has been resolved and before [`method: Reporter.o
 
 The suite reflects `--project`, `--grep`/`--grep-invert` and `.only` filtering, so it only contains tests that match the current invocation. Setup and dependency projects are readonly and cannot be changed through [TestRun].
 
-The suite ignores the `--shard` argument: it always contains the full, un-sharded corpus. Playwright applies its built-in sharding after [`method: Reporter.preprocess`] returns, unless the returned `implementsSharding` is `true`.
+The suite ignores the `--shard` argument: it always contains the full, un-sharded corpus. Playwright applies its built-in sharding after [`method: Reporter.preprocess`] returns, unless the reporter calls [`method: TestRun.skipSharding`].

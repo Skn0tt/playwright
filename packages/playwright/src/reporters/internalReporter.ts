@@ -20,38 +20,12 @@ import { monotonicTime } from '@isomorphic/time';
 
 import { internalScreen, prepareErrorStack, relativeFilePath } from './base';
 import { Multiplexer } from './multiplexer';
-import { test as testNs, transform } from '../common';
+import { test as testNs } from '../common';
 import * as babel from '../transform/babelBundle';
 import { wrapReporterAsV2 } from './reporterV2';
 
 import type { AnyReporter, ReporterPreprocessParams, ReporterV2 } from './reporterV2';
-import type { FullConfig, FullResult, Location, Suite as ReporterSuite, TestCase, TestError, TestResult, TestRun as ReporterTestRun, TestStep, WorkerInfo } from '../../types/testReporter';
-
-type ReporterTestRunTarget = ReporterSuite | TestCase;
-
-class ReporterTestRunImpl implements ReporterTestRun {
-  private _active = true;
-
-  close() {
-    this._active = false;
-  }
-
-  skip = transform.wrapFunctionWithLocation((location: Location, target: ReporterTestRunTarget, reason?: string) => this._modifier('skip', location, target, reason));
-  fixme = transform.wrapFunctionWithLocation((location: Location, target: ReporterTestRunTarget, reason?: string) => this._modifier('fixme', location, target, reason));
-  fail = transform.wrapFunctionWithLocation((location: Location, target: ReporterTestRunTarget, reason?: string) => this._modifier('fail', location, target, reason));
-
-  exclude(target: ReporterTestRunTarget) {
-    if (!this._active)
-      throw new Error(`TestRun.exclude() can only be called from Reporter.preprocess().`);
-    (target as testNs.Suite | testNs.TestCase)._exclude();
-  }
-
-  private _modifier(type: 'skip' | 'fixme' | 'fail', location: Location, target: ReporterTestRunTarget, reason: string | undefined) {
-    if (!this._active)
-      throw new Error(`TestRun.${type}() can only be called from Reporter.preprocess().`);
-    (target as testNs.Suite | testNs.TestCase)._modifier(type, location, reason);
-  }
-}
+import type { FullConfig, FullResult, TestCase, TestError, TestResult, TestStep, WorkerInfo } from '../../types/testReporter';
 
 export class InternalReporter implements ReporterV2 {
   private _reporter: Multiplexer;
@@ -79,13 +53,8 @@ export class InternalReporter implements ReporterV2 {
     this._reporter.onConfigure?.(config);
   }
 
-  async preprocess(params: Omit<ReporterPreprocessParams, 'testRun'>) {
-    const testRun = new ReporterTestRunImpl();
-    try {
-      return await this._reporter.preprocess({ ...params, testRun });
-    } finally {
-      testRun.close();
-    }
+  async preprocess(params: ReporterPreprocessParams) {
+    await this._reporter.preprocess(params);
   }
 
   onBegin(suite: testNs.Suite) {

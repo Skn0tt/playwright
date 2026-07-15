@@ -34,7 +34,7 @@ export type ReporterPreprocessParams = {
 
 export interface ReporterV2 {
   onConfigure?(config: FullConfig): void;
-  preprocess?(params: ReporterPreprocessParams): { implementsSharding?: boolean } | Promise<{ implementsSharding?: boolean } | undefined | void> | void;
+  preprocess?(params: ReporterPreprocessParams): Promise<void> | void;
   onBegin?(suite: Suite): void;
   onTestBegin?(test: TestCase, result: TestResult): void;
   onStdOut?(chunk: string | Buffer, test?: TestCase, result?: TestResult): void;

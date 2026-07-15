@@ -23,6 +23,7 @@ import { toPosixPath } from '@utils/fileUtils';
 import { InProcessLoaderHost, OutOfProcessLoaderHost } from './loaderHost';
 import { createTitleMatcher, errorWithFile, parseLocationArg } from '../util';
 import { buildProjectsClosure, collectFilesForProject } from './projectUtils';
+import { ReporterTestRunImpl } from './reporterTestRun';
 import { createTestGroups, filterForShard } from './testGroups';
 import { cc, config as commonConfig, FullConfigInternal, suiteUtils, test as testNs, transform } from '../common';
 
@@ -170,22 +171,24 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     if (type !== 'dependency')
       continue;
     const dependencySuite = buildProjectSuite(project, projectSuites.get(project)!);
-    dependencySuite._preprocessReadonly = true;
     dependencySuites.set(project, dependencySuite);
     rootSuite._prependSuite(dependencySuite);
   }
 
-  const preprocessResult = await testRun.reporter.preprocess({
+  const reporterTestRun = new ReporterTestRunImpl(rootSuite, new Set(dependencySuites.values()));
+  await testRun.reporter.preprocess({
     config: config.config,
     suite: rootSuite,
+    testRun: reporterTestRun,
   });
+  reporterTestRun.close();
 
   // Continue sharding and filtering pipeline with top-level projects only.
   for (const dependencySuite of dependencySuites.values())
     rootSuite._detach(dependencySuite);
 
   // Shard only the top-level projects.
-  if (config.config.shard && !preprocessResult?.implementsSharding) {
+  if (config.config.shard && !reporterTestRun.shouldSkipSharding()) {
     // Create test groups for top-level projects.
     const testGroups: TestGroup[] = [];
     for (const projectSuite of rootSuite.suites) {

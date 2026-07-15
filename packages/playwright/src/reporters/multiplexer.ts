@@ -46,15 +46,8 @@ export class Multiplexer implements ReporterV2 {
     // they propagate so the run aborts before onBegin. Reporters use preprocess
     // to mutate the corpus; silently dropping a planning error would let
     // an inconsistent (partial-mutation) state reach the workers.
-    const shardingReporters: ReporterV2[] = [];
-    for (const reporter of this._reporters) {
-      const result = await reporter.preprocess?.(params);
-      if (result?.implementsSharding)
-        shardingReporters.push(reporter);
-    }
-    if (shardingReporters.length > 1)
-      throw new Error(`Multiple reporters declare 'implementsSharding': ${shardingReporters.map(r => r.constructor?.name ?? 'reporter').join(', ')}. Only one reporter may handle sharding.`);
-    return { implementsSharding: shardingReporters.length > 0 };
+    for (const reporter of this._reporters)
+      await reporter.preprocess?.(params);
   }
 
   onBegin(suite: test.Suite) {
