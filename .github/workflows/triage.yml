@@ -46,6 +46,9 @@ jobs:
           PROMPT=$(cat <<EOF
           Triage https://github.com/${{ github.repository }}/issues/$ISSUE using the playwright-triage skill.
 
+          The GitHub CLI is not authenticated in this job. Do not run gh; use GitHub MCP tools
+          for all GitHub reads.
+
           Do not post anything yourself. Write the comment to output/triage.md and a later step posts it.
           EOF
           )

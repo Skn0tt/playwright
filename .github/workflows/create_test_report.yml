@@ -190,7 +190,7 @@ jobs:
     if: needs.triage.outputs.has_draft == 'true'
     runs-on: ubuntu-latest
     permissions:
-      issues: write
+      pull-requests: write
     env:
       PR_NUMBER: ${{ needs.triage.outputs.pr_number }}
       GH_TOKEN: ${{ github.token }}
@@ -206,4 +206,3 @@ jobs:
         run: |
           printf '\n\n<sub>Triaged by the Playwright bot - [agent run](%s)</sub>\n<!-- playwright-ci-triage -->\n' "$WORKFLOW_URL" >> output/triage.md
           gh issue comment "$PR_NUMBER" --repo "${{ github.repository }}" --body-file output/triage.md
-

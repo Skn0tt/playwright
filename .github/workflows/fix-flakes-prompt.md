@@ -4,6 +4,9 @@ Turn CI test-results data into **one** concrete fix: pick a high-impact flaky-or
 confirm nobody's on it, fix the root cause *or* scope a skip, pick a reviewer, and hand off a
 single commit that becomes the PR. Fully autonomous — no approval stops.
 
+The GitHub CLI (`gh`) is not authenticated in this job. Do not use it for GitHub API operations;
+use GitHub MCP tools instead.
+
 ## 1. Pick one target
 
 Query the DB following the patterns in `.claude/skills/playwright-test-results/SKILL.md`.

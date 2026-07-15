@@ -58,6 +58,9 @@ jobs:
           an expensive runner to fix a flaky or red test is most worthwhile right now, and hand
           off only that runner label. Do NOT fix anything.
 
+          The GitHub CLI is not authenticated in this job. Do not run gh; use GitHub MCP tools
+          for all GitHub reads.
+
           Optimise for the OS with the highest-impact actionable flakiness/reds that isn't
           already being worked on OR already fixed. A candidate is dead if a fix PR touches it
           (open, or recently merged/closed) — the DB window still holds the failing runs from
