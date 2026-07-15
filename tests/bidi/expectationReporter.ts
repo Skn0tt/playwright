@@ -35,7 +35,7 @@ class ExpectationReporter implements Reporter {
     this._options = options;
   }
 
-  async preprocessSuite(config: FullConfig, suite: Suite) {
+  async preprocess({ suite, testRun }: Parameters<NonNullable<Reporter['preprocess']>>[0]) {
     if (!process.env.PWTEST_USE_BIDI_EXPECTATIONS)
       return;
     if (this._options.rebase)
@@ -45,7 +45,7 @@ class ExpectationReporter implements Reporter {
       for (const test of project.allTests()) {
         const expectation = expectations.get(expectationKey(test));
         if (expectation && ['flaky', 'fail', 'timeout'].includes(expectation))
-          test.fixme(`marked as ${expectation} in bidi expectations`);
+          testRun.fixme(test, `marked as ${expectation} in bidi expectations`);
       }
     }
   }

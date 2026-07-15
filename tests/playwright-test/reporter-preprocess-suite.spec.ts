@@ -16,15 +16,15 @@
 
 import { test, expect } from './playwright-test-fixtures';
 
-test('preprocessSuite sees the filtered corpus, can skip tests, and records the caller location', async ({ runInlineTest }) => {
-  // preprocessSuite runs between project setup and onBegin and sees the .only-narrowed corpus.
+test('preprocess sees the filtered corpus, can skip tests, and records the caller location', async ({ runInlineTest }) => {
+  // preprocess runs between project setup and onBegin and sees the .only-narrowed corpus.
   const only = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite, testRun }) {
           console.log('%% plan: ' + suite.allTests().map(t => t.title).join(','));
           for (const t of suite.allTests())
-            if (t.title.includes('skip-me')) t.skip('planned skip');
+            if (t.title.includes('skip-me')) testRun.skip(t, 'planned skip');
         }
         onBegin(config, suite) {
           console.log('%% onBegin: ' + suite.allTests().map(t => t.title).join(','));
@@ -51,15 +51,15 @@ test('preprocessSuite sees the filtered corpus, can skip tests, and records the 
     'plan: run-me,skip-me',
     'onBegin: run-me,skip-me',
     'end run-me status=passed expected=passed ann= loc=none',
-    // The skip annotation location points at the reporter's `t.skip(...)` call (line 6 of reporter.ts).
+    // The skip annotation location points at the reporter's `testRun.skip(...)` call (line 6 of reporter.ts).
     'end skip-me status=skipped expected=skipped ann=skip:planned skip loc=reporter.ts:6',
   ]);
 
-  // preprocessSuite respects --grep.
+  // preprocess respects --grep.
   const grep = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite }) {
           console.log('%% plan: ' + suite.allTests().map(t => t.title).join(','));
         }
       }
@@ -75,11 +75,11 @@ test('preprocessSuite sees the filtered corpus, can skip tests, and records the 
   expect(grep.exitCode).toBe(0);
   expect(grep.outputLines).toEqual(['plan: foo-one']);
 
-  // preprocessSuite respects --project.
+  // preprocess respects --project.
   const project = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite }) {
           console.log('%% plan projects: ' + suite.suites.map(s => s.title).join(','));
         }
       }
@@ -104,11 +104,11 @@ test('TestCase.exclude and Suite.exclude remove entries from the run and report'
   const result = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite, testRun }) {
           for (const t of suite.allTests())
-            if (t.title === 'excluded-test') t.exclude();
+            if (t.title === 'excluded-test') testRun.exclude(t);
           const visit = (s) => {
-            if (s.title === 'excluded-suite') s.exclude();
+            if (s.title === 'excluded-suite') testRun.exclude(s);
             else for (const child of s.suites || []) visit(child);
           };
           visit(suite);
@@ -144,9 +144,9 @@ test('Suite.skip cascades to all descendants', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite, testRun }) {
           const visit = (s) => {
-            if (s.title === 'doomed') s.skip('whole group');
+            if (s.title === 'doomed') testRun.skip(s, 'whole group');
             for (const child of s.suites || []) visit(child);
           };
           visit(suite);
@@ -176,14 +176,15 @@ test('Suite.skip cascades to all descendants', async ({ runInlineTest }) => {
   ]);
 });
 
-test('disposition methods throw when called outside preprocessSuite, and the root suite cannot be excluded', async ({ runInlineTest }) => {
+test('TestRun methods throw outside preprocess, and the root suite cannot be excluded', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
-          // Excluding the root suite is banned even during preprocessSuite.
+        async preprocess({ config, suite, testRun }) {
+          this.testRun = testRun;
+          // Excluding the root suite is banned even during preprocess.
           try {
-            suite.exclude();
+            testRun.exclude(suite);
             console.log('%% root-exclude: no-throw');
           } catch (e) {
             console.log('%% root-exclude: ' + e.message);
@@ -195,7 +196,7 @@ test('disposition methods throw when called outside preprocessSuite, and the roo
           for (const [label, obj] of [['TestCase', testCase], ['Suite', fileSuite]]) {
             for (const method of ['skip', 'fixme', 'fail', 'exclude']) {
               try {
-                obj[method]();
+                this.testRun[method](obj);
                 console.log('%% ' + label + '.' + method + ': no-throw');
               } catch (e) {
                 console.log('%% ' + label + '.' + method + ': ' + e.message);
@@ -215,23 +216,23 @@ test('disposition methods throw when called outside preprocessSuite, and the roo
 
   expect(result.exitCode).toBe(0);
   expect(result.outputLines).toEqual([
-    'root-exclude: Suite.exclude() cannot be called on the root suite.',
-    'TestCase.skip: TestCase.skip() can only be called from Reporter.preprocessSuite().',
-    'TestCase.fixme: TestCase.fixme() can only be called from Reporter.preprocessSuite().',
-    'TestCase.fail: TestCase.fail() can only be called from Reporter.preprocessSuite().',
-    'TestCase.exclude: TestCase.exclude() can only be called from Reporter.preprocessSuite().',
-    'Suite.skip: Suite.skip() can only be called from Reporter.preprocessSuite().',
-    'Suite.fixme: Suite.fixme() can only be called from Reporter.preprocessSuite().',
-    'Suite.fail: Suite.fail() can only be called from Reporter.preprocessSuite().',
-    'Suite.exclude: Suite.exclude() can only be called from Reporter.preprocessSuite().',
+    'root-exclude: TestRun.exclude() cannot be called on the root suite.',
+    'TestCase.skip: TestRun.skip() can only be called from Reporter.preprocess().',
+    'TestCase.fixme: TestRun.fixme() can only be called from Reporter.preprocess().',
+    'TestCase.fail: TestRun.fail() can only be called from Reporter.preprocess().',
+    'TestCase.exclude: TestRun.exclude() can only be called from Reporter.preprocess().',
+    'Suite.skip: TestRun.skip() can only be called from Reporter.preprocess().',
+    'Suite.fixme: TestRun.fixme() can only be called from Reporter.preprocess().',
+    'Suite.fail: TestRun.fail() can only be called from Reporter.preprocess().',
+    'Suite.exclude: TestRun.exclude() can only be called from Reporter.preprocess().',
   ]);
 });
 
-test('preprocessSuite throwing aborts the run before onBegin', async ({ runInlineTest }) => {
+test('preprocess throwing aborts the run before onBegin', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite }) {
           throw new Error('plan-aborted');
         }
         onBegin(config, suite) {
@@ -256,15 +257,15 @@ test('preprocessSuite throwing aborts the run before onBegin', async ({ runInlin
   expect(result.outputLines).not.toContain('onBegin: 1');
 });
 
-test('multiple reporters: preprocessSuite called in order, annotations accumulate, exclude prunes for next reporter', async ({ runInlineTest }) => {
+test('multiple reporters: preprocess called in order, annotations accumulate, exclude prunes for next reporter', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'first.ts': `
       class R {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite, testRun }) {
           console.log('%% first plan sees: ' + suite.allTests().map(t => t.title).join(','));
           for (const t of suite.allTests()) {
-            if (t.title === 'gone') t.exclude();
-            else t.fail('first reason');
+            if (t.title === 'gone') testRun.exclude(t);
+            else testRun.fail(t, 'first reason');
           }
         }
         onTestEnd(test, result) {
@@ -275,9 +276,9 @@ test('multiple reporters: preprocessSuite called in order, annotations accumulat
     `,
     'second.ts': `
       class R {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite, testRun }) {
           console.log('%% second plan sees: ' + suite.allTests().map(t => t.title).join(','));
-          suite.allTests()[0].skip('second reason');
+          testRun.skip(suite.allTests()[0], 'second reason');
         }
       }
       module.exports = R;
@@ -303,15 +304,15 @@ test('multiple reporters: a later reporter observes an earlier reporter Suite.sk
   const result = await runInlineTest({
     'first.ts': `
       class R {
-        async preprocessSuite(config, suite) {
-          suite.allTests()[0].parent.skip('first reason');
+        async preprocess({ config, suite, testRun }) {
+          testRun.skip(suite.allTests()[0].parent, 'first reason');
         }
       }
       module.exports = R;
     `,
     'second.ts': `
       class R {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite }) {
           const skipped = suite.allTests().filter(t => t.expectedStatus === 'skipped').map(t => t.title);
           console.log('%% second sees skipped: ' + skipped.join(','));
         }
@@ -333,16 +334,16 @@ test('multiple reporters: a later reporter observes an earlier reporter Suite.sk
   expect(result.outputLines).toContain('second sees skipped: one,two');
 });
 
-test('implementsSharding disables the built-in shard filter; preprocessSuite sees the full corpus', async ({ runInlineTest }) => {
+test('implementsSharding disables the built-in shard filter; preprocess sees the full corpus', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'reporter.ts': `
       class R {
-        async preprocessSuite(config, suite) {
-          // preprocessSuite observes the full, un-sharded corpus regardless of --shard.
+        async preprocess({ config, suite, testRun }) {
+          // preprocess observes the full, un-sharded corpus regardless of --shard.
           console.log('%% plan: ' + suite.allTests().map(t => t.title).join(','));
           let i = 0;
           for (const t of suite.allTests()) {
-            if (i++ % 2 === 1) t.exclude();
+            if (i++ % 2 === 1) testRun.exclude(t);
           }
           return { implementsSharding: true };
         }
@@ -361,7 +362,7 @@ test('implementsSharding disables the built-in shard filter; preprocessSuite see
   }, { reporter: '', workers: 1 });
 
   expect(result.exitCode).toBe(0);
-  // preprocessSuite sees all four tests even though --shard=1/2 was configured.
+  // preprocess sees all four tests even though --shard=1/2 was configured.
   expect(result.outputLines).toContain('plan: t0,t1,t2,t3');
   // The reporter's own exclusions define the shard; the built-in shard filter did NOT run
   // (it would have produced a different split), so t0,t2 remain.
@@ -372,13 +373,13 @@ test('multiple reporters declaring implementsSharding throws', async ({ runInlin
   const result = await runInlineTest({
     'reporter-a.ts': `
       class A {
-        preprocessSuite() { return { implementsSharding: true }; }
+        preprocess() { return { implementsSharding: true }; }
         onError(err) { console.log('%% error: ' + err.message); }
       }
       module.exports = A;
     `,
     'reporter-b.ts': `
-      class B { preprocessSuite() { return { implementsSharding: true }; } }
+      class B { preprocess() { return { implementsSharding: true }; } }
       module.exports = B;
     `,
     'playwright.config.ts': `module.exports = { reporter: [['./reporter-a.ts'], ['./reporter-b.ts']] };`,
@@ -396,14 +397,15 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
   const result = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite, testRun }) {
+          this.testRun = testRun;
           console.log('%% plan projects: ' + suite.suites.map(s => s.title).join(','));
           console.log('%% plan tests: ' + suite.allTests().map(t => t.title).join(','));
           this.preprocessedTests = new Set(suite.allTests());
           const setupTest = suite.allTests().find(t => t.title === 'setup-test');
           for (const method of ['skip', 'fixme', 'fail', 'exclude']) {
             try {
-              setupTest[method]();
+              testRun[method](setupTest);
               console.log('%% dep-' + method + ': no-throw');
             } catch (e) {
               console.log('%% dep-' + method + ': ' + e.message);
@@ -411,7 +413,7 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
           }
           const setupProject = suite.suites.find(s => s.title === 'setup');
           try {
-            setupProject.exclude();
+            testRun.exclude(setupProject);
             console.log('%% dep-suite-exclude: no-throw');
           } catch (e) {
             console.log('%% dep-suite-exclude: ' + e.message);
@@ -421,7 +423,7 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
           console.log('%% same test objects: ' + suite.allTests().every(test => this.preprocessedTests.has(test)));
           const setupTest = suite.allTests().find(t => t.title === 'setup-test');
           try {
-            setupTest.skip();
+            this.testRun.skip(setupTest);
             console.log('%% dep-after-preprocess: no-throw');
           } catch (e) {
             console.log('%% dep-after-preprocess: ' + e.message);
@@ -461,13 +463,13 @@ test('plan.suite exposes setup/teardown dependency projects but they are read-on
   expect(result.outputLines).toEqual([
     'plan projects: teardown,setup,main',
     'plan tests: teardown-test,setup-test,main-test',
-    'dep-skip: TestCase.skip() cannot be called on a setup or teardown project test; these always run in full.',
-    'dep-fixme: TestCase.fixme() cannot be called on a setup or teardown project test; these always run in full.',
-    'dep-fail: TestCase.fail() cannot be called on a setup or teardown project test; these always run in full.',
-    'dep-exclude: TestCase.exclude() cannot be called on a setup or teardown project test; these always run in full.',
-    'dep-suite-exclude: Suite.exclude() cannot be called on a setup or teardown project; these always run in full.',
+    'dep-skip: TestRun.skip() cannot be called on a setup or teardown project test; these always run in full.',
+    'dep-fixme: TestRun.fixme() cannot be called on a setup or teardown project test; these always run in full.',
+    'dep-fail: TestRun.fail() cannot be called on a setup or teardown project test; these always run in full.',
+    'dep-exclude: TestRun.exclude() cannot be called on a setup or teardown project test; these always run in full.',
+    'dep-suite-exclude: TestRun.exclude() cannot be called on a setup or teardown project; these always run in full.',
     'same test objects: true',
-    'dep-after-preprocess: TestCase.skip() can only be called from Reporter.preprocessSuite().',
+    'dep-after-preprocess: TestRun.skip() can only be called from Reporter.preprocess().',
     'ran setup/setup-test',
     'ran main/main-test',
     'ran teardown/teardown-test',
@@ -478,9 +480,9 @@ test('plan.suite temporarily exposes dependencies without changing final project
   const result = await runInlineTest({
     'reporter.ts': `
       class Reporter {
-        async preprocessSuite(config, suite) {
+        async preprocess({ config, suite, testRun }) {
           console.log('%% plan projects: ' + suite.suites.map(suite => suite.title).join(','));
-          suite.suites.find(suite => suite.title === 'main').exclude();
+          testRun.exclude(suite.suites.find(suite => suite.title === 'main'));
         }
         onTestEnd(test, result) {
           console.log('%% ran ' + test.parent.project().name + '/' + test.title);

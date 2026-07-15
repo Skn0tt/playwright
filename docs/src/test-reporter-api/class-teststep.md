@@ -2,7 +2,7 @@
 * since: v1.10
 * langs: js
 
-Represents a step in the [TestRun].
+Represents a step in a [TestResult].
 
 ## property: TestStep.category
 * since: v1.10

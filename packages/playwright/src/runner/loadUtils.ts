@@ -23,7 +23,7 @@ import { toPosixPath } from '@utils/fileUtils';
 import { InProcessLoaderHost, OutOfProcessLoaderHost } from './loaderHost';
 import { createTitleMatcher, errorWithFile, parseLocationArg } from '../util';
 import { buildProjectsClosure, collectFilesForProject } from './projectUtils';
-import {  createTestGroups, filterForShard } from './testGroups';
+import { createTestGroups, filterForShard } from './testGroups';
 import { cc, config as commonConfig, FullConfigInternal, suiteUtils, test as testNs, transform } from '../common';
 
 import type { RawSourceMap } from 'source-map';
@@ -31,7 +31,6 @@ import type { TestRun } from './tasks';
 import type { TestGroup } from './testGroups';
 import type { FullConfig, Reporter, TestError } from '../../types/testReporter';
 import type { Matcher, TestCaseFilter } from '../util';
-
 
 export async function collectProjectsAndTestFiles(testRun: TestRun, doNotRunTestsOutsideProjectFilter: boolean) {
   const fsCache = new Map();
@@ -171,23 +170,19 @@ export async function createRootSuite(testRun: TestRun, errors: TestError[], sho
     if (type !== 'dependency')
       continue;
     const dependencySuite = buildProjectSuite(project, projectSuites.get(project)!);
-    dependencySuite._preprocessMode = 'readonly';
+    dependencySuite._preprocessReadonly = true;
     dependencySuites.set(project, dependencySuite);
     rootSuite._prependSuite(dependencySuite);
   }
 
-  rootSuite._preprocessMode = 'editable';
-  let preprocessResult: Awaited<ReturnType<typeof testRun.reporter.preprocessSuite>>;
-  try {
-    preprocessResult = await testRun.reporter.preprocessSuite(config.config, rootSuite);
-  } finally {
-    // Continue the existing sharding and filtering pipeline with top-level projects only.
-    rootSuite._preprocessMode = undefined;
-    for (const dependencySuite of dependencySuites.values()) {
-      dependencySuite._preprocessMode = undefined;
-      rootSuite._detach(dependencySuite);
-    }
-  }
+  const preprocessResult = await testRun.reporter.preprocess({
+    config: config.config,
+    suite: rootSuite,
+  });
+
+  // Continue sharding and filtering pipeline with top-level projects only.
+  for (const dependencySuite of dependencySuites.values())
+    rootSuite._detach(dependencySuite);
 
   // Shard only the top-level projects.
   if (config.config.shard && !preprocessResult?.implementsSharding) {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestError, TestResult, TestStep, WorkerInfo } from '../../types/testReporter';
+import type { FullConfig, FullResult, Reporter, Suite, TestCase, TestError, TestResult, TestRun, TestStep, WorkerInfo } from '../../types/testReporter';
 
 export interface ReportConfigureParams {
   config: FullConfig;
@@ -26,9 +26,15 @@ export interface ReportEndParams {
   result: FullResult;
 }
 
+export type ReporterPreprocessParams = {
+  config: FullConfig;
+  suite: Suite;
+  testRun: TestRun;
+};
+
 export interface ReporterV2 {
   onConfigure?(config: FullConfig): void;
-  preprocessSuite?(config: FullConfig, suite: Suite): { implementsSharding?: boolean } | Promise<{ implementsSharding?: boolean } | undefined | void> | void;
+  preprocess?(params: ReporterPreprocessParams): { implementsSharding?: boolean } | Promise<{ implementsSharding?: boolean } | undefined | void> | void;
   onBegin?(suite: Suite): void;
   onTestBegin?(test: TestCase, result: TestResult): void;
   onStdOut?(chunk: string | Buffer, test?: TestCase, result?: TestResult): void;
@@ -80,8 +86,8 @@ class ReporterV2Wrapper implements ReporterV2 {
     this._config = config;
   }
 
-  async preprocessSuite(config: FullConfig, suite: Suite) {
-    return await this._reporter.preprocessSuite?.(config, suite);
+  preprocess(params: ReporterPreprocessParams) {
+    return this._reporter.preprocess?.(params);
   }
 
   onBegin(suite: Suite) {
