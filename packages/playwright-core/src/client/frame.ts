@@ -129,9 +129,8 @@ export class Frame extends ChannelOwner<channels.FrameChannel> implements api.Fr
     waiter.rejectOnEvent(this._page!, Events.Page.Close, () => this._page!._closeErrorWithReason());
     waiter.rejectOnEvent(this._page!, Events.Page.Crash, new Error('Navigation failed because page crashed!'));
     waiter.rejectOnEvent<Frame>(this._page!, Events.Page.FrameDetached, new Error('Navigating frame was detached!'), frame => frame === this);
-    const { timeout } = this._page!._timeoutSettings.navigationTimeout(options);
-    waiter.rejectOnTimeout(timeout, `Timeout ${timeout}ms exceeded.`);
-    waiter.rejectOnSignal(options.signal);
+    const timeoutOptions = this._page!._timeoutSettings.navigationTimeout(options);
+    waiter.rejectOnTimeout(timeoutOptions, `Timeout ${timeoutOptions.timeout}ms exceeded.`);
     return waiter;
   }
 

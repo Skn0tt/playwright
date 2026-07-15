@@ -80,25 +80,21 @@ export class Waiter {
     this._rejectOn(promise.then(() => { throw (typeof error === 'function' ? error() : error); }), dispose);
   }
 
-  rejectOnTimeout(timeout: number, message: string) {
-    if (!timeout)
-      return;
-    const { promise, dispose } = waitForTimeout(timeout);
-    this._rejectOn(promise.then(() => { throw new TimeoutError(message); }), dispose);
-  }
-
-  rejectOnSignal(signal: AbortSignal | undefined) {
-    if (!signal)
-      return;
-    if (signal.aborted) {
-      this.rejectImmediately(new AbortError(undefined, { cause: signal.reason }));
-      return;
+  rejectOnTimeout({ timeout, signal }: channels.TimeoutOptions, timeoutMessage: string) {
+    if (signal) {
+      if (signal.aborted)
+        return this.rejectImmediately(new AbortError(undefined, { cause: signal.reason }));
+      let rejectPromise: (e: any) => void;
+      const promise = new Promise<void>((_, reject) => { rejectPromise = reject; });
+      const listener = () => rejectPromise!(new AbortError(undefined, { cause: signal.reason }));
+      signal.addEventListener('abort', listener, { once: true });
+      this._rejectOn(promise, () => signal.removeEventListener('abort', listener));
     }
-    let rejectPromise: (e: any) => void;
-    const promise = new Promise<void>((_, reject) => { rejectPromise = reject; });
-    const listener = () => rejectPromise!(new AbortError(undefined, { cause: signal.reason }));
-    signal.addEventListener('abort', listener, { once: true });
-    this._rejectOn(promise, () => signal.removeEventListener('abort', listener));
+
+    if (timeout) {
+      const { promise, dispose } = waitForTimeout(timeout);
+      this._rejectOn(promise.then(() => { throw new TimeoutError(timeoutMessage); }), dispose);
+    }
   }
 
   rejectImmediately(error: Error) {
