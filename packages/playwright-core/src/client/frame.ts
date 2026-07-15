@@ -496,8 +496,8 @@ export class Frame extends ChannelOwner<channels.FrameChannel> implements api.Fr
     return (await this._channel.title({}, kNoTimeout)).value;
   }
 
-  async _expect(expression: string, options: Omit<channels.FrameExpectParams, 'expression'> & { timeout: number }, signal: AbortSignal | undefined): Promise<ExpectResult> {
-    const { timeout, ...rest } = options;
+  async _expect(expression: string, options: Omit<channels.FrameExpectParams, 'expression'> & { timeout: number, signal?: AbortSignal }): Promise<ExpectResult> {
+    const { timeout, signal, ...rest } = options;
     const params: channels.FrameExpectParams = { expression, ...rest, isNot: !!rest.isNot };
     params.expectedValue = serializeArgument(rest.expectedValue);
     try {

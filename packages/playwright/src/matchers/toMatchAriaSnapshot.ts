@@ -91,10 +91,10 @@ export async function toMatchAriaSnapshot(
   if (globalChildren && !expected.match(/^- \/children:/m))
     expected = `- /children: ${globalChildren}\n` + expected;
 
-  const expectParams = { expectedValue: expected, isNot: this.isNot, timeout };
+  const expectParams = { expectedValue: expected, isNot: this.isNot, timeout, signal: options.signal };
   const { matches: pass, received, log, timedOut, errorMessage } = locator ?
-    await (locator as LocatorEx)._expect('to.match.aria', expectParams, options.signal) :
-    await ((receiver as Page).mainFrame() as FrameEx)._expect('to.match.aria', expectParams, options.signal);
+    await (locator as LocatorEx)._expect('to.match.aria', expectParams) :
+    await ((receiver as Page).mainFrame() as FrameEx)._expect('to.match.aria', expectParams);
   const typedReceived = received?.value as MatcherReceived;
 
   const message = () => {

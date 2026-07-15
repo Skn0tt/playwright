@@ -404,11 +404,11 @@ export class Locator implements api.Locator {
   }
 
 
-  async _expect(expression: string, options: FrameExpectParams, signal: AbortSignal | undefined): Promise<ExpectResult> {
+  async _expect(expression: string, options: FrameExpectParams): Promise<ExpectResult> {
     return this._frame._expect(expression, {
       ...options,
       selector: this._selector,
-    }, signal);
+    });
   }
 
   private _inspect() {
