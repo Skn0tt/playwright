@@ -210,8 +210,9 @@ browserTest.describe('page screenshot', () => {
     expect(pixel(0, 999).b).toBeGreaterThan(128);
   });
 
-  browserTest('should not hang when event loop is blocked', { annotation: { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/36702' } }, async ({ page, trace }) => {
+  browserTest('should not hang when event loop is blocked', { annotation: { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/36702' } }, async ({ page, trace, mode }) => {
     browserTest.skip(trace === 'on', 'taking a snapshot hangs when the page is blocked');
+    browserTest.skip(mode === 'driver', 'test hooks are not available in driver mode');
     browserTest.setTimeout(5000);
     const __testHookBeforeScreenshot = async () => {
       page.evaluate(() => {
