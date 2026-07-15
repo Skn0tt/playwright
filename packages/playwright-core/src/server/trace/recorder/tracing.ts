@@ -738,7 +738,7 @@ function createBeforeActionTraceEvent(metadata: CallMetadata, parentId?: string)
     title: metadata.title,
     class: metadata.type,
     method: metadata.method,
-    params: metadata.params,
+    params: metadata.timeout ? { ...metadata.params, timeout: metadata.timeout } : metadata.params,
     stepId: metadata.stepId,
     pageId: metadata.pageId,
   };

@@ -356,12 +356,9 @@ export class DispatcherConnection {
       type: dispatcher._type,
       method,
       params: params || {},
+      timeout: validMetadata.timeout,
       log: [],
     };
-
-    // TODO(skn0tt): promote to top-level metadata instead of smuggling through params.
-    if (validMetadata.timeout)
-      callMetadata.params = { ...callMetadata.params, timeout: validMetadata.timeout };
 
     const controller = dispatcher.createProgressController(callMetadata);
     this._activeProgressControllers.set(callMetadata.id, controller);
