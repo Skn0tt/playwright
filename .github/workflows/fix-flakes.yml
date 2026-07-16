@@ -73,11 +73,12 @@ jobs:
           via the playwright-test-results skill. \`bot_name\` encodes the OS.
 
           Write your answer to output/runner.txt, and nothing else there: exactly one of these
-          six runner labels, or the single word \`none\` if no OS is worth a run.
+          seven runner labels, or the single word \`none\` if no platform is worth a run.
             ubuntu-22.04   ubuntu-22.04-arm   ubuntu-24.04
-            macos-14-xlarge   macos-15-xlarge   windows-latest
-          Map a candidate's \`bot_name\` to the closest of those (e.g. \`*-macos-15-*\` ->
-          macos-15-xlarge). Explain your reasoning briefly in your final message.
+            macos-14-xlarge   macos-15-large   macos-15-xlarge   windows-latest
+          Map \`*-macos-15-large\` to \`macos-15-large\` and \`*-macos-15-xlarge\` to
+          \`macos-15-xlarge\`; never substitute one architecture for another. Explain your
+          reasoning briefly in your final message.
 
           ${HINT:+Focus hint from the operator: $HINT}
           EOF
@@ -102,7 +103,7 @@ jobs:
             exit 0
           fi
           case "$runner" in
-            ubuntu-22.04|ubuntu-22.04-arm|ubuntu-24.04|macos-14-xlarge|macos-15-xlarge|windows-latest) ;;
+            ubuntu-22.04|ubuntu-22.04-arm|ubuntu-24.04|macos-14-xlarge|macos-15-large|macos-15-xlarge|windows-latest) ;;
             *) echo "::error::Triage chose a non-allowlisted runner: '$runner'." >&2; exit 1 ;;
           esac
           echo "Triage chose runner: $runner"

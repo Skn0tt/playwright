@@ -20,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 
 it.skip(({ mode }) => mode !== 'default', 'Remote persistent contexts are not supported');
+it.slow(({ browserName, isMac }) => browserName === 'firefox' && isMac && process.arch === 'x64', 'Persistent Firefox launches are slow on Intel macOS runners under load.');
 
 it('should support hasTouch option', async ({ server, launchPersistent }) => {
   const { page } = await launchPersistent({ hasTouch: true });
