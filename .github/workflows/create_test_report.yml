@@ -196,6 +196,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Download triage output
         uses: actions/download-artifact@v4
         with:
@@ -203,6 +206,19 @@ jobs:
           path: output
 
       - name: Post triage comment
-        run: |
-          printf '\n\n<sub>Triaged by the Playwright bot - [agent run](%s)</sub>\n<!-- playwright-ci-triage -->\n' "$WORKFLOW_URL" >> output/triage.md
-          gh issue comment "$PR_NUMBER" --repo "${{ github.repository }}" --body-file output/triage.md
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const { collapsePreviousComments } = require('./tests/config/postReportComment');
+            const sentinel = `<!-- playwright-ci-triage --><!-- ${context.payload.workflow_run.name} -->`;
+            const prNumber = +process.env.PR_NUMBER;
+            await collapsePreviousComments(github, context, prNumber, sentinel);
+
+            const triage = fs.readFileSync('output/triage.md', 'utf8');
+            const body = `${triage}\n\n<sub>Triaged by the Playwright bot - [agent run](${process.env.WORKFLOW_URL})</sub>\n${sentinel}\n`;
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: prNumber,
+              body,
+            });
