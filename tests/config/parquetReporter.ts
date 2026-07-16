@@ -105,7 +105,7 @@ class ParquetReporter implements Reporter {
         appender.appendVarchar(botName);
         appender.appendVarchar(projectName);
         appender.appendVarchar(titles.join(' › '));
-        appender.appendVarchar(path.relative(this._config.rootDir, test.location.file));
+        appender.appendVarchar(toPosixPath(path.relative(this._config.rootDir, test.location.file)));
         appender.appendInteger(test.location.line);
         appender.appendInteger(test.location.column);
         appender.appendVarchar(test.expectedStatus);
@@ -141,6 +141,10 @@ function errorMessage(result: TestResult): string | null {
   if (!messages.length)
     return null;
   return messages.join('\n\n');
+}
+
+function toPosixPath(aPath: string): string {
+  return aPath.split(path.sep).join(path.posix.sep);
 }
 
 function appendNullableVarchar(appender: DuckDBAppender, value: string | null) {
