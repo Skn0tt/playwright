@@ -315,6 +315,13 @@ Attribute name.
 
 Expected attribute value.
 
+### param: LocatorAssertions.NotToHaveAttribute.value
+* since: v1.62
+* langs: python
+- `value` ?<[string]|[RegExp]>
+
+Expected attribute value. If not specified, the assertion verifies that the attribute is absent.
+
 ### option: LocatorAssertions.NotToHaveAttribute.ignoreCase = %%-assertions-ignore-case-%%
 * since: v1.40
 
@@ -1533,6 +1540,8 @@ from playwright.async_api import expect
 
 locator = page.locator("input")
 await expect(locator).to_have_attribute("type", "text")
+await expect(locator).to_have_attribute("disabled")
+await expect(locator).not_to_have_attribute("readonly")
 ```
 
 ```python sync
@@ -1540,6 +1549,8 @@ from playwright.sync_api import expect
 
 locator = page.locator("input")
 expect(locator).to_have_attribute("type", "text")
+expect(locator).to_have_attribute("disabled")
+expect(locator).not_to_have_attribute("readonly")
 ```
 
 ```csharp
@@ -1558,6 +1569,13 @@ Attribute name.
 - `value` <[string]|[RegExp]>
 
 Expected attribute value.
+
+### param: LocatorAssertions.toHaveAttribute.value
+* since: v1.62
+* langs: python
+- `value` ?<[string]|[RegExp]>
+
+Expected attribute value. If not specified, the assertion verifies that the attribute is present.
 
 ### option: LocatorAssertions.toHaveAttribute.timeout = %%-js-assertions-timeout-%%
 * since: v1.18
