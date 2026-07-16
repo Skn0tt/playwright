@@ -440,6 +440,18 @@ it.describe('while running', () => {
     expect(now).toBe(60000);
   });
 
+  it('should reject an invalid target time with an active requestAnimationFrame loop', {
+    annotation: {
+      type: 'issue',
+      description: 'https://github.com/microsoft/playwright-python/issues/3137',
+    }
+  }, async ({ page }) => {
+    await page.clock.install();
+    await page.setContent(`<script>function tick() { requestAnimationFrame(tick); } requestAnimationFrame(tick);</script>`);
+    const invalidTime = await page.evaluate(() => Date.now()) * 1_000_000;
+    await expect(page.clock.pauseAt(invalidTime)).rejects.toThrow(`clock.pauseAt: Invalid date: ${invalidTime}`);
+  });
+
   it('should pause and fastForward', async ({ page }) => {
     await page.clock.install({ time: 0 });
     await page.goto('data:text/html,');

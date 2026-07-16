@@ -75,7 +75,7 @@ Time to initialize with, current system time by default.
 * since: v1.45
 - `time` <[float]|[string]|[Date]>
 
-Time to initialize with, current system time by default.
+Time to initialize with, current system time by default. Numeric values are Unix time in seconds.
 
 ### option: Clock.install.time
 * langs: csharp
@@ -208,7 +208,7 @@ Time to pause at.
 * since: v1.45
 - `time` <[float]|[string]|[Date]>
 
-Time to pause at.
+Time to pause at. Numeric values are Unix time in seconds.
 
 ### param: Clock.pauseAt.time
 * langs: csharp
@@ -274,7 +274,7 @@ Time to be set in milliseconds.
 * since: v1.45
 - `time` <[float]|[string]|[Date]>
 
-Time to be set.
+Time to be set. Numeric values are Unix time in seconds.
 
 ### param: Clock.setFixedTime.time
 * langs: csharp
@@ -332,7 +332,7 @@ Time to be set in milliseconds.
 * since: v1.45
 - `time` <[float]|[string]|[Date]>
 
-Time to be set.
+Time to be set. Numeric values are Unix time in seconds.
 
 ### param: Clock.setSystemTime.time
 * langs: csharp

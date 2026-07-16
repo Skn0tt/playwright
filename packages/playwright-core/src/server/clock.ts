@@ -148,10 +148,8 @@ function parseTicks(value: number | string): number {
 function parseTime(epoch: string | number | undefined): number {
   if (!epoch)
     return 0;
-  if (typeof epoch === 'number')
-    return epoch;
   const parsed = new Date(epoch);
   if (!isFinite(parsed.getTime()))
     throw new Error(`Invalid date: ${epoch}`);
-  return parsed.getTime();
+  return typeof epoch === 'number' ? epoch : parsed.getTime();
 }
