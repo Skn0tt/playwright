@@ -205,7 +205,6 @@ test('start should finish when page is closed', async ({ browser }, testInfo) =>
 });
 
 test('empty video', async ({ browser }, testInfo) => {
-  test.slow();
   const size = { width: 800, height: 800 };
   const context = await browser.newContext({ viewport: size });
   const page = await context.newPage();

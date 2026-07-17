@@ -228,7 +228,6 @@ test('user-initiated annotate downloads zip with feedback.md', async ({ connectT
 });
 
 test('should capture annotations via show --annotate', async ({ connectToDashboard, cli, server }) => {
-  test.slow();
   await cli('open', server.EMPTY_PAGE);
   const bindTitle = `--playwright-internal--${crypto.randomUUID()}`;
   await cli('show', { bindTitle });
@@ -495,7 +494,6 @@ test('should switch screencast to -s session on show --annotate', async ({ conne
 });
 
 test('should disengage annotate mode when --annotate client disconnects', async ({ connectToDashboard, cli, childProcess, cliEnv, mcpBrowser, mcpHeadless, server }) => {
-  test.slow();
   await cli('open', server.EMPTY_PAGE);
   const bindTitle = `--playwright-internal--${crypto.randomUUID()}`;
   await cli('show', { bindTitle });

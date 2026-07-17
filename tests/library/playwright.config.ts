@@ -61,7 +61,7 @@ const config: Config<PlaywrightWorkerOptions & PlaywrightTestOptions & TestModeW
     timeout: 10000,
   },
   maxFailures: 200,
-  timeout: video ? 60000 : 30000,
+  timeout: video || (process.platform === 'darwin' && process.arch === 'x64') ? 60000 : 30000,
   globalTimeout: 7200000,
   workers: undefined,
   fullyParallel: !process.env.CI,
