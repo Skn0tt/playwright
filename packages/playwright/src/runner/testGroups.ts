@@ -22,6 +22,7 @@ export type TestGroup = {
   repeatEachIndex: number;
   projectId: string;
   tests: test.TestCase[];
+  resources: string[];
 };
 
 export function createTestGroups(projectSuite: test.Suite, expectedParallelism: number): TestGroup[] {
@@ -58,6 +59,7 @@ export function createTestGroups(projectSuite: test.Suite, expectedParallelism: 
       repeatEachIndex: test.repeatEachIndex,
       projectId: test._projectId,
       tests: [],
+      resources: [],
     };
   };
 
@@ -127,6 +129,8 @@ export function createTestGroups(projectSuite: test.Suite, expectedParallelism: 
       }
     }
   }
+  for (const group of result)
+    group.resources = group.tests.flatMap(test => test._resources);
   return result;
 }
 

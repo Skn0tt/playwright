@@ -1908,5 +1908,3 @@ test('test with locale', async ({ page }) => {
 - `options` <[TestOptions]>
 
 An object with local options.
-
-

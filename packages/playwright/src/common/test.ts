@@ -283,6 +283,7 @@ export class TestCase extends Base implements reporterTypes.TestCase {
   _projectId = '';
   // Explicitly declared tags that are not a part of the title.
   _tags: string[] = [];
+  _resources: string[] = [];
   _planAnnotations: TestAnnotation[] = [];
 
   constructor(title: string, fn: Function, testType: TestTypeImpl, location: Location) {
@@ -342,6 +343,7 @@ export class TestCase extends Base implements reporterTypes.TestCase {
       workerHash: this._workerHash,
       annotations: this.annotations.slice(),
       tags: this._tags.slice(),
+      resources: this._resources.slice(),
       projectId: this._projectId,
     };
   }
@@ -358,6 +360,7 @@ export class TestCase extends Base implements reporterTypes.TestCase {
     test._workerHash = data.workerHash;
     test.annotations = data.annotations;
     test._tags = data.tags;
+    test._resources = data.resources || [];
     test._projectId = data.projectId;
     return test;
   }

@@ -313,6 +313,27 @@ test('basic test', async ({ todoPage, page }) => {
 });
 ```
 
+## Resource fixtures
+
+Test-scoped fixtures can declare resources.
+Tests that use fixtures with the same resource do not run concurrently, even when they belong to different projects.
+For example, tests that use the same email inbox can use a resource fixture to avoid interfering with each other.
+
+```js title="my-test.ts"
+import { test as base } from '@playwright/test';
+import { testInbox } from './test-inbox';
+
+export const test = base.extend({
+  inbox: [
+    async ({}, use) => {
+      await testInbox.clear();
+      await use(testInbox);
+    },
+    { resources: ['test-inbox'] },
+  ],
+});
+```
+
 ## Overriding fixtures
 
 In addition to creating your own fixtures, you can also override existing fixtures to fit your needs. Consider the following example which overrides the `page` fixture by automatically navigating to the `baseURL`:

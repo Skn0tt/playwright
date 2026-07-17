@@ -69,7 +69,21 @@ export class PoolBuilder {
     }
 
     pool.validateFunction(test.fn, 'Test', test.location);
+    // Loader metadata is the scheduling source of truth; worker pools can differ due to project overrides.
+    if (this._type === 'loader')
+      this._setResourcesForTest(test, pool, parents);
     return pool;
+  }
+
+  private _setResourcesForTest(test: TestCase, pool: FixturePool, parents: Suite[]) {
+    test._resources = pool.resourcesForAutoFixtures();
+    for (const parent of parents) {
+      for (const hook of parent._hooks)
+        test._resources.push(...pool.resourcesForFunction(hook.fn, hook.location));
+      for (const modifier of parent._modifiers)
+        test._resources.push(...pool.resourcesForFunction(modifier.fn, modifier.location));
+    }
+    test._resources.push(...pool.resourcesForFunction(test.fn, test.location));
   }
 
   private _buildTestTypePool(testType: TestTypeImpl, testErrors?: TestError[]): FixturePool {

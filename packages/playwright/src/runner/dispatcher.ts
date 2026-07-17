@@ -39,6 +39,7 @@ export class Dispatcher {
   private _isolatedJobs = new Set<TestGroup>();
   private _workerLimitPerProjectId = new Map<string, number>();
   private _queuedOrRunningHashCount = new Map<string, number>();
+  private _activeResources = new Set<string>();
   private _finished = new ManualPromise<void>();
   private _isStopped = true;
   // Teardown phases keep running after maxFailures, so that cleanup is not skipped.
@@ -65,6 +66,8 @@ export class Dispatcher {
       // Isolated retries only run one at a time, after all other jobs have finished.
       if (this._isolatedJobs.has(job) && this._workerSlots.some(w => !!w.jobDispatcher))
         continue;
+      if (job.resources.some(resource => this._activeResources.has(resource)))
+        continue;
       const projectIdWorkerLimit = this._workerLimitPerProjectId.get(job.projectId);
       if (!projectIdWorkerLimit)
         return index;
@@ -75,17 +78,17 @@ export class Dispatcher {
     return -1;
   }
 
-  private _scheduleJob() {
+  private _scheduleJob(): boolean {
     // NOTE: keep this method synchronous for easier reasoning.
 
     // 0. No more running jobs after stop.
     if (this._isStopped)
-      return;
+      return false;
 
     // 1. Find a job to run.
     const jobIndex = this._findFirstJobToRun();
     if (jobIndex === -1)
-      return;
+      return false;
     const job = this._queue[jobIndex];
 
     // 2. Find a worker with the same hash, or just some free worker.
@@ -94,24 +97,36 @@ export class Dispatcher {
       workerIndex = this._workerSlots.findIndex(w => !w.jobDispatcher);
     if (workerIndex === -1) {
       // No workers available, bail out.
-      return;
+      return false;
     }
 
     // 3. Claim both the job and the worker slot.
     this._queue.splice(jobIndex, 1);
     const jobDispatcher = new JobDispatcher(job, this._testRun, this._ignoreMaxFailures ? undefined : () => this.stop().catch(() => {}));
     this._workerSlots[workerIndex].jobDispatcher = jobDispatcher;
+    for (const resource of job.resources)
+      this._activeResources.add(resource);
 
     // 4. Run the job. This is the only async operation.
     void this._runJobInWorker(workerIndex, jobDispatcher).then(() => {
 
       // 5. Release the worker slot.
       this._workerSlots[workerIndex].jobDispatcher = undefined;
+      for (const resource of job.resources)
+        this._activeResources.delete(resource);
 
       // 6. Check whether we are done or should schedule another job.
       this._checkFinished();
-      this._scheduleJob();
+      this._scheduleJobs();
     });
+    return true;
+  }
+
+  private _scheduleJobs() {
+    for (let i = 0; i < this._workerSlots.length; i++) {
+      if (!this._scheduleJob())
+        break;
+    }
   }
 
   private async _runJobInWorker(index: number, jobDispatcher: JobDispatcher) {
@@ -213,8 +228,7 @@ export class Dispatcher {
     for (let i = 0; i < this._testRun.config.config.workers; i++)
       this._workerSlots.push({});
     // 2. Schedule enough jobs.
-    for (let i = 0; i < this._workerSlots.length; i++)
-      this._scheduleJob();
+    this._scheduleJobs();
     this._checkFinished();
     // 3. More jobs are scheduled when the worker becomes free.
     // 4. Wait for all jobs to finish.
@@ -565,8 +579,8 @@ class JobDispatcher {
     }
 
     // This job is over, we will schedule new jobs for the remaining tests and isolated retries.
-    const remainingJob = remaining.length ? { ...this.job, tests: remaining } : undefined;
-    const isolatedRetriesJob = isolatedRetries.length ? { ...this.job, tests: isolatedRetries } : undefined;
+    const remainingJob = remaining.length ? { ...this.job, tests: remaining, resources: remaining.flatMap(test => test._resources) } : undefined;
+    const isolatedRetriesJob = isolatedRetries.length ? { ...this.job, tests: isolatedRetries, resources: isolatedRetries.flatMap(test => test._resources) } : undefined;
     this._finished({ didFail: true, remainingJob, isolatedRetriesJob });
   }
 
