@@ -1416,141 +1416,6 @@ interface TestConfig<TestArgs = {}, WorkerArgs = {}> {
   grepInvert?: RegExp|Array<RegExp>;
 
   /**
-   * Records network responses to disk and replays them on later runs, so large static dependencies are downloaded from
-   * a remote server once instead of on every run. This is most useful against a slow or remote environment such as
-   * staging.
-   *
-   * When `httpCache` is set, Playwright starts a caching proxy for the run and routes all browser traffic through it.
-   * On the first run, eligible responses are recorded under `dir`; on subsequent runs they are served from disk without
-   * reaching the network. A single proxy is shared by all workers, so a resource fetched by one worker is a cache hit
-   * for the rest, and the cache persists across runs until you delete `dir`.
-   *
-   * Loopback traffic (`localhost`, `127.0.0.1`) is never cached — a local dev server already serves from disk, so there
-   * is nothing to optimize. The cache targets remote origins.
-   *
-   * **What is cached by default**
-   *
-   * With no `match`, the cache stores only **shared static assets**: successful `GET` requests the browser makes for a
-   * static subresource — a script, stylesheet, image, font, or media element — as reported by the request's
-   * `Sec-Fetch-Dest` metadata. These bytes do not depend on who is signed in, so replaying them into a fresh browser
-   * context is always safe, which keeps tests that each create their own context isolated by construction.
-   *
-   * The following are therefore **not** cached by default:
-   * - `fetch`/`XMLHttpRequest` (API) requests and top-level documents — their request destination is not a static
-   *   subresource. This is the dynamic, per-user surface.
-   * - Any response marked `Cache-Control: no-store`.
-   * - Any response carrying a personalization signal: `Cache-Control: private`, a `Set-Cookie` header, or `Vary:
-   *   Cookie`/`Vary: Authorization`.
-   *
-   * The `Authorization` and `Cookie` request headers are deliberately ignored when deciding what to cache. On a gated
-   * staging environment these are a shared environment credential attached to every request, not a per-user identity,
-   * so caching on their presence would be wrong.
-   *
-   * Freshness directives (`max-age`, `no-cache`, `Expires`) are ignored: once a response is recorded it is replayed
-   * until `dir` is deleted, keeping runs deterministic. `Vary` is honored — responses are keyed by the request-header
-   * values they vary on, and `Vary: *` is never stored.
-   *
-   * **Customizing with `match`**
-   *
-   * A string or [RegExp] restricts caching to requests whose URL matches; other requests pass straight through to the
-   * network. For full control, pass a callback that returns a decision object per request:
-   * - `disposition` — `'cache'` force-stores the response and serves it back, `'no-cache'` bypasses the cache
-   *   entirely, and `'default'` (or an empty object) applies the rules above.
-   * - `identity` — a stable principal id (such as a session token) that partitions the cache. Entries recorded under
-   *   one identity are never served to a request with a different one, so per-user content can be cached without
-   *   leaking across contexts. The value is hashed into the cache key and never written to disk.
-   *
-   * Set `proxy` to fetch cache misses through an upstream proxy — for example, to reach a staging environment that is
-   * only accessible behind one. Browsers connect to the caching proxy, which chains to `proxy` for anything not served
-   * from disk.
-   *
-   * **Usage**
-   *
-   * Cache shared static assets from a staging server with zero configuration:
-   *
-   * ```js
-   * // playwright.config.ts
-   * import { defineConfig } from '@playwright/test';
-   *
-   * export default defineConfig({
-   *   httpCache: { dir: './.network-cache' },
-   * });
-   * ```
-   *
-   * Fetch cache misses through an upstream proxy:
-   *
-   * ```js
-   * // playwright.config.ts
-   * import { defineConfig } from '@playwright/test';
-   *
-   * export default defineConfig({
-   *   httpCache: { dir: './.network-cache', proxy: { server: 'http://myproxy.com:3128' } },
-   * });
-   * ```
-   *
-   * Take control per request — force-cache a per-user API response with session isolation, and bypass the cache for
-   * others:
-   *
-   * ```js
-   * // playwright.config.ts
-   * import { defineConfig } from '@playwright/test';
-   *
-   * export default defineConfig({
-   *   httpCache: {
-   *     dir: './.network-cache',
-   *     match: request => {
-   *       if (request.url.includes('/api/config'))
-   *         return { disposition: 'cache', identity: request.headers.get('authorization') };
-   *       if (request.url.includes('/telemetry'))
-   *         return { disposition: 'no-cache' };
-   *       return {};
-   *     },
-   *   },
-   * });
-   * ```
-   *
-   */
-  httpCache?: {
-    /**
-     * Directory where the cache is stored, resolved relative to the configuration file.
-     */
-    dir: string;
-
-    /**
-     * Limits or customizes what is cached. A glob pattern or regular expression restricts caching to requests whose URL
-     * matches; a callback returns a per-request decision (see [HttpCachePolicy]). When omitted, every request is
-     * considered with the default behavior.
-     */
-    match?: string|RegExp|HttpCachePolicy;
-
-    /**
-     * Upstream proxy for cache misses.
-     */
-    proxy?: {
-      /**
-       * Proxy to be used for all requests. HTTP and SOCKS proxies are supported, for example `http://myproxy.com:3128` or
-       * `socks5://myproxy.com:3128`. Short form `myproxy.com:3128` is considered an HTTP proxy.
-       */
-      server: string;
-
-      /**
-       * Optional comma-separated domains to bypass proxy.
-       */
-      bypass?: string;
-
-      /**
-       * Optional username to use if HTTP proxy requires authentication.
-       */
-      username?: string;
-
-      /**
-       * Optional password to use if HTTP proxy requires authentication.
-       */
-      password?: string;
-    };
-  };
-
-  /**
    * Whether to skip snapshot expectations, such as `expect(value).toMatchSnapshot()` and `await
    * expect(page).toHaveScreenshot()`.
    *
@@ -2159,32 +2024,6 @@ export interface Config<TestArgs = {}, WorkerArgs = {}> extends TestConfig<TestA
 }
 
 export type Metadata = { [key: string]: any };
-
-/**
- * A per-request caching decision. Every field is optional; an empty object applies the
- * default behavior.
- */
-export type HttpCacheDecision = {
-  /**
-   * `'cache'` serves a stored response and force-stores on a miss, `'no-cache'` bypasses the cache (fetch fresh, do
-   * not store), and `'default'` applies the default rules (cache shared static assets only). Defaults to `'default'`.
-   */
-  disposition?: 'cache' | 'no-cache' | 'default';
-
-  /**
-   * A stable principal id, such as a session token, that partitions the cache. Entries recorded under one identity
-   * are never served to a request with a different one, so per-user content can be cached without leaking across
-   * contexts. The value is hashed into the cache key and never written to disk. `null` is treated as anonymous, so
-   * `request.headers.get()` results can be passed directly.
-   */
-  identity?: string | null;
-};
-
-/**
- * Called for each request to decide how it is cached. Receives a standard
- * [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request). See [`property: TestConfig.httpCache`].
- */
-export type HttpCachePolicy = (request: Request) => HttpCacheDecision;
 
 /**
  * Resolved configuration which is accessible via
@@ -7106,6 +6945,61 @@ export interface PlaywrightWorkerOptions {
    */
   connectOptions: ConnectOptions | undefined;
   /**
+   * **NOTE** This option trades test isolation for speed and is intended for component tests that drive a story gallery. Leave
+   * it unset for end-to-end tests - a fresh browser context per test is one of the core guarantees of Playwright Test.
+   *
+   * **Experimental.** When set to `true`, all tests in a worker process run in a single browser context that is reused
+   * between tests, instead of getting a brand new context per test. Defaults to `false`.
+   *
+   * Between tests, Playwright resets the state that component tests typically touch: it clears cookies, cache, local
+   * storage and IndexedDB of visited origins, unregisters service workers, closes extra pages, removes routes, bindings
+   * and init scripts, and re-applies the configured storage state, viewport and emulation options.
+   *
+   * This reset is best-effort, not a guarantee of isolation. State that is **not** reset includes:
+   * - Permissions granted with
+   *   [browserContext.grantPermissions(permissions[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-grant-permissions)
+   *   during a test.
+   * - Runtime changes made through
+   *   [browserContext.setGeolocation(geolocation)](https://playwright.dev/docs/api/class-browsercontext#browser-context-set-geolocation),
+   *   [browserContext.setOffline(offline)](https://playwright.dev/docs/api/class-browsercontext#browser-context-set-offline)
+   *   and
+   *   [browserContext.setExtraHTTPHeaders(headers)](https://playwright.dev/docs/api/class-browsercontext#browser-context-set-extra-http-headers).
+   * - Browsing history, `window.name` and any browser-process-wide state.
+   *
+   * Additional restrictions:
+   * - The option is ignored when
+   *   [testOptions.video](https://playwright.dev/docs/api/class-testoptions#test-options-video) recording is enabled.
+   * - Only a few context options may differ between consecutive tests: `colorScheme`, `forcedColors`,
+   *   `reducedMotion`, `contrast`, `screen`, `userAgent`, `viewport` and `testIdAttribute`. Changing any other option
+   *   in [test.use(options)](https://playwright.dev/docs/api/class-test#test-use), for example `locale` or
+   *   `storageState`, silently forces a fresh context and negates the speedup.
+   * - Do not combine with
+   *   [testOptions.connectOptions](https://playwright.dev/docs/api/class-testoptions#test-options-connect-options)
+   *   pointing multiple workers at a shared browser - workers would compete for the single reusable context.
+   * - `recordHar` in
+   *   [testOptions.contextOptions](https://playwright.dev/docs/api/class-testoptions#test-options-context-options) is
+   *   not supported and produces no HAR file.
+   *
+   * **Usage**
+   *
+   * ```js
+   * // playwright.config.ts
+   * import { defineConfig } from '@playwright/test';
+   *
+   * export default defineConfig({
+   *   projects: [
+   *     {
+   *       name: 'components',
+   *       testDir: './tests/components',
+   *       use: { reuseContext: true },
+   *     },
+   *   ],
+   * });
+   * ```
+   *
+   */
+  reuseContext: boolean;
+  /**
    * Whether to automatically capture a screenshot after each test. Defaults to `'off'`.
    * - `'off'`: Do not capture screenshots.
    * - `'on'`: Capture screenshot after each test.
@@ -8832,7 +8726,6 @@ export function mergeExpects<List extends any[]>(...expects: List): MergedExpect
 
 // This is required to not export everything by default. See https://github.com/Microsoft/TypeScript/issues/19545#issuecomment-340490459
 export { };
-
 
 
 /**

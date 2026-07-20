@@ -74,32 +74,6 @@ export interface Config<TestArgs = {}, WorkerArgs = {}> extends TestConfig<TestA
 
 export type Metadata = { [key: string]: any };
 
-/**
- * A per-request caching decision. Every field is optional; an empty object applies the
- * default behavior.
- */
-export type HttpCacheDecision = {
-  /**
-   * `'cache'` serves a stored response and force-stores on a miss, `'no-cache'` bypasses the cache (fetch fresh, do
-   * not store), and `'default'` applies the default rules (cache shared static assets only). Defaults to `'default'`.
-   */
-  disposition?: 'cache' | 'no-cache' | 'default';
-
-  /**
-   * A stable principal id, such as a session token, that partitions the cache. Entries recorded under one identity
-   * are never served to a request with a different one, so per-user content can be cached without leaking across
-   * contexts. The value is hashed into the cache key and never written to disk. `null` is treated as anonymous, so
-   * `request.headers.get()` results can be passed directly.
-   */
-  identity?: string | null;
-};
-
-/**
- * Called for each request to decide how it is cached. Receives a standard
- * [Request](https://developer.mozilla.org/en-US/docs/Web/API/Request). See [`property: TestConfig.httpCache`].
- */
-export type HttpCachePolicy = (request: Request) => HttpCacheDecision;
-
 export interface FullConfig<TestArgs = {}, WorkerArgs = {}> {
   projects: FullProject<TestArgs, WorkerArgs>[];
   reporter: ReporterDescription[];
@@ -287,6 +261,7 @@ export interface PlaywrightWorkerOptions {
   channel: BrowserChannel | undefined;
   launchOptions: Omit<LaunchOptions, 'tracesDir'>;
   connectOptions: ConnectOptions | undefined;
+  reuseContext: boolean;
   screenshot: ScreenshotMode | { mode: ScreenshotMode } & Pick<PageScreenshotOptions, 'fullPage' | 'omitBackground'>;
   trace: TraceMode | /** deprecated */ 'retry-with-trace' | { mode: TraceMode, snapshots?: boolean, screenshots?: boolean, sources?: boolean, attachments?: boolean };
   video: VideoMode | /** deprecated */ 'retry-with-video' | { mode: VideoMode, size?: ViewportSize, show?: { actions?: { duration?: number, position?: 'top-left' | 'top' | 'top-right' | 'bottom-left' | 'bottom' | 'bottom-right', fontSize?: number, cursor?: 'none' | 'pointer' }, test?: { level?: 'file' | 'title' | 'step', position?: 'top-left' | 'top' | 'top-right' | 'bottom-left' | 'bottom' | 'bottom-right', fontSize?: number } } };
@@ -568,4 +543,3 @@ export function mergeExpects<List extends any[]>(...expects: List): MergedExpect
 
 // This is required to not export everything by default. See https://github.com/Microsoft/TypeScript/issues/19545#issuecomment-340490459
 export { };
-
