@@ -62,25 +62,32 @@ test('applies backpressure while async onFrame callback is pending', async ({ br
 
   let releaseCallback: () => void;
   const callbackDone = new Promise<void>(f => releaseCallback = f);
+  let firstFrame: () => void;
+  const firstFrameReceived = new Promise<void>(f => firstFrame = f);
   let frameCount = 0;
+  let lastFrameTimestamp = 0;
   await page.screencast.start({
     onFrame: async () => {
       ++frameCount;
+      lastFrameTimestamp = Date.now();
+      firstFrame();
       await callbackDone;
     },
   });
   await page.goto(server.EMPTY_PAGE);
-  await page.evaluate(() => document.body.style.backgroundColor = 'red');
-
-  for (let i = 0; i < 3; ++i) {
-    await page.evaluate(() => {
+  await page.evaluate(() => {
+    const animate = () => {
       document.body.style.backgroundColor = document.body.style.backgroundColor === 'red' ? 'blue' : 'red';
-    });
-    await ensureSomeFrames(page);
-  }
+      requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  });
+  await firstFrameReceived;
+  await expect.poll(() => Date.now() - lastFrameTimestamp).toBeGreaterThan(1000);
+
   const framesWhileBlocked = frameCount;
-  expect(framesWhileBlocked).toBeGreaterThan(0);
-  expect(framesWhileBlocked).toBeLessThan(10);
+  await ensureSomeFrames(page);
+  expect(frameCount).toBe(framesWhileBlocked);
 
   releaseCallback!();
   await expect.poll(async () => {
