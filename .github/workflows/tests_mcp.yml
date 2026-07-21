@@ -30,6 +30,7 @@ env:
 
 jobs:
   test_mcp:
+    if: github.head_ref != 'skn0tt-debug-dashboard-registry'
     name: ${{ matrix.os }} - ${{ matrix.project }}
     # Used for authentication of flakiness upload
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
@@ -63,3 +64,34 @@ jobs:
         flakiness-client-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_CLIENT_ID }}
         flakiness-tenant-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_TENANT_ID }}
         flakiness-subscription-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_SUBSCRIPTION_ID }}
+
+  debug_dashboard_registry:
+    if: github.event_name == 'pull_request' && github.head_ref == 'skn0tt-debug-dashboard-registry'
+    name: Debug dashboard registry
+    runs-on: macos-15-xlarge
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install browsers
+        run: npx playwright install
+
+      - name: Start restricted tmate session
+        uses: mxschmitt/action-tmate@35b54afac29c97fb54faba5b513f8fbd1882f113
+        timeout-minutes: 45
+        with:
+          limit-access-to-actor: true
