@@ -296,8 +296,6 @@ export async function openDashboardApp() {
     stopSelfDestruct();
     // eslint-disable-next-line no-console
     console.log(`Dashboard is running pid=${acquired.daemonPid}`);
-    // eslint-disable-next-line no-restricted-properties
-    await new Promise(f => process.stdout.write('', f));  // Make sure stdout is flushed.
     return;
   }
   const { server } = acquired;
@@ -319,8 +317,6 @@ export async function openDashboardApp() {
       // eslint-disable-next-line no-console
       console.log(`Dashboard is running pid=${process.pid}`);
     }
-    // eslint-disable-next-line no-restricted-properties
-    await new Promise(f => process.stdout.write('', f));  // Make sure stdout is flushed.
   } catch (error) {
     // eslint-disable-next-line no-console
     console.log(error);
