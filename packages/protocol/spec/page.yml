@@ -586,6 +586,11 @@ Page:
       returns:
         artifact: Artifact?
 
+    screencastFrameAck:
+      internal: true
+      parameters:
+        frameId: int
+
     screencastStop:
       title: Stop screencast
       group: configuration
@@ -717,6 +722,7 @@ Page:
 
     screencastFrame:
       parameters:
+        frameId: int
         data: binary
         timestamp: float
         viewportWidth: int

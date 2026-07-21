@@ -2264,6 +2264,7 @@ scheme.PageRouteEvent = tObject({
   route: tChannel(['Route']),
 });
 scheme.PageScreencastFrameEvent = tObject({
+  frameId: tInt,
   data: tBinary,
   timestamp: tFloat,
   viewportWidth: tInt,
@@ -2624,6 +2625,10 @@ scheme.PageScreencastStartParams = tObject({
 scheme.PageScreencastStartResult = tObject({
   artifact: tOptional(tChannel(['Artifact'])),
 });
+scheme.PageScreencastFrameAckParams = tObject({
+  frameId: tInt,
+});
+scheme.PageScreencastFrameAckResult = tOptional(tObject({}));
 scheme.PageScreencastStopParams = tOptional(tObject({}));
 scheme.PageScreencastStopResult = tOptional(tObject({}));
 scheme.PageUpdateSubscriptionParams = tObject({

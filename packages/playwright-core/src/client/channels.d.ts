@@ -3934,6 +3934,7 @@ export interface PageChannel extends PageEventTarget, Channel {
   screencastShowActions(params: PageScreencastShowActionsParams, options: TimeoutOptions): Promise<PageScreencastShowActionsResult>;
   screencastHideActions(params: PageScreencastHideActionsParams, options: TimeoutOptions): Promise<PageScreencastHideActionsResult>;
   screencastStart(params: PageScreencastStartParams, options: TimeoutOptions): Promise<PageScreencastStartResult>;
+  screencastFrameAck(params: PageScreencastFrameAckParams, options: TimeoutOptions): Promise<PageScreencastFrameAckResult>;
   screencastStop(params: PageScreencastStopParams, options: TimeoutOptions): Promise<PageScreencastStopResult>;
   updateSubscription(params: PageUpdateSubscriptionParams, options: TimeoutOptions): Promise<PageUpdateSubscriptionResult>;
   setDockTile(params: PageSetDockTileParams, options: TimeoutOptions): Promise<PageSetDockTileResult>;
@@ -3976,6 +3977,7 @@ export type PageRouteEvent = {
   route: RouteChannel,
 };
 export type PageScreencastFrameEvent = {
+  frameId: number,
   data: Binary,
   timestamp: number,
   viewportWidth: number,
@@ -4533,6 +4535,13 @@ export type PageScreencastStartOptions = {
 export type PageScreencastStartResult = {
   artifact?: ArtifactChannel,
 };
+export type PageScreencastFrameAckParams = {
+  frameId: number,
+};
+export type PageScreencastFrameAckOptions = {
+
+};
+export type PageScreencastFrameAckResult = void;
 export type PageScreencastStopParams = {};
 export type PageScreencastStopOptions = {};
 export type PageScreencastStopResult = void;

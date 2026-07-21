@@ -545,12 +545,12 @@ export class FFPage implements PageDelegate {
 
   private _onScreencastFrame(event: Protocol.Page.screencastFramePayload) {
     const buffer = Buffer.from(event.data, 'base64');
-    this._page.screencast.onScreencastFrame({
+    void this._page.screencast.onScreencastFrame({
       buffer,
       frameSwapWallTime: event.timestamp * 1000, // timestamp is in seconds, we need to convert to milliseconds.
       viewportWidth: event.deviceWidth,
       viewportHeight: event.deviceHeight,
-    }, () => {
+    }).then(() => {
       this._session.sendMayFail('Page.screencastFrameAck');
     });
   }

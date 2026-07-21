@@ -892,12 +892,12 @@ class FrameSession {
 
   _onScreencastFrame(payload: Protocol.Page.screencastFramePayload) {
     const buffer = Buffer.from(payload.data, 'base64');
-    this._page.screencast.onScreencastFrame({
+    void this._page.screencast.onScreencastFrame({
       buffer,
       frameSwapWallTime: payload.metadata.timestamp ? payload.metadata.timestamp * 1000 : Date.now(),
       viewportWidth: payload.metadata.deviceWidth,
       viewportHeight: payload.metadata.deviceHeight,
-    }, () => {
+    }).then(() => {
       this._client._sendMayFail('Page.screencastFrameAck', { sessionId: payload.sessionId });
     });
   }

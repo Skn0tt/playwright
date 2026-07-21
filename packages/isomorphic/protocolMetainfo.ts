@@ -298,6 +298,7 @@ export const methodMetainfo = new Map<string, MethodMetainfo>([
   ['Page.screencastShowActions', { title: 'Show actions', group: 'configuration', }],
   ['Page.screencastHideActions', { title: 'Remove actions', group: 'configuration', }],
   ['Page.screencastStart', { title: 'Start screencast', group: 'configuration', }],
+  ['Page.screencastFrameAck', { internal: true, }],
   ['Page.screencastStop', { title: 'Stop screencast', group: 'configuration', }],
   ['Page.updateSubscription', { internal: true, }],
   ['Page.setDockTile', { internal: true, }],

@@ -16,6 +16,7 @@
 
 import { renderTitleForCall } from '@isomorphic/protocolFormatter';
 import { deserializeURLMatch, urlMatches } from '@isomorphic/urlMatch';
+import { ManualPromise } from '@isomorphic/manualPromise';
 import { Page, Worker } from '../page';
 import { Dispatcher } from './dispatcher';
 import { parseError, serializeError } from '../errors';
@@ -65,6 +66,8 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
   private _jsCoverageActive = false;
   private _cssCoverageActive = false;
   private _screencastClient: ScreencastClient | undefined;
+  private _screencastFrameId = 0;
+  private _screencastFrameAcks = new Map<number, ManualPromise<void>>();
   private _videoRecorder: VideoRecorder | undefined;
 
   static from(parentScope: BrowserContextDispatcher, page: Page): PageDispatcher {
@@ -397,10 +400,15 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
 
     if (params.sendFrames) {
       this._screencastClient = {
-        onFrame: (frame: ScreencastFrame) => {
-          this._dispatchEvent('screencastFrame', { data: frame.buffer, timestamp: frame.frameSwapWallTime, viewportWidth: frame.viewportWidth, viewportHeight: frame.viewportHeight });
+        onFrame: async (frame: ScreencastFrame) => {
+          const frameId = ++this._screencastFrameId;
+          const promise = new ManualPromise<void>();
+          this._screencastFrameAcks.set(frameId, promise);
+          this._dispatchEvent('screencastFrame', { frameId, data: frame.buffer, timestamp: frame.frameSwapWallTime, viewportWidth: frame.viewportWidth, viewportHeight: frame.viewportHeight });
+          await promise;
         },
-        dispose: () => {},
+        gracefulClose: () => this._clearScreencastFrameAcks(),
+        dispose: () => this._clearScreencastFrameAcks(),
         size: params.size,
         quality: params.quality,
       };
@@ -415,6 +423,14 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
     return { artifact: artifact ? createVideoDispatcher(this.parentScope(), artifact) : undefined };
   }
 
+  async screencastFrameAck(params: channels.PageScreencastFrameAckParams): Promise<channels.PageScreencastFrameAckResult> {
+    const promise = this._screencastFrameAcks.get(params.frameId);
+    if (!promise)
+      return;
+    this._screencastFrameAcks.delete(params.frameId);
+    promise.resolve();
+  }
+
   async screencastStop(params: channels.PageScreencastStopParams, progress?: Progress): Promise<channels.PageScreencastStopResult> {
     if (this._videoRecorder) {
       await this._videoRecorder.stop();
@@ -423,8 +439,16 @@ export class PageDispatcher extends Dispatcher<Page, channels.PageChannel, Brows
 
     const client = this._screencastClient;
     this._screencastClient = undefined;
-    if (client)
+    if (client) {
+      client.dispose();
       this._page.screencast.removeClient(client);
+    }
+  }
+
+  private _clearScreencastFrameAcks() {
+    for (const promise of this._screencastFrameAcks.values())
+      promise.resolve();
+    this._screencastFrameAcks.clear();
   }
 
   async startJSCoverage(params: channels.PageStartJSCoverageParams, progress: Progress): Promise<void> {

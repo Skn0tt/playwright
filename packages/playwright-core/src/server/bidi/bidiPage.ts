@@ -16,6 +16,7 @@
 
 import { debugLogger } from '@utils/debugLogger';
 import { eventsHelper } from '@utils/eventsHelper';
+import { monotonicTime } from '@isomorphic/time';
 import * as dialog from '../dialog';
 import * as dom from '../dom';
 import * as js from '../javascript';
@@ -58,7 +59,8 @@ export class BidiPage implements PageDelegate {
   private readonly _fragmentNavigations = new Set<string>();
   private readonly _failedNavigations = new Map<string, string>();
   private _screencastTimer: NodeJS.Timeout | undefined;
-  private _waitingForScreenshot = false;
+  private _screencastGeneration = 0;
+  private _screencastRunning = false;
 
   constructor(browserContext: BidiBrowserContext, bidiSession: BidiSession, opener: BidiPage | null) {
     this._session = bidiSession;
@@ -589,19 +591,18 @@ export class BidiPage implements PageDelegate {
   }
 
   startScreencast(options: { width: number, height: number, quality: number }) {
-    if (this._screencastTimer)
+    if (this._screencastRunning)
       return;
 
-    this._waitingForScreenshot = false;
-    this._screencastTimer = setInterval(async () => {
-      if (this._waitingForScreenshot)
-        return;
+    this._screencastRunning = true;
+    const generation = ++this._screencastGeneration;
+    const captureFrame = async () => {
       if (this._session.isDisposed()) {
         this.stopScreencast();
         return;
       }
 
-      this._waitingForScreenshot = true;
+      const startTime = monotonicTime();
       const payload = await this._session.sendMayFail('browsingContext.captureScreenshot', {
         context: this._session.sessionId,
         format: {
@@ -612,20 +613,24 @@ export class BidiPage implements PageDelegate {
       if (payload) {
         const buffer = Buffer.from(payload.data, 'base64');
         const { width, height } = jpegDimensions(buffer);
-        this._page.screencast.onScreencastFrame({
+        await this._page.screencast.onScreencastFrame({
           buffer,
           frameSwapWallTime: Date.now(),
           viewportWidth: width,
           viewportHeight: height,
         });
       }
-      this._waitingForScreenshot = false;
-    }, 40);
+      if (!this._screencastRunning || generation !== this._screencastGeneration)
+        return;
+      this._screencastTimer = setTimeout(captureFrame, Math.max(0, 40 - (monotonicTime() - startTime)));
+    };
+    void captureFrame();
   }
 
   stopScreencast() {
+    this._screencastRunning = false;
     if (this._screencastTimer) {
-      clearInterval(this._screencastTimer);
+      clearTimeout(this._screencastTimer);
       this._screencastTimer = undefined;
     }
   }

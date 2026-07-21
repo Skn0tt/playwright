@@ -30,8 +30,12 @@ export class Screencast implements api.Screencast {
 
   constructor(page: Page) {
     this._page = page;
-    this._page._channel.on('screencastFrame', ({ data, timestamp, viewportWidth, viewportHeight }) => {
-      void this._onFrame?.({ data, timestamp, viewportWidth, viewportHeight });
+    this._page._channel.on('screencastFrame', async ({ frameId, data, timestamp, viewportWidth, viewportHeight }) => {
+      try {
+        await this._onFrame?.({ data, timestamp, viewportWidth, viewportHeight });
+      } finally {
+        await this._page._channel.screencastFrameAck({ frameId }, kNoTimeout).catch(() => {});
+      }
     });
   }
 
