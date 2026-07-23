@@ -7,6 +7,7 @@
 ./output.ts
 ./session.ts
 ./registry.ts
+./startupTrace.ts
 
 [output.ts]
 "strict"
@@ -22,6 +23,7 @@
 ../../package.ts
 ../utils/socketConnection.ts
 ./registry.ts
+./startupTrace.ts
 
 [socketConnection.ts]
 "strict"
@@ -29,6 +31,9 @@
 [registry.ts]
 "strict"
 ../../package.ts
+
+[startupTrace.ts]
+"strict"
 
 [minimist.ts]
 "strict"

@@ -68,9 +68,20 @@ export const test = baseTest.extend<{
     await cli('show', '--kill');
   },
 
-  cli: async ({ mcpBrowser, mcpHeadless, childProcess }, use) => {
-    await fs.promises.mkdir(test.info().outputPath('.playwright'), { recursive: true });
-    const allPids: number[] = [];
+  cli: async ({ mcpBrowser, mcpHeadless, childProcess }, use, testInfo) => {
+    await fs.promises.mkdir(testInfo.outputPath('.playwright'), { recursive: true });
+    const tracePath = startupTracePath();
+    appendStartupTrace(tracePath, 'fixture.start', { title: testInfo.title });
+    const allPids = new Set<number>();
+    const emergencyTeardown = () => {
+      collectTracedPids(tracePath, allPids);
+      allPids.delete(process.pid);
+      appendStartupTrace(tracePath, 'fixture.emergency-teardown.before-kill', { processes: processStates(allPids) });
+      for (const pid of allPids)
+        killProcessGroup(pid);
+      appendStartupTrace(tracePath, 'fixture.emergency-teardown.after-kill', { processes: processStates(allPids) });
+    };
+    process.once('exit', emergencyTeardown);
 
     await use(async (...args: string[]) => {
       const cliArgs = args.filter(arg => typeof arg === 'string');
@@ -80,22 +91,30 @@ export const test = baseTest.extend<{
           () => runCli(childProcess, cliArgs, cliOptions, { mcpBrowser, mcpHeadless })
       );
       if (result.daemonPid)
-        allPids.push(result.daemonPid);
+        allPids.add(result.daemonPid);
       if (result.dashboardPid)
-        allPids.push(result.dashboardPid);
+        allPids.add(result.dashboardPid);
       return result;
     });
 
+    collectTracedPids(tracePath, allPids);
+    allPids.delete(process.pid);
+    appendStartupTrace(tracePath, 'fixture.teardown.before-kill', { processes: processStates(allPids) });
     for (const pid of allPids)
       killProcessGroup(pid);
+    for (let i = 0; i < 20 && processStates(allPids).some(state => state.alive); ++i)
+      await new Promise(resolve => setTimeout(resolve, 50));
+    appendStartupTrace(tracePath, 'fixture.teardown.after-kill', { processes: processStates(allPids) });
 
-    const daemonDir = test.info().outputPath('daemon');
+    const daemonDir = testInfo.outputPath('daemon');
     for (const dir of await fs.promises.readdir(daemonDir).catch<string[]>(() => [])) {
       if (dir.startsWith('ud-')) {
         await fs.promises.rm(path.join(daemonDir, dir), { recursive: true, force: true }).catch(() => {});
         continue;
       }
     }
+    await testInfo.attach('mcp-startup-timeline', { path: tracePath, contentType: 'application/jsonl' });
+    process.off('exit', emergencyTeardown);
   },
   boundBrowser: async ({ mcpBrowser, playwright }, use) => {
     const browserName = (mcpBrowser === 'chrome' || mcpBrowser === 'msedge') ? 'chromium' : mcpBrowser;
@@ -127,7 +146,59 @@ function cliEnv() {
     PWTEST_DAEMON_SESSION_DIR: test.info().outputPath('daemon'),
     PWTEST_SOCKETS_DIR: path.join(os.tmpdir(), 'ds-' + crypto.createHash('sha1').update(test.info().outputDir).digest('hex').slice(0, 16)),
     PWTEST_CLI_CHANNEL_SCAN_DISABLED_FOR_TEST: '1',
+    PWTEST_MCP_STARTUP_TRACE: startupTracePath(),
   };
+}
+
+function startupTracePath(): string {
+  const testInfo = test.info();
+  const traceDir = path.join(testInfo.project.outputDir, 'mcp-startup-timelines');
+  fs.mkdirSync(traceDir, { recursive: true });
+  const traceId = crypto.createHash('sha1').update(`${testInfo.testId}-${testInfo.retry}`).digest('hex');
+  return path.join(traceDir, `${traceId}.jsonl`);
+}
+
+function appendStartupTrace(tracePath: string, phase: string, data: Record<string, unknown> = {}) {
+  fs.appendFileSync(tracePath, JSON.stringify({
+    timestamp: new Date().toISOString(),
+    monotonicTime: Number(process.hrtime.bigint() / 1_000_000n),
+    pid: process.pid,
+    ppid: process.ppid,
+    phase,
+    ...data,
+  }) + '\n');
+}
+
+function collectTracedPids(tracePath: string, pids: Set<number>): void {
+  const text = fs.readFileSync(tracePath, 'utf-8');
+  for (const line of text.split('\n')) {
+    if (!line)
+      continue;
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(line);
+    } catch (error) {
+      appendStartupTrace(tracePath, 'fixture.trace-parse-error', { error: String(error), line });
+      continue;
+    }
+    for (const key of ['pid', 'childPid', 'browserPid', 'daemonPid', 'dashboardPid']) {
+      if (typeof event[key] === 'number')
+        pids.add(event[key]);
+    }
+  }
+}
+
+function processStates(pids: Iterable<number>): { pid: number, alive: boolean }[] {
+  return [...pids].map(pid => ({ pid, alive: isAlive(pid) }));
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function runCli(childProcess: CommonFixtures['childProcess'], args: string[], cliOptions: { cwd?: string, env?: Record<string, string>, bindTitle?: string }, options: { mcpBrowser: string, mcpHeadless: boolean }) {

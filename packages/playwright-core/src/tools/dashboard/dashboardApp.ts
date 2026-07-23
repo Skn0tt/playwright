@@ -22,6 +22,7 @@ import http from 'http';
 import { HttpServer } from '@utils/httpServer';
 import { makeSocketPath } from '@utils/fileUtils';
 import { gracefullyProcessExitDoNotHang } from '@utils/processLauncher';
+import { startupTrace } from '@utils/startupTrace';
 import { ManualPromise } from '@isomorphic/manualPromise';
 import { libPath } from '../../package';
 import { playwright } from '../../inprocess';
@@ -48,6 +49,7 @@ type DashboardServer = {
 };
 
 async function startDashboardServer(provider: SessionProvider, options: DashboardOptions): Promise<DashboardServer> {
+  startupTrace('dashboard.http-server.start', { host: options.host, port: options.port });
   const dashboardDir = libPath('vite', 'dashboard');
   const httpServer = new HttpServer(dashboardDir);
 
@@ -85,6 +87,7 @@ async function startDashboardServer(provider: SessionProvider, options: Dashboar
   else
     attachDashboardStaticServer(httpServer, dashboardDir);
   await httpServer.start({ port: options.port, host: options.host });
+  startupTrace('dashboard.http-server.ready', { url: httpServer.urlPrefix('human-readable') });
 
   const reveal = (next: DashboardOptions): void => {
     void connectionLanded.then(() => {
@@ -109,9 +112,11 @@ async function startDashboardServer(provider: SessionProvider, options: Dashboar
   };
 
   const close = async () => {
+    startupTrace('dashboard.teardown.start');
     for (const c of connections)
       c.close?.();
     await httpServer.stop();
+    startupTrace('dashboard.teardown.end');
   };
   return { url: httpServer.urlPrefix('human-readable'), reveal, triggerAnnotate, close };
 }
@@ -140,6 +145,7 @@ type AppState = { page?: api.Page; server: DashboardServer };
 
 async function launchApp(appName: string, options?: { onClose?: () => void }) {
   const channel = findChromiumChannelBestEffort('javascript');
+  startupTrace('dashboard.browser.launch-persistent-context.start', { channel });
   const context = await playwright.chromium.launchPersistentContext('', {
     ignoreDefaultArgs: ['--enable-automation'],
     channel,
@@ -152,8 +158,12 @@ async function launchApp(appName: string, options?: { onClose?: () => void }) {
     ],
     viewport: null,
   });
-  if (process.env.PWTEST_DASHBOARD_APP_BIND_TITLE)
+  startupTrace('dashboard.browser.launch-persistent-context.end', { channel });
+  if (process.env.PWTEST_DASHBOARD_APP_BIND_TITLE) {
+    startupTrace('dashboard.browser-bind.start', { title: process.env.PWTEST_DASHBOARD_APP_BIND_TITLE });
     await context.browser()?.bind(process.env.PWTEST_DASHBOARD_APP_BIND_TITLE, { workspaceDir: process.cwd() });
+    startupTrace('dashboard.browser-bind.end', { title: process.env.PWTEST_DASHBOARD_APP_BIND_TITLE });
+  }
 
   const [page] = context.pages();
   // Chromium on macOS opens a new tab when clicking on the dock icon.
@@ -167,7 +177,10 @@ async function launchApp(appName: string, options?: { onClose?: () => void }) {
     });
   }
 
-  page.on('close', () => options?.onClose?.());
+  page.on('close', () => {
+    startupTrace('dashboard.browser-page.close');
+    options?.onClose?.();
+  });
 
   const image = await fs.promises.readFile(libPath('tools', 'dashboard', 'appIcon.png'));
   // This is local Playwright, so I can access private methods.
@@ -272,6 +285,8 @@ async function acquireSingleton(options: DashboardOptions, onConnection: (socket
 
 export async function openDashboardApp() {
   const options = parseOpenArgs();
+  startupTrace('dashboard.process.start', { options });
+  process.on('exit', exitCode => startupTrace('dashboard.process.exit', { exitCode }));
   if (options.kill) {
     await runKillClient();
     return;
@@ -290,7 +305,9 @@ export async function openDashboardApp() {
   const stopSelfDestruct = selfDestructOnParentGone();
 
   const statePromise = new ManualPromise<AppState>();
+  startupTrace('dashboard.singleton-acquire.start');
   const acquired = await acquireSingleton(options, socket => handleConnection(socket, statePromise));
+  startupTrace('dashboard.singleton-acquire.end', { role: acquired.role, daemonPid: acquired.role === 'loser' ? acquired.daemonPid : process.pid });
   if (acquired.role === 'loser') {
     // Another daemon is already running, signal success.
     stopSelfDestruct();
@@ -311,7 +328,9 @@ export async function openDashboardApp() {
     } else {
       // Windowed daemon launches a browser window and detaches from the parent CLI.
       const { page } = await launchApp('dashboard', { onClose: () => gracefullyProcessExitDoNotHang(0) });
+      startupTrace('dashboard.page-goto.start', { url: dashboard.url });
       await page.goto(dashboard.url);
+      startupTrace('dashboard.page-goto.end', { url: dashboard.url });
       statePromise.resolve({ page, server: dashboard });
       stopSelfDestruct();
       // eslint-disable-next-line no-console
@@ -343,6 +362,7 @@ function handleConnection(socket: net.Socket, statePromise: Promise<AppState>) {
       socket.end();
       return;
     }
+    startupTrace('dashboard.singleton-request', { options: parsed });
     const { page, server: dashboard } = await statePromise;
     if (parsed.annotate) {
       const cancellation = new AbortController();
@@ -357,11 +377,13 @@ function handleConnection(socket: net.Socket, statePromise: Promise<AppState>) {
         socket.end(e);
       }
     } else if (parsed.kill) {
+      startupTrace('dashboard.singleton-kill.start');
       await dashboard.close().catch(() => {});
       gracefullyProcessExitDoNotHang(0, () => new Promise(r => socket.end(r)));
     } else {
       void page?.bringToFront().catch(() => {});
       dashboard.reveal(parsed);
+      startupTrace('dashboard.singleton-ack', { daemonPid: process.pid });
       socket.end(JSON.stringify({ pid: process.pid }) + '\n');
     }
   });

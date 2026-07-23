@@ -35,6 +35,7 @@ env:
 jobs:
   test_extension:
     name: ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     strategy:
       fail-fast: false
       matrix:

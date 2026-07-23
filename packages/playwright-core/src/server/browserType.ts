@@ -25,6 +25,7 @@ import { debugMode } from '@utils/debug';
 import { existsAsync } from '@utils/fileUtils';
 import { envArrayToObject, launchProcess } from '@utils/processLauncher';
 import { RecentLogsCollector } from '@utils/debugLogger';
+import { startupTrace } from '@utils/startupTrace';
 import { normalizeProxySettings, validateBrowserContextOptions } from './browserContext';
 import { helper } from './helper';
 import { SdkObject } from './instrumentation';
@@ -73,6 +74,7 @@ export abstract class BrowserType extends SdkObject {
   }
 
   async launchPersistentContext(progress: Progress, userDataDir: string, options: channels.BrowserTypeLaunchPersistentContextOptions & { internalIgnoreHTTPSErrors?: boolean, socksProxyPort?: number }): Promise<BrowserContext> {
+    startupTrace('browser.launch-persistent-context.start', { browserName: this._name });
     const launchOptions = this._validateLaunchOptions(options);
     // Note: Any initial TLS requests will fail since we rely on the Page/Frames initialize which sets ignoreHTTPSErrors.
     let clientCertificatesProxy: ClientCertificatesProxy | undefined;
@@ -85,6 +87,7 @@ export abstract class BrowserType extends SdkObject {
     try {
       const browser = await this._innerLaunchWithRetries(progress, launchOptions, options, helper.debugProtocolLogger(), userDataDir).catch(e => { throw this._rewriteStartupLog(e); });
       browser._defaultContext!._clientCertificatesProxy = clientCertificatesProxy;
+      startupTrace('browser.launch-persistent-context.end', { browserName: this._name });
       return browser._defaultContext!;
     } catch (error) {
       await clientCertificatesProxy?.close().catch(() => {});
@@ -135,11 +138,16 @@ export abstract class BrowserType extends SdkObject {
       if (persistent)
         validateBrowserContextOptions(persistent, browserOptions);
       copyTestHooks(options, browserOptions);
+      startupTrace('browser.transport-connect.start', { browserName: this._name, browserPid: browserProcess.process?.pid, persistent: !!persistent });
       const browser = await progress.race(this.connectToTransport(transport, browserOptions, browserLogsCollector));
+      startupTrace('browser.transport-connect.end', { browserName: this._name, browserPid: browserProcess.process?.pid, persistent: !!persistent });
       (browser as any)._userDataDirForTest = userDataDir;
       // We assume no control when using custom arguments, and do not prepare the default context in that case.
-      if (persistent && !options.ignoreAllDefaultArgs)
+      if (persistent && !options.ignoreAllDefaultArgs) {
+        startupTrace('browser.persistent-context-load.start', { browserName: this._name, browserPid: browserProcess.process?.pid });
         await browser._defaultContext!.loadDefaultContext(progress);
+        startupTrace('browser.persistent-context-load.end', { browserName: this._name, browserPid: browserProcess.process?.pid });
+      }
       return browser;
     } catch (error) {
       await progress.race(browserProcess.close().catch(() => {}));
@@ -211,6 +219,7 @@ export abstract class BrowserType extends SdkObject {
     let transport: ConnectionTransport | undefined = undefined;
     let browserProcess: BrowserProcess | undefined = undefined;
     const exitPromise = new ManualPromise();
+    startupTrace('browser.launch-process.start', { browserName: this._name, persistent: isPersistent });
     const { launchedProcess, gracefullyClose, kill } = await progress.race(launchProcess({
       command: prepared.executable,
       args: prepared.browserArguments,
@@ -235,12 +244,14 @@ export abstract class BrowserType extends SdkObject {
         }
       },
       onExit: (exitCode, signal) => {
+        startupTrace('browser.process.exit', { browserName: this._name, browserPid: browserProcess?.process?.pid, exitCode, signal });
         // Unblock launch when browser prematurely exits.
         exitPromise.resolve();
         if (browserProcess && browserProcess.onclose)
           browserProcess.onclose(exitCode, signal);
       },
     }));
+    startupTrace('browser.process.spawned', { browserName: this._name, browserPid: launchedProcess.pid, persistent: isPersistent });
 
     async function closeOrKill(timeout: number): Promise<void> {
       let timer: NodeJS.Timeout;
@@ -262,6 +273,7 @@ export abstract class BrowserType extends SdkObject {
       kill
     };
     try {
+      startupTrace('browser.ready-state.start', { browserName: this._name, browserPid: launchedProcess.pid });
       const { wsEndpoint } = await progress.race([
         this.waitForReadyState(options, browserLogsCollector),
         exitPromise.then(() => ({ wsEndpoint: undefined })),
@@ -271,12 +283,14 @@ export abstract class BrowserType extends SdkObject {
         const updatedLog = this.doRewriteStartupLog(log);
         throw new Error(`Failed to launch the browser process.\nBrowser logs:\n${updatedLog}`);
       }
+      startupTrace('browser.ready-state.end', { browserName: this._name, browserPid: launchedProcess.pid });
       if (!this.supportsPipeTransport(options)) {
         transport = await WebSocketTransport.connect(progress, wsEndpoint!);
       } else {
         const stdio = launchedProcess.stdio as unknown as [NodeJS.ReadableStream, NodeJS.WritableStream, NodeJS.WritableStream, NodeJS.WritableStream, NodeJS.ReadableStream];
         transport = new PipeTransport(stdio[3], stdio[4]);
       }
+      startupTrace('browser.transport.ready', { browserName: this._name, browserPid: launchedProcess.pid });
       return { browserProcess, artifactsDir: prepared.artifactsDir, userDataDir: prepared.userDataDir, transport, wsEndpoint };
     } catch (error) {
       await progress.race(closeOrKill(DEFAULT_PLAYWRIGHT_TIMEOUT).catch(() => {}));

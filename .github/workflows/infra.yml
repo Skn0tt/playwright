@@ -13,6 +13,7 @@ on:
 jobs:
   doc-and-lint:
     name: "docs & lint"
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
@@ -35,6 +36,7 @@ jobs:
       continue-on-error: true
   lint-snippets:
     name: "Lint snippets"
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6

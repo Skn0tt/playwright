@@ -32,6 +32,7 @@ env:
 jobs:
   test_linux:
     name: ${{ matrix.os }} (${{ matrix.browser }} - Node.js ${{ matrix.node-version }})
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     strategy:
       fail-fast: false
@@ -67,6 +68,7 @@ jobs:
 
   test_test_runner:
     name: Test Runner
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     strategy:
       fail-fast: false
@@ -142,6 +144,7 @@ jobs:
 
   test_web_components:
     name: Web Components - ${{ matrix.package }}
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     permissions:
       id-token: write   # This is required for OIDC login (azure/login) to succeed
@@ -165,6 +168,7 @@ jobs:
 
   test_vscode_extension:
     name: VSCode Extension
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -201,6 +205,7 @@ jobs:
 
   test_package_installations:
     name: "Installation Test ${{ matrix.os }}"
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     strategy:
       fail-fast: false
@@ -237,6 +242,7 @@ jobs:
 
   test_clock_frozen_time_linux:
     name: time library - ${{ matrix.clock }}
+    if: github.event_name != 'pull_request' || github.head_ref != 'skn0tt-diagnose-mcp-startup-stalls'
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     permissions:
       id-token: write   # This is required for OIDC login (azure/login) to succeed

@@ -18,6 +18,7 @@ import fs from 'fs';
 
 import { makeSocketPath } from '@utils/fileUtils';
 import { createGuid } from '@utils/crypto';
+import { startupTrace } from '@utils/startupTrace';
 import { BrowserContext, validateBrowserContextOptions } from './browserContext';
 import { Download } from './download';
 import { SdkObject } from './instrumentation';
@@ -231,6 +232,7 @@ export class BrowserServer {
       endpoint = this._pipeSocketPath;
     }
 
+    startupTrace('browser.registry-publication.start', { browserPid: this._browser.options.browserProcess.process?.pid, title, endpoint });
     const browserInfo: BrowserInfo = {
       guid: this._browser.guid,
       browserName: this._browser.options.browserType,
@@ -243,10 +245,12 @@ export class BrowserServer {
       workspaceDir: options.workspaceDir,
       metadata: options.metadata,
     });
+    startupTrace('browser.registry-publication.end', { browserPid: this._browser.options.browserProcess.process?.pid, title, endpoint });
     return { endpoint };
   }
 
   async stop() {
+    startupTrace('browser.server-teardown.start', { browserPid: this._browser.options.browserProcess.process?.pid });
     if (!this._browser.options.userDataDir)
       await serverRegistry.delete(this._browser.guid);
     if (this._pipeSocketPath && process.platform !== 'win32')
@@ -256,6 +260,7 @@ export class BrowserServer {
     this._pipeServer = undefined;
     this._wsServer = undefined;
     this._isStarted = false;
+    startupTrace('browser.server-teardown.end', { browserPid: this._browser.options.browserProcess.process?.pid });
   }
 
   private async _socketPath() {

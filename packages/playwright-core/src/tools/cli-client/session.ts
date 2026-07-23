@@ -22,6 +22,7 @@ import os from 'os';
 import path from 'path';
 import { libPath } from '../../package';
 import { compareSemver, SocketConnection } from '../utils/socketConnection';
+import { startupTrace } from './startupTrace';
 import { resolveSessionName } from './registry';
 
 import type { SessionConfig, ClientInfo, SessionFile } from './registry';
@@ -49,7 +50,10 @@ export class Session {
     const { socket } = await this._connect();
     if (!socket)
       throw new Error(`Browser '${this.name}' is not open. Run\n\n  playwright-cli${this.name !== 'default' ? ` -s=${this.name}` : ''} open\n\nto start the browser session.`);
-    return await SocketConnectionClient.sendAndClose(socket, 'run', { args, cwd: process.cwd(), raw: options?.raw, json: options?.json });
+    startupTrace('cli-client.daemon-command.start', { sessionName: this.name, command: args._?.[0] });
+    const result = await SocketConnectionClient.sendAndClose(socket, 'run', { args, cwd: process.cwd(), raw: options?.raw, json: options?.json });
+    startupTrace('cli-client.daemon-command.ack', { sessionName: this.name, command: args._?.[0] });
+    return result;
   }
 
   async stop(): Promise<{ wasOpen: boolean }> {
@@ -89,11 +93,14 @@ export class Session {
   }
 
   private async _connect(): Promise<{ socket?: net.Socket, error?: Error }> {
+    startupTrace('cli-client.daemon-connect.start', { sessionName: this.name, socketPath: this.config.socketPath });
     return await new Promise(resolve => {
       const socket = net.createConnection(this.config.socketPath, () => {
+        startupTrace('cli-client.daemon-connect.end', { sessionName: this.name, socketPath: this.config.socketPath });
         resolve({ socket });
       });
       socket.on('error', error => {
+        startupTrace('cli-client.daemon-connect.error', { sessionName: this.name, socketPath: this.config.socketPath, error: error.message });
         if (os.platform() !== 'win32')
           void fs.promises.unlink(this.config.socketPath).catch(() => {}).then(() => resolve({ error }));
         else
@@ -144,11 +151,13 @@ export class Session {
     else if (cliArgs.endpoint)
       args.push(`--endpoint=${cliArgs.endpoint}`);
 
+    startupTrace('cli-client.daemon-spawn.start', { sessionName, mode, args });
     const child = spawn(process.execPath, args, {
       detached: true,
       stdio: ['ignore', 'pipe', err],
       cwd: process.cwd(), // Will be used as root.
     });
+    startupTrace('cli-client.daemon-spawned', { sessionName, mode, daemonPid: child.pid });
 
     let signalled = false;
     const sigintHandler = () => {
@@ -165,6 +174,7 @@ export class Session {
     let outLog = '';
     const rejectWithPid = (reject: (e: Error) => void, message: string) =>
       reject(Object.assign(new Error(`Daemon pid=${child.pid}: ${message}`), { daemonPid: child.pid }));
+    startupTrace('cli-client.daemon-ready-ack.start', { sessionName, daemonPid: child.pid });
     await new Promise<void>((resolve, reject) => {
       child.stdout!.on('data', data => {
         outLog += data.toString();
@@ -178,6 +188,7 @@ export class Session {
         }
       });
     });
+    startupTrace('cli-client.daemon-ready-ack.end', { sessionName, daemonPid: child.pid });
 
     process.off('SIGINT', sigintHandler);
     process.off('SIGTERM', sigtermHandler);

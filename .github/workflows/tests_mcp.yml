@@ -1,4 +1,4 @@
-name: MCP
+name: MCP startup diagnostic (temporary)
 
 on:
   push:
@@ -30,24 +30,18 @@ env:
 
 jobs:
   test_mcp:
-    name: ${{ matrix.os }} - ${{ matrix.project }}
+    name: DIAGNOSTIC - ${{ matrix.os }} - ${{ matrix.project }} - sample ${{ matrix.sample }}
     # Used for authentication of flakiness upload
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        project: [chrome, chromium, firefox, webkit]
-        include:
-          - os: windows-latest
-            project: chrome
-          - os: windows-latest
-            project: chromium
-          - os: windows-latest
-            project: firefox
-          - os: windows-latest
-            project: webkit
-          - os: windows-latest
+        # Temporary startup-stall diagnostic: 10 fresh runners for each affected configuration.
+        os: [ubuntu-latest, windows-latest]
+        project: [chrome, msedge]
+        sample: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        exclude:
+          - os: ubuntu-latest
             project: msedge
     runs-on: ${{ matrix.os }}
     permissions:
@@ -58,8 +52,16 @@ jobs:
     - uses: ./.github/actions/run-test
       with:
         node-version: "22"
-        command: npm run test-mcp -- --project=${{ matrix.project }}
-        bot-name: "mcp-${{ matrix.os }}-${{ matrix.project }}"
+        # Keep the full suite and serial execution so setup/order/cleanup effects remain intact.
+        command: npm run test-mcp -- --project=${{ matrix.project }} --workers=1
+        bot-name: "mcp-startup-diagnostic-${{ matrix.os }}-${{ matrix.project }}-sample-${{ matrix.sample }}"
         flakiness-client-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_CLIENT_ID }}
         flakiness-tenant-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_TENANT_ID }}
         flakiness-subscription-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_SUBSCRIPTION_ID }}
+    - name: Upload raw MCP startup timelines
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: "mcp-startup-timelines-${{ matrix.os }}-${{ matrix.project }}-sample-${{ matrix.sample }}"
+        path: test-results/mcp-startup-timelines/*.jsonl
+        if-no-files-found: error

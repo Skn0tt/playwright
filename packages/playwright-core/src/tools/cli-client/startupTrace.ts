@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-import { program } from './program';
-import { startupTrace } from './startupTrace';
+import fs from 'fs';
 
-startupTrace('cli-client.process.start', { argv: process.argv.slice(2) });
-process.on('exit', exitCode => startupTrace('cli-client.process.exit', { exitCode }));
-
-program().then(() => {
-  startupTrace('cli-client.command.ack');
-}).catch(e => {
-  startupTrace('cli-client.command.error', { error: e.message });
-  /* eslint-disable no-console */
-  console.error(e.message);
-  /* eslint-disable no-restricted-properties */
-  process.exit(1);
-});
+// CLI client entries are emitted as standalone files and cannot import @utils/startupTrace.
+export function startupTrace(phase: string, data: Record<string, unknown> = {}): void {
+  const traceFile = process.env.PWTEST_MCP_STARTUP_TRACE;
+  if (!traceFile)
+    return;
+  const entry = {
+    timestamp: new Date().toISOString(),
+    monotonicTime: Number(process.hrtime.bigint() / 1_000_000n),
+    pid: process.pid,
+    ppid: process.ppid,
+    phase,
+    ...data,
+  };
+  fs.appendFileSync(traceFile, JSON.stringify(entry) + '\n');
+}

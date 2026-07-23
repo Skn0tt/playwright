@@ -29,6 +29,7 @@ import { Session } from './session';
 import { libPath } from '../../package';
 import { serverRegistry } from '../../serverRegistry';
 import { minimist } from './minimist';
+import { startupTrace } from './startupTrace';
 
 import type { ListData, ListedBrowser, Output } from './output';
 import type { ClientInfo, SessionFile } from './registry';
@@ -237,18 +238,22 @@ export async function program(options?: { embedderVersion?: string}) {
         return;
       }
       const foreground = args.port !== undefined;
+      startupTrace('cli-client.dashboard-spawn.start', { foreground, daemonArgs });
       const child = spawn(process.execPath, daemonArgs, {
         detached: !foreground,
         stdio: foreground ? 'inherit' : ['pipe', 'pipe', 'ignore'],
       });
+      startupTrace('cli-client.dashboard-spawned', { foreground, dashboardPid: child.pid });
       if (foreground) {
         await new Promise<void>(resolve => child.on('exit', () => resolve()));
+        startupTrace('cli-client.dashboard-foreground.exit', { dashboardPid: child.pid });
         return;
       }
       const timer = setTimeout(() => child.stdin!.destroy(), 60_000);
       child.unref();
       let daemonPid: number;
       try {
+        startupTrace('cli-client.dashboard-ready-ack.start', { dashboardPid: child.pid });
         await new Promise<void>((resolve, reject) => {
           let outLog = '';
           child.stdout!.on('data', data => {
@@ -261,6 +266,7 @@ export async function program(options?: { embedderVersion?: string}) {
           });
           child.once('exit', (code, signal) => reject(new Error(`Dashboard daemon exited (code=${code}, signal=${signal}) before signaling READY${outLog ? '\n' + outLog : ''}`)));
         });
+        startupTrace('cli-client.dashboard-ready-ack.end', { dashboardPid: child.pid, daemonPid: daemonPid! });
       } finally {
         clearTimeout(timer);
         child.removeAllListeners('exit');

@@ -22,6 +22,7 @@ import path from 'path';
 
 import { getAsBooleanFromENV, guessClientName } from '@utils/env';
 import { gracefullyProcessExitDoNotHang } from '@utils/processLauncher';
+import { startupTrace } from '@utils/startupTrace';
 import { startCliDaemonServer } from './daemon';
 import { setupExitWatchdog } from '../mcp/watchdog';
 import { createBrowserWithInfo } from '../mcp/browserFactory';
@@ -47,6 +48,8 @@ export function decorateProgram(program: Command) {
       .option('--init-skills <value>', 'install skills for the given agent type ("claude" or "agents")')
 
       .action(async (sessionName: string, options: any) => {
+        startupTrace('cli-daemon.process.start', { sessionName, options });
+        process.on('exit', exitCode => startupTrace('cli-daemon.process.exit', { sessionName, exitCode }));
         if (options.initWorkspace) {
           await initWorkspace(options.initSkills);
           return;
@@ -61,16 +64,25 @@ export function decorateProgram(program: Command) {
         };
 
         try {
+          startupTrace('cli-daemon.browser-create.start', { sessionName });
           const { browser, browserInfo, canBind, ownership } = await createBrowserWithInfo(mcpConfig, mcpClientInfo, options);
-          if (canBind)
+          startupTrace('cli-daemon.browser-create.end', { sessionName, canBind, ownership });
+          if (canBind) {
+            startupTrace('cli-daemon.browser-bind.start', { sessionName });
             await browser.bind(sessionName, { workspaceDir: clientInfo.workspaceDir });
+            startupTrace('cli-daemon.browser-bind.end', { sessionName });
+          }
           const browserContext = mcpConfig.browser.isolated ? await browser.newContext(mcpConfig.browser.contextOptions) : browser.contexts()[0];
           if (!browserContext)
             throw new Error('Error: unable to connect to a browser that does not have any contexts');
+          startupTrace('cli-daemon.browser-context.ready', { sessionName });
           const persistent = options.persistent || options.profile || mcpConfig.browser.userDataDir ? true : undefined;
+          startupTrace('cli-daemon.server.start', { sessionName });
           const socketPath = await startCliDaemonServer(sessionName, browserContext, browserInfo, mcpConfig, clientInfo, mcpClientInfo, { persistent, exitOnClose: true, ownership });
+          startupTrace('cli-daemon.server.ready', { sessionName, socketPath });
           console.log(`Daemon listening on ${socketPath}\n`);
         } catch (error) {
+          startupTrace('cli-daemon.process.error', { sessionName, error: String(error) });
           console.log(error);
           gracefullyProcessExitDoNotHang(1);
         }
