@@ -39,7 +39,7 @@ jobs:
       max-parallel: 5
       matrix:
         # Temporary startup-stall diagnostic: 10 fresh runners for each affected configuration.
-        os: [ubuntu-latest, windows-latest]
+        os: [windows-latest, ubuntu-latest]
         project: [chrome, msedge]
         sample: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         exclude:
@@ -55,7 +55,7 @@ jobs:
       with:
         node-version: "22"
         # Keep the full suite and serial execution so setup/order/cleanup effects remain intact.
-        command: npm run test-mcp -- --project=${{ matrix.project }} --workers=1
+        command: bash .github/scripts/run-mcp-startup-diagnostic.sh ${{ matrix.project }}
         bot-name: "mcp-startup-diagnostic-${{ matrix.os }}-${{ matrix.project }}-sample-${{ matrix.sample }}"
         flakiness-client-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_CLIENT_ID }}
         flakiness-tenant-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_TENANT_ID }}
@@ -66,4 +66,11 @@ jobs:
       with:
         name: "mcp-startup-timelines-${{ matrix.os }}-${{ matrix.project }}-sample-${{ matrix.sample }}"
         path: test-results/mcp-startup-timelines/*.jsonl
+        if-no-files-found: error
+    - name: Upload Ubuntu runner health
+      if: always() && matrix.os == 'ubuntu-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: "mcp-runner-health-${{ matrix.os }}-${{ matrix.project }}-sample-${{ matrix.sample }}"
+        path: mcp-runner-health/runner-health.tsv
         if-no-files-found: error
