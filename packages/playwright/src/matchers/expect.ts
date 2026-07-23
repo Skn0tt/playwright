@@ -343,6 +343,7 @@ function callMatcherAsStep(matcherName: string, info: ExpectMetaInfo, actual: un
     apiName,
     title: longTitle,
     shortTitle,
+    location: stackFrames[0],
     params: args[0] ? { expected: args[0] } : undefined,
   };
   const step = testInfo?._addStep(stepData);

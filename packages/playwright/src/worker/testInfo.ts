@@ -295,14 +295,13 @@ export class TestInfoImpl implements TestInfo {
         parentStep = this._parentStep();
     }
 
-    const filteredStack = filteredStackTrace(captureRawStack());
     let boxedStack = parentStep?.boxedStack;
     let location = data.location;
     if (!boxedStack && data.box) {
-      boxedStack = filteredStack.slice(1);
-      location = location || boxedStack[0];
+      boxedStack = filteredStackTrace(captureRawStack()).slice(1);
+      location ??= boxedStack[0];
     }
-    location = location || filteredStack[0];
+    location ??= filteredStackTrace(captureRawStack())[0];
 
     const step: TestStepInternal = {
       ...data,
