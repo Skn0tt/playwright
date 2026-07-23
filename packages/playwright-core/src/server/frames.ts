@@ -26,6 +26,7 @@ import { assert } from '@isomorphic/assert';
 import { constructURLBasedOnBaseURL } from '@isomorphic/urlMatch';
 import { makeWaitForNextTask } from '@utils/task';
 import { createGuid } from '@utils/crypto';
+import { startupTrace } from '@utils/startupTrace';
 import { BrowserContext } from './browserContext';
 import * as dom from './dom';
 import { TimeoutError, isTargetClosedError } from './errors';
@@ -703,52 +704,69 @@ export class Frame extends SdkObject<FrameEventMap> {
       referer = options.referer;
     }
     url = helper.completeUserURL(url);
+    const traceData = { url, waitUntil, frameId: this._id };
+    startupTrace('navigation.goto.start', traceData);
 
     const navigationEvents: NavigationEvent[] = [];
     const collectNavigations = (arg: NavigationEvent) => navigationEvents.push(arg);
     this.on(Frame.Events.InternalNavigation, collectNavigations);
     let navigateResult;
     try {
+      startupTrace('navigation.command.start', traceData);
       navigateResult = await progress.race(this._page.delegate.navigateFrame(this, url, referer));
+      startupTrace('navigation.command.end', { ...traceData, newDocumentId: navigateResult.newDocumentId });
+    } catch (error) {
+      startupTrace('navigation.command.error', { ...traceData, error: String(error) });
+      throw error;
     } finally {
       this.off(Frame.Events.InternalNavigation, collectNavigations);
     }
 
-    let event: NavigationEvent;
-    if (navigateResult.newDocumentId) {
-      const predicate = (event: NavigationEvent) => {
-        // We are interested either in this specific document, or any other document that
-        // did commit and replaced the expected document.
-        return event.newDocument && (event.newDocument.documentId === navigateResult.newDocumentId || !event.error);
-      };
-      const events = navigationEvents.filter(predicate);
-      if (events.length)
-        event = events[0];
-      else
-        event = await helper.waitForEvent(progress, this, Frame.Events.InternalNavigation, predicate).promise;
-      if (event.newDocument!.documentId !== navigateResult.newDocumentId) {
-        // This is just a sanity check. In practice, new navigation should
-        // cancel the previous one and report "request cancelled"-like error.
-        throw new NavigationAbortedError(navigateResult.newDocumentId, `Navigation to "${url}" is interrupted by another navigation to "${event.url}"`);
+    try {
+      let event: NavigationEvent;
+      if (navigateResult.newDocumentId) {
+        const predicate = (event: NavigationEvent) => {
+          // We are interested either in this specific document, or any other document that
+          // did commit and replaced the expected document.
+          return event.newDocument && (event.newDocument.documentId === navigateResult.newDocumentId || !event.error);
+        };
+        const events = navigationEvents.filter(predicate);
+        if (events.length)
+          event = events[0];
+        else
+          event = await helper.waitForEvent(progress, this, Frame.Events.InternalNavigation, predicate).promise;
+        if (event.newDocument!.documentId !== navigateResult.newDocumentId) {
+          // This is just a sanity check. In practice, new navigation should
+          // cancel the previous one and report "request cancelled"-like error.
+          throw new NavigationAbortedError(navigateResult.newDocumentId, `Navigation to "${url}" is interrupted by another navigation to "${event.url}"`);
+        }
+        if (event.error)
+          throw event.error;
+      } else {
+        // Wait for same document navigation.
+        const predicate = (e: NavigationEvent) => !e.newDocument;
+        const events = navigationEvents.filter(predicate);
+        if (events.length)
+          event = events[0];
+        else
+          event = await helper.waitForEvent(progress, this, Frame.Events.InternalNavigation, predicate).promise;
       }
-      if (event.error)
-        throw event.error;
-    } else {
-      // Wait for same document navigation.
-      const predicate = (e: NavigationEvent) => !e.newDocument;
-      const events = navigationEvents.filter(predicate);
-      if (events.length)
-        event = events[0];
-      else
-        event = await helper.waitForEvent(progress, this, Frame.Events.InternalNavigation, predicate).promise;
+      startupTrace('navigation.commit', { ...traceData, committedUrl: event.url });
+
+      if (!this._firedLifecycleEvents.has(waitUntil)) {
+        startupTrace('navigation.lifecycle-wait.start', traceData);
+        await helper.waitForEvent(progress, this, Frame.Events.AddLifecycle, (e: types.LifecycleEvent) => e === waitUntil).promise;
+      }
+      startupTrace('navigation.lifecycle-ready', traceData);
+
+      const request = event.newDocument ? event.newDocument.request : undefined;
+      const response = request ? await request._finalRequest().response(progress) : null;
+      startupTrace('navigation.goto.end', traceData);
+      return response;
+    } catch (error) {
+      startupTrace('navigation.goto.error', { ...traceData, error: String(error) });
+      throw error;
     }
-
-    if (!this._firedLifecycleEvents.has(waitUntil))
-      await helper.waitForEvent(progress, this, Frame.Events.AddLifecycle, (e: types.LifecycleEvent) => e === waitUntil).promise;
-
-    const request = event.newDocument ? event.newDocument.request : undefined;
-    const response = request ? await request._finalRequest().response(progress) : null;
-    return response;
   }
 
   async waitForNavigation(progress: Progress, requiresNewDocument: boolean, options: types.NavigateOptions): Promise<network.Response | null> {

@@ -35,6 +35,8 @@ jobs:
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     strategy:
       fail-fast: false
+      # Avoid losing an entire platform batch if the hosted runner fleet is under pressure.
+      max-parallel: 5
       matrix:
         # Temporary startup-stall diagnostic: 10 fresh runners for each affected configuration.
         os: [ubuntu-latest, windows-latest]

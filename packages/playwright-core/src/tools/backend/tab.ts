@@ -21,6 +21,7 @@ import { locatorOrSelectorAsSelector } from '@isomorphic/locatorParser';
 import { ManualPromise } from '@isomorphic/manualPromise';
 import { eventsHelper } from '@utils/eventsHelper';
 import { disposeAll } from '@isomorphic/disposable';
+import { startupTrace } from '@utils/startupTrace';
 import { waitForCompletion, eventWaiter } from './utils';
 import { LogFile } from './logFile';
 import { ModalState } from './tool';
@@ -334,14 +335,18 @@ export class Tab extends EventEmitter<TabEventsInterface> {
 
     const { promise: downloadEvent, abort: abortDownloadEvent } = eventWaiter<playwright.Download>(this.page, 'download', 3000);
     try {
+      startupTrace('target-navigation.goto.start', { url });
       await this.page.goto(url, { waitUntil: 'domcontentloaded', ...this.navigationTimeoutOptions });
+      startupTrace('target-navigation.goto.end', { url });
       abortDownloadEvent();
     } catch (_e: unknown) {
       const e = _e as Error;
       if (!e.message.includes('Download is starting')) {
+        startupTrace('target-navigation.goto.error', { url, error: String(e) });
         abortDownloadEvent();
         throw e;
       }
+      startupTrace('target-navigation.goto.download', { url });
       const download = await downloadEvent;
       if (!download)
         throw e;
@@ -351,7 +356,14 @@ export class Tab extends EventEmitter<TabEventsInterface> {
     }
 
     // Cap load event to 5 seconds, the page is operational at this point.
-    await this.waitForLoadState('load', { timeout: 5000 });
+    startupTrace('target-navigation.load-wait.start', { url });
+    try {
+      await this.waitForLoadState('load', { timeout: 5000 });
+    } catch (error) {
+      startupTrace('target-navigation.load-wait.error', { url, error: String(error) });
+      throw error;
+    }
+    startupTrace('target-navigation.load-wait.end', { url });
   }
 
   async consoleMessageCount(): Promise<{ total: number, errors: number, warnings: number }> {

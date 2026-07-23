@@ -71,10 +71,12 @@ async function startDashboardServer(provider: SessionProvider, options: Dashboar
   });
 
   const wsGuid = httpServer.wsGuid()!;
-  httpServer.routePath('/', (_, response) => {
+  httpServer.routePath('/', (request, response) => {
+    startupTrace('dashboard.http-root.request', { url: request.url });
     response.statusCode = 302;
     response.setHeader('Location', `/index.html?ws=${wsGuid}`);
     response.end();
+    startupTrace('dashboard.http-root.response', { url: request.url });
     return true;
   });
 
@@ -166,6 +168,22 @@ async function launchApp(appName: string, options?: { onClose?: () => void }) {
   }
 
   const [page] = context.pages();
+  if (process.env.PWTEST_MCP_STARTUP_TRACE) {
+    page.on('request', request => {
+      if (request.resourceType() === 'document')
+        startupTrace('dashboard.browser-request', { url: request.url() });
+    });
+    page.on('response', response => {
+      if (response.request().resourceType() === 'document')
+        startupTrace('dashboard.browser-response', { url: response.url(), status: response.status() });
+    });
+    page.on('requestfailed', request => {
+      if (request.resourceType() === 'document')
+        startupTrace('dashboard.browser-request-failed', { url: request.url(), error: request.failure()?.errorText });
+    });
+    page.on('domcontentloaded', () => startupTrace('dashboard.browser-domcontentloaded', { url: page.url() }));
+    page.on('load', () => startupTrace('dashboard.browser-load', { url: page.url() }));
+  }
   // Chromium on macOS opens a new tab when clicking on the dock icon.
   // See https://github.com/microsoft/playwright/issues/9434
   if (process.platform === 'darwin') {
@@ -329,7 +347,12 @@ export async function openDashboardApp() {
       // Windowed daemon launches a browser window and detaches from the parent CLI.
       const { page } = await launchApp('dashboard', { onClose: () => gracefullyProcessExitDoNotHang(0) });
       startupTrace('dashboard.page-goto.start', { url: dashboard.url });
-      await page.goto(dashboard.url);
+      try {
+        await page.goto(dashboard.url);
+      } catch (error) {
+        startupTrace('dashboard.page-goto.error', { url: dashboard.url, error: String(error) });
+        throw error;
+      }
       startupTrace('dashboard.page-goto.end', { url: dashboard.url });
       statePromise.resolve({ page, server: dashboard });
       stopSelfDestruct();

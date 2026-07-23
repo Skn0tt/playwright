@@ -19,6 +19,7 @@ import path from 'path';
 
 import { assert } from '@isomorphic/assert';
 import { createGuid } from '@utils/crypto';
+import { startupTrace } from '@utils/startupTrace';
 import { Artifact } from '../artifact';
 import { Browser } from '../browser';
 import { BrowserContext, verifyGeolocation } from '../browserContext';
@@ -57,6 +58,12 @@ export class CRBrowser extends Browser {
   private _userAgent: string = '';
 
   static async connect(parent: SdkObject, transport: ConnectionTransport, options: BrowserOptions, devtools?: CRDevTools): Promise<CRBrowser> {
+    const traceData = { browserPid: options.browserProcess.process?.pid, persistent: !!options.persistent };
+    const traceConnectError = (error: unknown): never => {
+      startupTrace('chromium.connect.error', { ...traceData, error: String(error) });
+      throw error;
+    };
+    startupTrace('chromium.connect.start', traceData);
     // Make a copy in case we need to update `headful` property below.
     options = { ...options };
     const connection = new CRConnection(parent, transport, options.protocolLogger, options.browserLogsCollector);
@@ -65,10 +72,17 @@ export class CRBrowser extends Browser {
     if (browser.isClank())
       browser._isBrowserCollocatedWithServer = false;
     const session = connection.rootSession;
-    if ((options as any).__testHookOnConnectToBrowser)
-      await (options as any).__testHookOnConnectToBrowser();
+    if ((options as any).__testHookOnConnectToBrowser) {
+      try {
+        await (options as any).__testHookOnConnectToBrowser();
+      } catch (error) {
+        traceConnectError(error);
+      }
+    }
 
-    const version = await session.send('Browser.getVersion');
+    startupTrace('chromium.browser-get-version.start', traceData);
+    const version = await session.send('Browser.getVersion').catch(traceConnectError);
+    startupTrace('chromium.browser-get-version.end', traceData);
     browser._revision = version.revision;
     browser._version = version.product.substring(version.product.indexOf('/') + 1);
     try {
@@ -80,20 +94,35 @@ export class CRBrowser extends Browser {
     // may have been launched with different options.
     browser.options.headful = !version.userAgent.includes('Headless');
     if (!options.persistent) {
-      await session.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+      startupTrace('chromium.target-set-auto-attach.start', traceData);
+      await session.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }).catch(traceConnectError);
+      startupTrace('chromium.target-set-auto-attach.end', traceData);
+      startupTrace('chromium.connect.end', traceData);
       return browser;
     }
     browser._defaultContext = new CRBrowserContext(browser, undefined, options.persistent);
     await Promise.all([
-      session.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true }).then(async () => {
+      (async () => {
+        startupTrace('chromium.target-set-auto-attach.start', traceData);
+        await session.send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
+        startupTrace('chromium.target-set-auto-attach.end', traceData);
         // Target.setAutoAttach has a bug where it does not wait for new Targets being attached.
         // However making a dummy call afterwards fixes this.
         // This can be removed after https://chromium-review.googlesource.com/c/chromium/src/+/2885888 lands in stable.
+        startupTrace('chromium.target-get-target-info.start', traceData);
         await session.send('Target.getTargetInfo');
-      }),
-      browser._defaultContext.initialize(),
-    ]);
-    await browser._waitForAllPagesToBeInitialized();
+        startupTrace('chromium.target-get-target-info.end', traceData);
+      })(),
+      (async () => {
+        startupTrace('chromium.default-context-initialize.start', traceData);
+        await browser._defaultContext!.initialize();
+        startupTrace('chromium.default-context-initialize.end', traceData);
+      })(),
+    ]).catch(traceConnectError);
+    startupTrace('chromium.wait-for-pages.start', traceData);
+    await browser._waitForAllPagesToBeInitialized().catch(traceConnectError);
+    startupTrace('chromium.wait-for-pages.end', traceData);
+    startupTrace('chromium.connect.end', traceData);
     return browser;
   }
 
