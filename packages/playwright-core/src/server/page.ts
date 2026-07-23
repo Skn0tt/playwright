@@ -553,7 +553,7 @@ export class Page extends SdkObject<PageEventMap> {
     if (!mainFrame || !mainFrame.pendingDocument())
       return;
     const url = mainFrame.pendingDocument()?.request?.url();
-    const toUrl = url ? `" ${trimStringWithEllipsis(url, 200)}"` : '';
+    const toUrl = url ? ` "${trimStringWithEllipsis(url, 200)}"` : '';
     progress.log(`  waiting for${toUrl} navigation to finish...`);
     await helper.waitForEvent(progress, mainFrame, frames.Frame.Events.InternalNavigation, (e: frames.NavigationEvent) => {
       if (!e.isPublic)
