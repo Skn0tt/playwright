@@ -38,7 +38,7 @@ jobs:
       # Avoid losing an entire platform batch if the hosted runner fleet is under pressure.
       max-parallel: 5
       matrix:
-        # Temporary startup-stall diagnostic: 10 fresh runners for each affected configuration.
+        # Temporary Perfetto follow-up: ten fresh runners for each affected configuration.
         os: [windows-latest, ubuntu-latest]
         project: [chrome, msedge]
         sample: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -67,6 +67,13 @@ jobs:
         name: "mcp-startup-timelines-${{ matrix.os }}-${{ matrix.project }}-sample-${{ matrix.sample }}"
         path: test-results/mcp-startup-timelines/*.jsonl
         if-no-files-found: error
+    - name: Upload retained Chromium startup traces
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: "mcp-chromium-traces-${{ matrix.os }}-${{ matrix.project }}-sample-${{ matrix.sample }}"
+        path: test-results/mcp-chromium-traces/**/*.pftrace
+        if-no-files-found: warn
     - name: Upload Ubuntu runner health
       if: always() && matrix.os == 'ubuntu-latest'
       uses: actions/upload-artifact@v4

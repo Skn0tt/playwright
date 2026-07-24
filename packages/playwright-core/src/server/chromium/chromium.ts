@@ -26,6 +26,7 @@ import { RecentLogsCollector } from '@utils/debugLogger';
 import { removeFolders } from '@utils/fileUtils';
 import { gracefullyCloseSet } from '@utils/processLauncher';
 import { debugMode } from '@utils/debug';
+import { startupTrace } from '@utils/startupTrace';
 import { headersArrayToObject, headersObjectToArray } from '@isomorphic/headers';
 import { fetchData } from '../utils';
 import { getUserAgent } from '../userAgent';
@@ -56,6 +57,7 @@ import type http from 'http';
 import type stream from 'stream';
 
 const ARTIFACTS_FOLDER = path.join(os.tmpdir(), 'playwright-artifacts-');
+let startupTraceOrdinal = 0;
 
 export class Chromium extends BrowserType {
   private _devtools: CRDevTools | undefined;
@@ -372,6 +374,18 @@ export class Chromium extends BrowserType {
     if (args.find(arg => !arg.startsWith('-')))
       throw new Error('Arguments can not specify page to be opened');
     const chromeArguments = [...chromiumSwitches()];
+    const startupTraceDir = process.env.PWTEST_MCP_CHROMIUM_TRACE_DIR;
+    if (startupTraceDir) {
+      fs.mkdirSync(startupTraceDir, { recursive: true });
+      const tracePath = path.join(startupTraceDir, `${process.pid}-${++startupTraceOrdinal}.pftrace`);
+      chromeArguments.push(
+          '--trace-startup=*',
+          `--trace-startup-file=${tracePath}`,
+          '--trace-startup-duration=35',
+          '--trace-startup-format=proto',
+      );
+      startupTrace('chromium.perfetto-trace.configured', { tracePath });
+    }
 
     // See https://issues.chromium.org/issues/40277080
     chromeArguments.push('--enable-unsafe-swiftshader');

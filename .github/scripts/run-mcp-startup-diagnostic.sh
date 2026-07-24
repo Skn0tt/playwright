@@ -4,8 +4,21 @@ set -euo pipefail
 
 project="$1"
 
+run_tests() {
+  set +e
+  "$@"
+  local test_status=$?
+  node .github/scripts/recover-mcp-chromium-traces.mjs
+  local recovery_status=$?
+  if [[ "$test_status" != "0" ]]; then
+    return "$test_status"
+  fi
+  return "$recovery_status"
+}
+
 if [[ "$(uname)" != "Linux" ]]; then
-  exec npm run test-mcp -- --project="$project" --workers=1
+  run_tests npm run test-mcp -- --project="$project" --workers=1 --timeout=60000
+  exit $?
 fi
 
 health_dir="mcp-runner-health"
@@ -41,7 +54,7 @@ cleanup() {
 trap cleanup EXIT
 
 set +e
-timeout --signal=INT --kill-after=30s 35m npm run test-mcp -- --project="$project" --workers=1
+run_tests timeout --signal=INT --kill-after=30s 35m npm run test-mcp -- --project="$project" --workers=1 --timeout=60000
 status=$?
 set -e
 

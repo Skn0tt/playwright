@@ -65,16 +65,22 @@ export const test = baseTest.extend<{
       }).toPass();
       return await playwright.chromium.connect(endpoint);
     });
+    const slowBrowserGaps = findSlowBrowserGaps(startupTracePath());
+    if (slowBrowserGaps.length)
+      await waitForChromiumStartupTrace(slowBrowserGaps);
     await cli('show', '--kill');
   },
 
   cli: async ({ mcpBrowser, mcpHeadless, childProcess }, use, testInfo) => {
     await fs.promises.mkdir(testInfo.outputPath('.playwright'), { recursive: true });
     const tracePath = startupTracePath();
+    const chromiumTraceDir = chromiumStartupTraceDir();
     appendStartupTrace(tracePath, 'fixture.start', { title: testInfo.title });
     const tracedPids = new Set<number>();
     const ownedPids = new Set<number>();
     const emergencyTeardown = () => {
+      const slowBrowserGaps = findSlowBrowserGaps(tracePath);
+      appendStartupTrace(tracePath, 'fixture.emergency-chromium-trace-retention', { slowBrowserGaps });
       collectTracedPids(tracePath, tracedPids, ownedPids);
       tracedPids.delete(process.pid);
       appendStartupTrace(tracePath, 'fixture.emergency-teardown.before-kill', {
@@ -87,6 +93,8 @@ export const test = baseTest.extend<{
         processes: processStates(tracedPids),
         ownedProcesses: processStates(ownedPids),
       });
+      if (slowBrowserGaps.length)
+        appendStartupTrace(tracePath, 'fixture.emergency-chromium-trace-recovery', recoverChromiumStartupTracesSync(chromiumTraceDir));
     };
     process.once('exit', emergencyTeardown);
 
@@ -103,6 +111,11 @@ export const test = baseTest.extend<{
         ownedPids.add(result.dashboardPid);
       return result;
     });
+
+    const slowBrowserGaps = findSlowBrowserGaps(tracePath);
+    appendStartupTrace(tracePath, 'fixture.chromium-trace-retention', { slowBrowserGaps });
+    if (slowBrowserGaps.length)
+      await waitForChromiumStartupTrace(slowBrowserGaps);
 
     collectTracedPids(tracePath, tracedPids, ownedPids);
     tracedPids.delete(process.pid);
@@ -125,6 +138,15 @@ export const test = baseTest.extend<{
         await fs.promises.rm(path.join(daemonDir, dir), { recursive: true, force: true }).catch(() => {});
         continue;
       }
+    }
+    const chromiumTraceFiles = await recoverChromiumStartupTraces(chromiumTraceDir);
+    if (slowBrowserGaps.length) {
+      if (!chromiumTraceFiles.length)
+        appendStartupTrace(tracePath, 'fixture.chromium-trace-missing');
+      for (const file of chromiumTraceFiles)
+        await testInfo.attach(`chromium-startup-${file}`, { path: path.join(chromiumTraceDir, file), contentType: 'application/octet-stream' });
+    } else {
+      await fs.promises.rm(chromiumTraceDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
     await testInfo.attach('mcp-startup-timeline', { path: tracePath, contentType: 'application/jsonl' });
     process.off('exit', emergencyTeardown);
@@ -160,6 +182,7 @@ function cliEnv() {
     PWTEST_SOCKETS_DIR: path.join(os.tmpdir(), 'ds-' + crypto.createHash('sha1').update(test.info().outputDir).digest('hex').slice(0, 16)),
     PWTEST_CLI_CHANNEL_SCAN_DISABLED_FOR_TEST: '1',
     PWTEST_MCP_STARTUP_TRACE: startupTracePath(),
+    PWTEST_MCP_CHROMIUM_TRACE_DIR: chromiumStartupTraceDir(),
   };
 }
 
@@ -169,6 +192,12 @@ function startupTracePath(): string {
   fs.mkdirSync(traceDir, { recursive: true });
   const traceId = crypto.createHash('sha1').update(`${testInfo.testId}-${testInfo.retry}`).digest('hex');
   return path.join(traceDir, `${traceId}.jsonl`);
+}
+
+function chromiumStartupTraceDir(): string {
+  const testInfo = test.info();
+  const traceId = crypto.createHash('sha1').update(`${testInfo.testId}-${testInfo.retry}`).digest('hex');
+  return path.join(testInfo.project.outputDir, 'mcp-chromium-traces', traceId);
 }
 
 function appendStartupTrace(tracePath: string, phase: string, data: Record<string, unknown> = {}) {
@@ -183,17 +212,7 @@ function appendStartupTrace(tracePath: string, phase: string, data: Record<strin
 }
 
 function collectTracedPids(tracePath: string, tracedPids: Set<number>, ownedPids: Set<number>): void {
-  const text = fs.readFileSync(tracePath, 'utf-8');
-  for (const line of text.split('\n')) {
-    if (!line)
-      continue;
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(line);
-    } catch (error) {
-      appendStartupTrace(tracePath, 'fixture.trace-parse-error', { error: String(error), line });
-      continue;
-    }
+  for (const event of readStartupTraceEvents(tracePath)) {
     for (const key of ['pid', 'childPid', 'browserPid', 'daemonPid', 'dashboardPid']) {
       if (typeof event[key] === 'number')
         tracedPids.add(event[key]);
@@ -203,6 +222,162 @@ function collectTracedPids(tracePath: string, tracedPids: Set<number>, ownedPids
         ownedPids.add(event[key]);
     }
   }
+}
+
+type StartupTraceEvent = {
+  monotonicTime?: number,
+  phase?: string,
+  pid?: number,
+  tracePath?: string,
+};
+
+type SlowBrowserGap = {
+  phase: string,
+  duration: number,
+  pid: number,
+  completed: boolean,
+  traceConfiguredAt: number,
+};
+
+const browserPhasePairs = new Map([
+  ['browser.launch-process.start', 'browser.process.spawned'],
+  ['browser.transport-connect.start', 'browser.transport-connect.end'],
+  ['browser.launch-persistent-context.start', 'browser.launch-persistent-context.end'],
+  ['chromium.browser-get-version.start', 'chromium.browser-get-version.end'],
+  ['chromium.target-set-auto-attach.start', 'chromium.target-set-auto-attach.end'],
+  ['chromium.target-get-target-info.start', 'chromium.target-get-target-info.end'],
+  ['chromium.wait-for-pages.start', 'chromium.wait-for-pages.end'],
+  ['navigation.command.start', 'navigation.command.end'],
+  ['navigation.lifecycle-wait.start', 'navigation.lifecycle-ready'],
+  ['dashboard.browser.launch-persistent-context.start', 'dashboard.browser.launch-persistent-context.end'],
+  ['dashboard.page-goto.start', 'dashboard.page-goto.end'],
+]);
+
+function readStartupTraceEvents(tracePath: string): StartupTraceEvent[] {
+  const events: StartupTraceEvent[] = [];
+  for (const line of fs.readFileSync(tracePath, 'utf-8').split('\n')) {
+    if (!line)
+      continue;
+    try {
+      events.push(JSON.parse(line));
+    } catch (error) {
+      appendStartupTrace(tracePath, 'fixture.trace-parse-error', { error: String(error), line });
+    }
+  }
+  return events;
+}
+
+function findSlowBrowserGaps(tracePath: string): SlowBrowserGap[] {
+  const events = readStartupTraceEvents(tracePath);
+  const retentionThreshold = Number(process.env.PWTEST_MCP_CHROMIUM_TRACE_THRESHOLD_MS || 5_000);
+  const configuredAt = new Map<number, number>();
+  const starts = new Map<string, StartupTraceEvent[]>();
+  const gaps: SlowBrowserGap[] = [];
+  for (const event of events) {
+    if (event.phase === 'chromium.perfetto-trace.configured' && event.pid && event.monotonicTime)
+      configuredAt.set(event.pid, event.monotonicTime);
+    const endPhase = event.phase ? browserPhasePairs.get(event.phase) : undefined;
+    if (endPhase && event.pid) {
+      const key = `${event.pid}:${endPhase}`;
+      const pending = starts.get(key) || [];
+      pending.push(event);
+      starts.set(key, pending);
+      continue;
+    }
+    if (!event.phase || !event.pid || !event.monotonicTime)
+      continue;
+    const key = `${event.pid}:${event.phase}`;
+    const start = starts.get(key)?.shift();
+    if (!start?.phase || !start.monotonicTime)
+      continue;
+    const duration = event.monotonicTime - start.monotonicTime;
+    const traceConfiguredAt = configuredAt.get(event.pid);
+    if (duration >= retentionThreshold && traceConfiguredAt !== undefined)
+      gaps.push({ phase: start.phase, duration, pid: event.pid, completed: true, traceConfiguredAt });
+  }
+  const now = Number(process.hrtime.bigint() / 1_000_000n);
+  for (const pending of starts.values()) {
+    for (const start of pending) {
+      if (!start.phase || !start.pid || !start.monotonicTime)
+        continue;
+      const duration = now - start.monotonicTime;
+      const traceConfiguredAt = configuredAt.get(start.pid);
+      if (duration >= retentionThreshold && traceConfiguredAt !== undefined)
+        gaps.push({ phase: start.phase, duration, pid: start.pid, completed: false, traceConfiguredAt });
+    }
+  }
+  return gaps;
+}
+
+async function waitForChromiumStartupTrace(slowBrowserGaps: SlowBrowserGap[]): Promise<void> {
+  const traceCompletionTime = Math.max(...slowBrowserGaps.map(gap => gap.traceConfiguredAt)) + 37_000;
+  while (Number(process.hrtime.bigint() / 1_000_000n) < traceCompletionTime)
+    await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+async function recoverChromiumStartupTraces(traceDir: string): Promise<string[]> {
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(traceDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      return [];
+    throw error;
+  }
+  const traces = files.filter(file => file.endsWith('.pftrace'));
+  for (const file of files) {
+    if (file.endsWith('.pftrace'))
+      continue;
+    const source = path.join(traceDir, file);
+    let size: number;
+    try {
+      size = (await fs.promises.stat(source)).size;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        continue;
+      throw error;
+    }
+    if (!size)
+      continue;
+    const target = `recovered-${crypto.randomUUID()}.pftrace`;
+    try {
+      await fs.promises.rename(source, path.join(traceDir, target));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        continue;
+      throw error;
+    }
+    traces.push(target);
+  }
+  return traces;
+}
+
+function recoverChromiumStartupTracesSync(traceDir: string): { traces: string[], errors: string[] } {
+  const traces: string[] = [];
+  const errors: string[] = [];
+  let files: string[];
+  try {
+    files = fs.readdirSync(traceDir);
+  } catch (error) {
+    return { traces, errors: [String(error)] };
+  }
+  for (const file of files) {
+    if (file.endsWith('.pftrace')) {
+      traces.push(file);
+      continue;
+    }
+    const source = path.join(traceDir, file);
+    try {
+      if (!fs.statSync(source).size)
+        continue;
+      const target = `emergency-recovered-${crypto.randomUUID()}.pftrace`;
+      fs.renameSync(source, path.join(traceDir, target));
+      traces.push(target);
+    } catch (error) {
+      errors.push(`${file}: ${String(error)}`);
+    }
+  }
+  return { traces, errors };
 }
 
 function processStates(pids: Iterable<number>): { pid: number, alive: boolean }[] {
