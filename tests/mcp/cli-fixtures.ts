@@ -72,14 +72,21 @@ export const test = baseTest.extend<{
     await fs.promises.mkdir(testInfo.outputPath('.playwright'), { recursive: true });
     const tracePath = startupTracePath();
     appendStartupTrace(tracePath, 'fixture.start', { title: testInfo.title });
-    const allPids = new Set<number>();
+    const tracedPids = new Set<number>();
+    const ownedPids = new Set<number>();
     const emergencyTeardown = () => {
-      collectTracedPids(tracePath, allPids);
-      allPids.delete(process.pid);
-      appendStartupTrace(tracePath, 'fixture.emergency-teardown.before-kill', { processes: processStates(allPids) });
-      for (const pid of allPids)
+      collectTracedPids(tracePath, tracedPids, ownedPids);
+      tracedPids.delete(process.pid);
+      appendStartupTrace(tracePath, 'fixture.emergency-teardown.before-kill', {
+        processes: processStates(tracedPids),
+        ownedProcesses: processStates(ownedPids),
+      });
+      for (const pid of ownedPids)
         killProcessGroup(pid);
-      appendStartupTrace(tracePath, 'fixture.emergency-teardown.after-kill', { processes: processStates(allPids) });
+      appendStartupTrace(tracePath, 'fixture.emergency-teardown.after-kill', {
+        processes: processStates(tracedPids),
+        ownedProcesses: processStates(ownedPids),
+      });
     };
     process.once('exit', emergencyTeardown);
 
@@ -91,20 +98,26 @@ export const test = baseTest.extend<{
           () => runCli(childProcess, cliArgs, cliOptions, { mcpBrowser, mcpHeadless })
       );
       if (result.daemonPid)
-        allPids.add(result.daemonPid);
+        ownedPids.add(result.daemonPid);
       if (result.dashboardPid)
-        allPids.add(result.dashboardPid);
+        ownedPids.add(result.dashboardPid);
       return result;
     });
 
-    collectTracedPids(tracePath, allPids);
-    allPids.delete(process.pid);
-    appendStartupTrace(tracePath, 'fixture.teardown.before-kill', { processes: processStates(allPids) });
-    for (const pid of allPids)
+    collectTracedPids(tracePath, tracedPids, ownedPids);
+    tracedPids.delete(process.pid);
+    appendStartupTrace(tracePath, 'fixture.teardown.before-kill', {
+      processes: processStates(tracedPids),
+      ownedProcesses: processStates(ownedPids),
+    });
+    for (const pid of ownedPids)
       killProcessGroup(pid);
-    for (let i = 0; i < 20 && processStates(allPids).some(state => state.alive); ++i)
+    for (let i = 0; i < 20 && processStates(ownedPids).some(state => state.alive); ++i)
       await new Promise(resolve => setTimeout(resolve, 50));
-    appendStartupTrace(tracePath, 'fixture.teardown.after-kill', { processes: processStates(allPids) });
+    appendStartupTrace(tracePath, 'fixture.teardown.after-kill', {
+      processes: processStates(tracedPids),
+      ownedProcesses: processStates(ownedPids),
+    });
 
     const daemonDir = testInfo.outputPath('daemon');
     for (const dir of await fs.promises.readdir(daemonDir).catch<string[]>(() => [])) {
@@ -169,7 +182,7 @@ function appendStartupTrace(tracePath: string, phase: string, data: Record<strin
   }) + '\n');
 }
 
-function collectTracedPids(tracePath: string, pids: Set<number>): void {
+function collectTracedPids(tracePath: string, tracedPids: Set<number>, ownedPids: Set<number>): void {
   const text = fs.readFileSync(tracePath, 'utf-8');
   for (const line of text.split('\n')) {
     if (!line)
@@ -183,7 +196,11 @@ function collectTracedPids(tracePath: string, pids: Set<number>): void {
     }
     for (const key of ['pid', 'childPid', 'browserPid', 'daemonPid', 'dashboardPid']) {
       if (typeof event[key] === 'number')
-        pids.add(event[key]);
+        tracedPids.add(event[key]);
+    }
+    for (const key of ['daemonPid', 'dashboardPid']) {
+      if (typeof event[key] === 'number')
+        ownedPids.add(event[key]);
     }
   }
 }
