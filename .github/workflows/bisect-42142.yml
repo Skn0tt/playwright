@@ -1,0 +1,60 @@
+name: Bisect 42142 CfT
+on:
+  workflow_dispatch:
+    inputs:
+      good:
+        description: 'Known good chromium position'
+        required: true
+        default: '1639810'
+      bad:
+        description: 'Known bad chromium position'
+        required: true
+        default: '1654411'
+      workers:
+        description: 'Playwright workers'
+        required: true
+        default: '32'
+      rounds:
+        description: 'Stress rounds per revision'
+        required: true
+        default: '5'
+      each:
+        description: 'repeat-each'
+        required: true
+        default: '50'
+jobs:
+  bisect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install deps
+        working-directory: mre
+        run: |
+          npm init -y
+          npm install @playwright/test@1.61.1 --no-fund --no-audit
+          # browser deps only; we supply chromium via CRPATH
+          npx playwright install-deps chromium
+          sudo apt-get update && sudo apt-get install -y unzip
+      - name: Run bisect
+        working-directory: mre
+        env:
+          GOOD: ${{ inputs.good }}
+          BAD: ${{ inputs.bad }}
+          WORKERS: ${{ inputs.workers }}
+          ROUNDS: ${{ inputs.rounds }}
+          EACH: ${{ inputs.each }}
+          PLAYWRIGHT_HTML_OPEN: never
+          CACHE: ${{ runner.temp }}/cft-cache
+        run: node bisect.mjs
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bisect-result
+          path: |
+            mre/bisect-result.json
+            mre/test-results/**
