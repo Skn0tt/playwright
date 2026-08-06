@@ -1,5 +1,7 @@
 name: Bisect 42142 CfT
 on:
+  push:
+    branches: [tmp-bisect-42142-cft]
   workflow_dispatch:
     inputs:
       good:
@@ -36,17 +38,16 @@ jobs:
         run: |
           npm init -y
           npm install @playwright/test@1.61.1 --no-fund --no-audit
-          # browser deps only; we supply chromium via CRPATH
           npx playwright install-deps chromium
           sudo apt-get update && sudo apt-get install -y unzip
       - name: Run bisect
         working-directory: mre
         env:
-          GOOD: ${{ inputs.good }}
-          BAD: ${{ inputs.bad }}
-          WORKERS: ${{ inputs.workers }}
-          ROUNDS: ${{ inputs.rounds }}
-          EACH: ${{ inputs.each }}
+          GOOD: ${{ github.event.inputs.good || '1639810' }}
+          BAD: ${{ github.event.inputs.bad || '1654411' }}
+          WORKERS: ${{ github.event.inputs.workers || '32' }}
+          ROUNDS: ${{ github.event.inputs.rounds || '5' }}
+          EACH: ${{ github.event.inputs.each || '50' }}
           PLAYWRIGHT_HTML_OPEN: never
           CACHE: ${{ runner.temp }}/cft-cache
         run: node bisect.mjs
@@ -57,4 +58,3 @@ jobs:
           name: bisect-result
           path: |
             mre/bisect-result.json
-            mre/test-results/**
